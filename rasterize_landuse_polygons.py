@@ -96,7 +96,7 @@ def main():
             for field_id, field_description in landcover_id_to_description.items():
                 table_file.write(f'{field_id},{field_description}\n')
 
-    null_task = task_graph.add_task()
+    null_task = task_graph.add_task(task_name='null task')
     for shapefile_path, raster_path in shapefile_to_raster_map.items():
         last_task = null_task
         for rasterize_val, field_value, in landcover_id_to_description.items():
