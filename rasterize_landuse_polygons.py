@@ -24,7 +24,7 @@ CODE_ID = 'id'
 def simplify_poly(base_vector_path, target_vector_path, tol, description_field_id, code_id, description_to_id_map):
     """Simplify base to target."""
     subprocess.run(
-        f'ogr2ogr -simplify {tol} -f GPKG {target_vector_path} {base_vector_path}',
+        f'ogr2ogr -simplify {tol} -f GPKG -overwrite {target_vector_path} {base_vector_path}',
         shell=True, check=True)
     vector = ogr.OpenEx(target_vector_path)
     layer = vector.GetLayer()
