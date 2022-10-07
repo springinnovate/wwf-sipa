@@ -1,6 +1,7 @@
 """Rasterize the landuse polygons onto a single raster."""
 import glob
 import logging
+import os
 
 from ecoshard import geoprocessing
 from osgeo import gdal
