@@ -105,7 +105,7 @@ def main():
                 func=rasterize_id_by_value,
                 args=(vector_path, raster_path, landcover_field, field_value, rasterize_val),
                 dependent_task_list=[last_task],
-                task_id=f'{rasterize_val} on {os.path.basename(raster_path)}')
+                task_name=f'{rasterize_val} on {os.path.basename(raster_path)}')
 
     task_graph.close()
     task_graph.join()
