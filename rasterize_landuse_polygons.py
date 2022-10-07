@@ -36,7 +36,7 @@ def rasterize_id_by_value(vector_path, raster_path, field_id, field_value, raste
     geoprocessing.rasterize(
         vector_path, raster_path, burn_values=[rasterize_val],
         option_list=["MERGE_ALG=REPLACE", "ALL_TOUCHED=TRUE"],
-        where_clause=f"{field_id}={field_value}")
+        where_clause=f'{field_id}="{field_value}"')
 
 
 def get_all_field_values(shapefile_path, field_id):
