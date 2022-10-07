@@ -15,7 +15,7 @@ logging.basicConfig(
 logging.getLogger('taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-TARGET_PIXEL_SIZE = 3.0
+TARGET_PIXEL_SIZE = 10.0
 
 
 def main():
