@@ -2,7 +2,7 @@
 import glob
 import logging
 import os
-
+import subprocess
 
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
@@ -18,9 +18,27 @@ logging.getLogger('taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
 TARGET_PIXEL_SIZE = 10.0
+CODE_ID = 'id'
+
+def simplify_poly(base_vector_path, target_vector_path, tol, description_field_id, code_id, description_to_id_map):
+    """Simplify base to target."""
+    subprocess.run(
+        ['ogr2ogr', '-simplify', tol, '--format', 'GPKG', target_vector_path, base_vector_path],
+        shell=True, check=True)
+    vector = ogr.OpenEx(target_vector_path)
+    layer = vector.GetLayer()
+    id_field = ogr.FieldDefn(code_id, ogr.OFTInteger)
+    layer.CreateField(id_field)
+
+    layer.StartTransaction()
+    for feature in layer:
+        feature.SetField(
+            code_id, description_to_id_map[feature.GetField(description_field_id)])
+        layer.SetFeature(feature)
+    layer.CommitTransaction()
 
 
-def rasterize_id_by_value(vector_path, raster_path, field_id, field_value, rasterize_val):
+def rasterize_id_by_value(vector_path, raster_path, field_id):
     """Rasterize a subset of vector onto raster.
 
     Args:
@@ -35,8 +53,7 @@ def rasterize_id_by_value(vector_path, raster_path, field_id, field_value, raste
     """
     geoprocessing.rasterize(
         vector_path, raster_path, burn_values=[rasterize_val],
-        option_list=["MERGE_ALG=REPLACE", "ALL_TOUCHED=TRUE"],
-        where_clause=f'{field_id}="{field_value}"')
+        option_list=["MERGE_ALG=REPLACE", "ALL_TOUCHED=TRUE", f"ATTRIBUTE={field_id}"])
 
 
 def get_all_field_values(shapefile_path, field_id):
@@ -51,11 +68,13 @@ def get_all_field_values(shapefile_path, field_id):
 
 def main():
     path_to_shapefiles = './data/land_use_polygons/*'
+    simplified_vector_dir = './data/simplified_vectors'
     path_to_target_rasters = './data/landcover_rasters/'
     path_to_template_table = './data/biophysical_template.csv'
+    os.makedirs(path_to_target_rasters, exist_ok=True)
+    os.makedirs(simplified_vector_dir, exist_ok=True)
 
     task_graph = taskgraph.TaskGraph('.', 4, 15.0)
-    os.makedirs(path_to_target_rasters, exist_ok=True)
     landcover_field = 'AGG12'
     landcover_id_set = set()
     field_value_task_list = []
@@ -86,26 +105,30 @@ def main():
 
     for task in field_value_task_list:
         landcover_id_set |= task.get()
-    landcover_id_to_description = {
-        i+1: description for (i, description) in enumerate(sorted(landcover_id_set))
+    description_to_landcover = {
+        description: i+1 for (i, description) in enumerate(sorted(landcover_id_set))
     }
     LOGGER.info(f'landcover set: {landcover_id_set}')
     if not os.path.exists(path_to_template_table):
         with open(path_to_template_table, 'w') as table_file:
             table_file.write('lulc_id,lulc_description\n')
-            for field_id, field_description in landcover_id_to_description.items():
+            for field_description, field_id in description_to_landcover.items():
                 table_file.write(f'{field_id},{field_description}\n')
 
-    null_task = task_graph.add_task(task_name='null task')
     for vector_path, raster_path in shapefile_to_raster_map.items():
-        last_task = null_task
-        for rasterize_val, field_value, in landcover_id_to_description.items():
-            LOGGER.debug(f'call rasterize with {landcover_field} {field_value} {rasterize_val}')
-            last_task = task_graph.add_task(
-                func=rasterize_id_by_value,
-                args=(vector_path, raster_path, landcover_field, field_value, rasterize_val),
-                dependent_task_list=[last_task],
-                task_name=f'{rasterize_val} on {os.path.basename(raster_path)}')
+        basename = os.path.basename(os.path.splitext(vector_path)[0])
+        simplified_vector_path = os.path.join(simplified_vector_dir, f'{basename}_simple.gpkg')
+        simplify_task = task_graph.add_task(
+            func=simplify_poly,
+            args=(base_vector_path, simplified_vector_path, TARGET_PIXEL_SIZE/2, landcover_field, CODE_ID, description_to_landcover),
+            ignore_path_list=[base_vector_path, simplified_vector_path],
+            task_name=f'simplifying {simplified_vector_path}')
+
+        task_graph.add_task(
+            func=rasterize_id_by_value,
+            args=(vector_path, raster_path, CODE_ID),
+            dependent_task_list=[simplify_task],
+            task_name=f'{rasterize_val} on {os.path.basename(raster_path)}')
 
     task_graph.close()
     task_graph.join()
