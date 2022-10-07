@@ -33,6 +33,7 @@ def get_all_field_values(shapefile_path, field_id):
 def main():
     path_to_shapefiles = './data/land_use_polygons/*'
     path_to_target_rasters = './data/landcover_rasters/'
+    task_graph = taskgraph.TaskGraph('.', 4, 5.0)
     os.makedirs(path_to_target_rasters, exist_ok=True)
     landcover_field = 'AGG12'
     landcover_id_set = set()
