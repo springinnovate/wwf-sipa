@@ -3,6 +3,7 @@ import glob
 import logging
 
 from ecoshard import geoprocessing
+from osgeo import gdal
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -24,7 +25,6 @@ def main():
         for feature in layer:
             landcover_id_set.add(feature.GetField(landcover_field))
     LOGGER.info(f'landcover set: {landcover_id_set}')
-
 
 
 if __name__ == '__main__':
