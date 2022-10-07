@@ -7,6 +7,7 @@ import subprocess
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
 from osgeo import gdal
+from osgeo import ogr
 import numpy
 
 logging.basicConfig(
