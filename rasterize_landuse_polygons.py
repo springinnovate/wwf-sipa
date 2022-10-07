@@ -14,7 +14,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def main():
-    path_to_shapefiles = './data/land_use_polygons/*.shp'
+    path_to_shapefiles = './data/land_use_polygons/*'
     landcover_field = 'AGG12'
     landcover_id_set = set()
     for shapefile_path in glob.glob(path_to_shapefiles):
