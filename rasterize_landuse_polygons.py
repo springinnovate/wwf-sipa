@@ -33,7 +33,7 @@ def get_all_field_values(shapefile_path, field_id):
 def main():
     path_to_shapefiles = './data/land_use_polygons/*'
     path_to_target_rasters = './data/landcover_rasters/'
-    task_graph = taskgraph.TaskGraph('.', 4, 5.0)
+    task_graph = taskgraph.TaskGraph('.', 4, 15.0)
     os.makedirs(path_to_target_rasters, exist_ok=True)
     landcover_field = 'AGG12'
     landcover_id_set = set()
@@ -58,8 +58,7 @@ def main():
         target_raster_path = os.path.join(path_to_target_rasters, f'{basename}_lulc.tif')
         geoprocessing.create_raster_from_vector_extents(
             shapefile_path, target_raster_path, (TARGET_PIXEL_SIZE, -TARGET_PIXEL_SIZE),
-            gdal.GDT_Byte, 128,
-            raster_driver_creation_tuple=DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS)
+            gdal.GDT_Byte, 128)
 
     for task in field_value_task_list:
         landcover_id_set |= task.get()
