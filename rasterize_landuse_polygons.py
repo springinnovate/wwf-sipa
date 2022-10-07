@@ -26,7 +26,7 @@ def simplify_poly(base_vector_path, target_vector_path, tol, description_field_i
     subprocess.run(
         f'ogr2ogr -simplify {tol} -f GPKG -overwrite {target_vector_path} {base_vector_path}',
         shell=True, check=True)
-    vector = ogr.OpenEx(target_vector_path)
+    vector = ogr.Open(target_vector_path, 1)
     layer = vector.GetLayer()
     id_field = ogr.FieldDefn(code_id, ogr.OFTInteger)
     layer.CreateField(id_field)
