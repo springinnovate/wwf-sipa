@@ -53,7 +53,7 @@ def rasterize_id_by_value(vector_path, raster_path, field_id):
         None
     """
     geoprocessing.rasterize(
-        vector_path, raster_path, burn_values=[rasterize_val],
+        vector_path, raster_path,
         option_list=["MERGE_ALG=REPLACE", "ALL_TOUCHED=TRUE", f"ATTRIBUTE={field_id}"])
 
 
