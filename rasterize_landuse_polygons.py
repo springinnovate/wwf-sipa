@@ -123,6 +123,7 @@ def main():
             func=simplify_poly,
             args=(vector_path, simplified_vector_path, TARGET_PIXEL_SIZE/2, landcover_field, CODE_ID, description_to_landcover),
             ignore_path_list=[vector_path, simplified_vector_path],
+            target_path_list=[simplified_vector_path],
             task_name=f'simplifying {simplified_vector_path}')
 
         task_graph.add_task(
