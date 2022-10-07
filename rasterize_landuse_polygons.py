@@ -101,11 +101,11 @@ def main():
         last_task = null_task
         for rasterize_val, field_value, in landcover_id_to_description.items():
             LOGGER.debug(f'call rasterize with {landcover_field} {field_value} {rasterize_val}')
-            # last_task = task_graph.add_task(
-            #     func=rasterize_id_by_value,
-            #     args=(vector_path, raster_path, landcover_field, field_value, rasterize_val),
-            #     dependent_task_list=[last_task],
-            #     task_id=f'{rasterize_val} on {os.path.basename(raster_path)}')
+            last_task = task_graph.add_task(
+                func=rasterize_id_by_value,
+                args=(vector_path, raster_path, landcover_field, field_value, rasterize_val),
+                dependent_task_list=[last_task],
+                task_id=f'{rasterize_val} on {os.path.basename(raster_path)}')
 
     task_graph.close()
     task_graph.join()
