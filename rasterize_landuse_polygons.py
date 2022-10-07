@@ -128,9 +128,9 @@ def main():
 
         task_graph.add_task(
             func=rasterize_id_by_value,
-            args=(vector_path, raster_path, CODE_ID),
+            args=(simplified_vector_path, raster_path, CODE_ID),
             dependent_task_list=[simplify_task],
-            task_name=f'rasterizing {vector_path} to  {os.path.basename(raster_path)}')
+            task_name=f'rasterizing {simplified_vector_path} to  {os.path.basename(raster_path)}')
 
     task_graph.close()
     task_graph.join()
