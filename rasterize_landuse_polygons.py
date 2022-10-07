@@ -120,8 +120,8 @@ def main():
         simplified_vector_path = os.path.join(simplified_vector_dir, f'{basename}_simple.gpkg')
         simplify_task = task_graph.add_task(
             func=simplify_poly,
-            args=(base_vector_path, simplified_vector_path, TARGET_PIXEL_SIZE/2, landcover_field, CODE_ID, description_to_landcover),
-            ignore_path_list=[base_vector_path, simplified_vector_path],
+            args=(vector_path, simplified_vector_path, TARGET_PIXEL_SIZE/2, landcover_field, CODE_ID, description_to_landcover),
+            ignore_path_list=[vector_path, simplified_vector_path],
             task_name=f'simplifying {simplified_vector_path}')
 
         task_graph.add_task(
