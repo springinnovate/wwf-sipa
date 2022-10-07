@@ -26,7 +26,7 @@ def get_all_field_values(shapefile_path, field_id):
     vector = gdal.OpenEx(shapefile_path, gdal.OF_VECTOR)
     layer = vector.GetLayer()
     for feature in layer:
-        landcover_id_set.add(feature.GetField(landcover_field))
+        landcover_id_set.add(feature.GetField(field_id))
     return landcover_id_set
 
 
