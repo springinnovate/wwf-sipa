@@ -3,6 +3,7 @@ import argparse
 import os
 import logging
 import sys
+import shutil
 import tempfile
 
 from osgeo import osr
@@ -59,9 +60,7 @@ def main():
     gtiff_driver.CreateCopy(
         target_road_raster_path, base_raster, options=RASTER_CREATE_OPTIONS)
 
-    #working_dir = tempfile.mkdtemp(dir=os.path.dirname(__file__))
-    working_dir = 'tmp'
-    os.makedirs(working_dir, exist_ok=True)
+    working_dir = tempfile.mkdtemp(dir=os.path.dirname(__file__))
     local_road_vector_path = os.path.join(
         working_dir,
         f'{os.path.basename(os.path.splitext(args.road_vector_path)[0])}.gpkg')
@@ -110,6 +109,7 @@ def main():
     geoprocessing.rasterize(
         local_road_vector_path, target_road_raster_path,
         burn_values=[args.road_lulc_val])
+    shutil.rmtree(working_dir, error_ok=True)
     LOGGER.info(f'rasteriziation of {target_road_raster_path} complete')
 
 
