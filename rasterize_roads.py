@@ -51,10 +51,10 @@ def main():
     LOGGER.info(
         f'creating local copy of raster at {target_road_raster_path} so '
         f'original is not destroyed')
-    # if os.path.exists(target_road_raster_path):
-    #     raise ValueError(
-    #         f'error: {target_road_raster_path} already exists, quitting so it '
-    #         f'does not overwrite.')
+    if os.path.exists(target_road_raster_path):
+        raise ValueError(
+            f'error: {target_road_raster_path} already exists, quitting so it '
+            f'does not overwrite.')
     gtiff_driver = gdal.GetDriverByName('GTiff')
     base_raster = gdal.OpenEx(args.base_raster_path, gdal.OF_RASTER)
     gtiff_driver.CreateCopy(
@@ -109,7 +109,7 @@ def main():
     geoprocessing.rasterize(
         local_road_vector_path, target_road_raster_path,
         burn_values=[args.road_lulc_val])
-    shutil.rmtree(working_dir, error_ok=True)
+    shutil.rmtree(working_dir, ignore_errors=True)
     LOGGER.info(f'rasteriziation of {target_road_raster_path} complete')
 
 
