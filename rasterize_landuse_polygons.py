@@ -18,7 +18,7 @@ logging.basicConfig(
 logging.getLogger('taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-TARGET_PIXEL_SIZE = 10.0
+TARGET_PIXEL_SIZE = 30.0
 CODE_ID = 'id'
 
 def simplify_poly(base_vector_path, target_vector_path, tol, description_field_id, code_id, description_to_id_map):
@@ -121,7 +121,8 @@ def main():
         simplified_vector_path = os.path.join(simplified_vector_dir, f'{basename}_simple.gpkg')
         simplify_task = task_graph.add_task(
             func=simplify_poly,
-            args=(vector_path, simplified_vector_path, TARGET_PIXEL_SIZE/2, landcover_field, CODE_ID, description_to_landcover),
+            args=(vector_path, simplified_vector_path, TARGET_PIXEL_SIZE/2,
+                  landcover_field, CODE_ID, description_to_landcover),
             ignore_path_list=[vector_path, simplified_vector_path],
             target_path_list=[simplified_vector_path],
             task_name=f'simplifying {simplified_vector_path}')
