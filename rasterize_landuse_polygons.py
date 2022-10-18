@@ -1,13 +1,16 @@
 """Rasterize the landuse polygons onto a single raster."""
+import argparse
 import glob
 import logging
 import os
 import subprocess
+import sys
 
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
 from osgeo import gdal
 from osgeo import ogr
+from osgeo import osr
 import numpy
 
 logging.basicConfig(
@@ -21,11 +24,48 @@ LOGGER = logging.getLogger(__name__)
 TARGET_PIXEL_SIZE = 30.0
 CODE_ID = 'id'
 
+
+def _get_centroid(vector_path):
+    """Return x/y centroid of the entire vector."""
+    vector = ogr.Open(vector_path)
+    layer = vector.GetLayer()
+    point_cloud = ogr.Geometry(type=ogr.wkbMultiPoint)
+    for feature in layer:
+        geom = feature.GetGeometryRef()
+        point_cloud.AddGeometry(geom.Centroid())
+        geom = None
+        feature = None
+    layer = None
+    vector = None
+    centroid = point_cloud.Centroid()
+    return centroid
+
+
 def simplify_poly(base_vector_path, target_vector_path, tol, description_field_id, code_id, description_to_id_map):
     """Simplify base to target."""
-    subprocess.run(
-        f'ogr2ogr -simplify {tol} -f GPKG -overwrite {target_vector_path} {base_vector_path}',
-        shell=True, check=True)
+    vector = ogr.Open(base_vector_path)
+    layer = vector.GetLayer()
+    vector_srs = layer.GetSpatialRef()
+    if not vector_srs.IsProjected():
+        LOGGER.info(
+            f'{base_vector_path} is not projected, creating local UTM '
+            f'projection based off of centroid')
+        centroid = _get_centroid(base_vector_path)
+        LOGGER.debug(centroid)
+        utm_epsg = geoprocessing.get_utm_zone(centroid.GetX(), centroid.GetY())
+        LOGGER.debug(utm_epsg)
+
+        target_srs = osr.SpatialReference()
+        target_srs.ImportFromEPSG(utm_epsg)
+    else:
+        target_srs = vector_srs
+    geoprocessing.reproject_vector(
+        base_vector_path, target_srs.ExportToWkt(), target_vector_path,
+        driver_name='GPKG',
+        copy_fields=True,
+        geometry_type=ogr.wkbMultiPolygon,
+        simplify_tol=TARGET_PIXEL_SIZE/2)
+
     vector = ogr.Open(target_vector_path, 1)
     layer = vector.GetLayer()
     id_field = ogr.FieldDefn(code_id, ogr.OFTInteger)
@@ -68,29 +108,63 @@ def get_all_field_values(shapefile_path, field_id):
 
 
 def main():
-    path_to_shapefiles = './data/land_use_polygons/*'
+    parser = argparse.ArgumentParser(description='Rasterize landuse polygons')
+    parser.add_argument(
+        'vector_path', help='Path to vector(s) to rasterize.')
+    parser.add_argument('landcover_field', description='Field in vector that describes the unique landcover')
+    parser.add_argument('--tolerance', description='desired resolution of raster in M', type=float, default=30)
+    args = parser.parse_args()
+
     simplified_vector_dir = './data/simplified_vectors'
     path_to_target_rasters = './data/landcover_rasters/'
     path_to_template_table = './data/biophysical_template.csv'
+
+    lulc_vector_path =r"D:\repositories\wwf-sipa\data\land_use_polygons\ID_LUC-20221018T165533Z-001\ID_LUC\Tuplah_Kalimantan_Utara_2019\Tuplah_Kalimantan_Utara_2019.shp"
+
     os.makedirs(path_to_target_rasters, exist_ok=True)
     os.makedirs(simplified_vector_dir, exist_ok=True)
 
     task_graph = taskgraph.TaskGraph('.', 4, 15.0)
-    landcover_field = 'AGG12'
     landcover_id_set = set()
     field_value_task_list = []
-    shapefile_to_raster_map = {}
-    for shapefile_path in glob.glob(path_to_shapefiles):
-        basename = os.path.basename(os.path.splitext(shapefile_path)[0])
+    vector_path_list = glob.glob(args.vector_path)
+    for vector_path in vector_path_list:
+        basename = os.path.basename(os.path.splitext(vector_path)[0])
         task = task_graph.add_task(
             func=get_all_field_values,
-            args=(shapefile_path, landcover_field),
+            args=(vector_path, args.landcover_field),
             store_result=True,
-            task_name=f'{landcover_field} values for {basename}')
+            task_name=f'{args.landcover_field} values for {basename}')
         field_value_task_list.append(task)
 
-        LOGGER.info(f'processing {shapefile_path}')
-        vector_info = geoprocessing.get_vector_info(shapefile_path)
+    for task in field_value_task_list:
+        landcover_id_set |= task.get()
+    description_to_landcover = {
+        description: (i + 1) for (i, description) in enumerate(sorted(landcover_id_set))
+    }
+    LOGGER.info(f'landcover set: {landcover_id_set}')
+    if not os.path.exists(path_to_template_table):
+        with open(path_to_template_table, 'w') as table_file:
+            table_file.write('lulc_id,lulc_description\n')
+            for field_description, field_id in description_to_landcover.items():
+                table_file.write(f'{field_id},{field_description}\n')
+
+    for vector_path in vector_path_list:
+        LOGGER.info(f'processing {vector_path}')
+        basename = os.path.basename(os.path.splitext(vector_path)[0])
+        simplified_vector_path = os.path.join(
+            simplified_vector_dir, f'{basename}_simple.gpkg')
+
+        simplify_task = task_graph.add_task(
+            func=simplify_poly,
+            args=(vector_path, simplified_vector_path, TARGET_PIXEL_SIZE/2,
+                  args.landcover_field, CODE_ID, description_to_landcover),
+            ignore_path_list=[vector_path],
+            target_path_list=[simplified_vector_path],
+            task_name=f'simplifying {simplified_vector_path}')
+        simplify_task.join()
+
+        vector_info = geoprocessing.get_vector_info(simplified_vector_path)
         xwidth = numpy.subtract(*[vector_info['bounding_box'][i] for i in (2, 0)])
         ywidth = numpy.subtract(*[vector_info['bounding_box'][i] for i in (3, 1)])
         n_cols = int(xwidth / TARGET_PIXEL_SIZE)
@@ -100,38 +174,16 @@ def main():
         target_raster_path = os.path.join(path_to_target_rasters, f'{basename}_lulc.tif')
         if not os.path.exists(target_raster_path):
             geoprocessing.create_raster_from_vector_extents(
-                shapefile_path, target_raster_path, (TARGET_PIXEL_SIZE, -TARGET_PIXEL_SIZE),
-                gdal.GDT_Byte, 128)
-        shapefile_to_raster_map[shapefile_path] = target_raster_path
-
-    for task in field_value_task_list:
-        landcover_id_set |= task.get()
-    description_to_landcover = {
-        description: i+1 for (i, description) in enumerate(sorted(landcover_id_set))
-    }
-    LOGGER.info(f'landcover set: {landcover_id_set}')
-    if not os.path.exists(path_to_template_table):
-        with open(path_to_template_table, 'w') as table_file:
-            table_file.write('lulc_id,lulc_description\n')
-            for field_description, field_id in description_to_landcover.items():
-                table_file.write(f'{field_id},{field_description}\n')
-
-    for vector_path, raster_path in shapefile_to_raster_map.items():
-        basename = os.path.basename(os.path.splitext(vector_path)[0])
-        simplified_vector_path = os.path.join(simplified_vector_dir, f'{basename}_simple.gpkg')
-        simplify_task = task_graph.add_task(
-            func=simplify_poly,
-            args=(vector_path, simplified_vector_path, TARGET_PIXEL_SIZE/2,
-                  landcover_field, CODE_ID, description_to_landcover),
-            ignore_path_list=[vector_path, simplified_vector_path],
-            target_path_list=[simplified_vector_path],
-            task_name=f'simplifying {simplified_vector_path}')
+                simplified_vector_path, target_raster_path,
+                (TARGET_PIXEL_SIZE, -TARGET_PIXEL_SIZE), gdal.GDT_Byte, 128)
 
         task_graph.add_task(
             func=rasterize_id_by_value,
-            args=(simplified_vector_path, raster_path, CODE_ID),
+            args=(simplified_vector_path, target_raster_path, CODE_ID),
             dependent_task_list=[simplify_task],
-            task_name=f'rasterizing {simplified_vector_path} to  {os.path.basename(raster_path)}')
+            task_name=(
+                f'rasterizing {simplified_vector_path} to '
+                f'{os.path.basename(target_raster_path)}'))
 
     task_graph.close()
     task_graph.join()
