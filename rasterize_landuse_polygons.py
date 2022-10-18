@@ -111,8 +111,8 @@ def main():
     parser = argparse.ArgumentParser(description='Rasterize landuse polygons')
     parser.add_argument(
         'vector_path', help='Path to vector(s) to rasterize.')
-    parser.add_argument('landcover_field', description='Field in vector that describes the unique landcover')
-    parser.add_argument('--tolerance', description='desired resolution of raster in M', type=float, default=30)
+    parser.add_argument('landcover_field', help='Field in vector that describes the unique landcover')
+    parser.add_argument('--tolerance', help='desired resolution of raster in M', type=float, default=30)
     args = parser.parse_args()
 
     simplified_vector_dir = './data/simplified_vectors'
