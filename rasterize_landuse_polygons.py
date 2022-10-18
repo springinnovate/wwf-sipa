@@ -119,8 +119,6 @@ def main():
     path_to_target_rasters = './data/landcover_rasters/'
     path_to_template_table = './data/biophysical_template.csv'
 
-    lulc_vector_path =r"D:\repositories\wwf-sipa\data\land_use_polygons\ID_LUC-20221018T165533Z-001\ID_LUC\Tuplah_Kalimantan_Utara_2019\Tuplah_Kalimantan_Utara_2019.shp"
-
     os.makedirs(path_to_target_rasters, exist_ok=True)
     os.makedirs(simplified_vector_dir, exist_ok=True)
 
