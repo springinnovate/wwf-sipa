@@ -110,7 +110,7 @@ def get_all_field_values(shapefile_path, field_id):
 def main():
     parser = argparse.ArgumentParser(description='Rasterize landuse polygons')
     parser.add_argument(
-        'vector_path', help='Path to vector(s) to rasterize.')
+        'vector_path_pattern', help='Path to vector(s) to rasterize.')
     parser.add_argument('landcover_field', help='Field in vector that describes the unique landcover')
     parser.add_argument('--tolerance', help='desired resolution of raster in meters (defaults to 30)', type=float, default=30)
     parser.add_argument('--single_raster_mode_name', help='if passed, give name of target raster and generate a single raster rather than separate rasters')
@@ -126,7 +126,7 @@ def main():
     task_graph = taskgraph.TaskGraph('.', 4, 15.0)
     landcover_id_set = set()
     field_value_task_list = []
-    vector_path_list = glob.glob(args.vector_path)
+    vector_path_list = list(glob.glob(args.vector_path_pattern))
     for vector_path in vector_path_list:
         basename = os.path.basename(os.path.splitext(vector_path)[0])
         task = task_graph.add_task(
@@ -212,6 +212,7 @@ def main():
                 task_name=(
                     f'rasterizing {simplified_vector_path} to '
                     f'{os.path.basename(target_raster_path)}'))
+            task_graph.join()
 
     task_graph.close()
     task_graph.join()
