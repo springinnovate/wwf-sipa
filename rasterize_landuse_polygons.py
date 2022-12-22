@@ -147,7 +147,8 @@ def main():
             table_file.write('lulc_id,lulc_description\n')
             for field_description, field_id in description_to_landcover.items():
                 table_file.write(f'{field_id},{field_description}\n')
-    vector_info_path_list = []
+    bounding_box_list = []
+    simplified_vector_path_list = []
     for vector_path in vector_path_list:
         LOGGER.info(f'processing {vector_path}')
         basename = os.path.basename(os.path.splitext(vector_path)[0])
@@ -165,7 +166,8 @@ def main():
 
         vector_info = geoprocessing.get_vector_info(simplified_vector_path)
         if args.single_raster_mode_name is not None:
-            vector_info_path_list.append(vector_info)
+            bounding_box_list.append(vector_info['bounding_box'])
+            simplified_vector_path_list.append(simplified_vector_path)
         else:
             xwidth = numpy.subtract(*[vector_info['bounding_box'][i] for i in (2, 0)])
             ywidth = numpy.subtract(*[vector_info['bounding_box'][i] for i in (3, 1)])
@@ -182,7 +184,6 @@ def main():
             task_graph.add_task(
                 func=rasterize_id_by_value,
                 args=(simplified_vector_path, target_raster_path, CODE_ID),
-                dependent_task_list=[simplify_task],
                 task_name=(
                     f'rasterizing {simplified_vector_path} to '
                     f'{os.path.basename(target_raster_path)}'))
@@ -190,7 +191,7 @@ def main():
     if args.single_raster_mode_name is not None:
         # create global bounding box
         single_bounding_box = geoprocessing.merge_bounding_box_list(
-            [info['bounding_box'] for info in vector_path_list], 'union')
+            bounding_box_list, 'union')
         xwidth = numpy.subtract(*[single_bounding_box[i] for i in (2, 0)])
         ywidth = numpy.subtract(*[single_bounding_box[i] for i in (3, 1)])
         n_cols = int(xwidth / TARGET_PIXEL_SIZE)
@@ -204,13 +205,13 @@ def main():
                 simplified_vector_path, target_raster_path,
                 (TARGET_PIXEL_SIZE, -TARGET_PIXEL_SIZE), gdal.GDT_Byte, 128)
 
-        task_graph.add_task(
-            func=rasterize_id_by_value,
-            args=(simplified_vector_path, target_raster_path, CODE_ID),
-            dependent_task_list=[simplify_task],
-            task_name=(
-                f'rasterizing {simplified_vector_path} to '
-                f'{os.path.basename(target_raster_path)}'))
+        for simplified_vector_path in simplified_vector_path_list:
+            task_graph.add_task(
+                func=rasterize_id_by_value,
+                args=(simplified_vector_path, target_raster_path, CODE_ID),
+                task_name=(
+                    f'rasterizing {simplified_vector_path} to '
+                    f'{os.path.basename(target_raster_path)}'))
 
     task_graph.close()
     task_graph.join()
