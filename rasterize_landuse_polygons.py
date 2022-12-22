@@ -199,7 +199,7 @@ def main():
         LOGGER.info(f'expected raster size for {basename} is ({n_cols}x{n_rows})')
 
         target_raster_path = os.path.join(
-            path_to_target_rasters, f'{args.single_raster_mode_name}_lulc.tif')
+            path_to_target_rasters, f'{args.single_raster_mode_name}.tif')
         if not os.path.exists(target_raster_path):
             geoprocessing.create_raster_from_vector_extents(
                 simplified_vector_path, target_raster_path,
