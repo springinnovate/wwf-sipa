@@ -113,6 +113,7 @@ def main():
         'vector_path', help='Path to vector(s) to rasterize.')
     parser.add_argument('landcover_field', help='Field in vector that describes the unique landcover')
     parser.add_argument('--tolerance', help='desired resolution of raster in meters (defaults to 30)', type=float, default=30)
+    parser.add_argument('--single_raster_mode_name', help='if passed, give name of target raster and generate a single raster rather than separate rasters')
     args = parser.parse_args()
 
     simplified_vector_dir = './data/simplified_vectors'
@@ -146,7 +147,7 @@ def main():
             table_file.write('lulc_id,lulc_description\n')
             for field_description, field_id in description_to_landcover.items():
                 table_file.write(f'{field_id},{field_description}\n')
-
+    vector_info_path_list = []
     for vector_path in vector_path_list:
         LOGGER.info(f'processing {vector_path}')
         basename = os.path.basename(os.path.splitext(vector_path)[0])
@@ -163,13 +164,41 @@ def main():
         simplify_task.join()
 
         vector_info = geoprocessing.get_vector_info(simplified_vector_path)
-        xwidth = numpy.subtract(*[vector_info['bounding_box'][i] for i in (2, 0)])
-        ywidth = numpy.subtract(*[vector_info['bounding_box'][i] for i in (3, 1)])
+        if args.single_raster_mode_name is not None:
+            vector_info_path_list.append(vector_info)
+        else:
+            xwidth = numpy.subtract(*[vector_info['bounding_box'][i] for i in (2, 0)])
+            ywidth = numpy.subtract(*[vector_info['bounding_box'][i] for i in (3, 1)])
+            n_cols = int(xwidth / TARGET_PIXEL_SIZE)
+            n_rows = int(ywidth / TARGET_PIXEL_SIZE)
+            LOGGER.info(f'expected raster size for {basename} is ({n_cols}x{n_rows})')
+
+            target_raster_path = os.path.join(path_to_target_rasters, f'{basename}_lulc.tif')
+            if not os.path.exists(target_raster_path):
+                geoprocessing.create_raster_from_vector_extents(
+                    simplified_vector_path, target_raster_path,
+                    (TARGET_PIXEL_SIZE, -TARGET_PIXEL_SIZE), gdal.GDT_Byte, 128)
+
+            task_graph.add_task(
+                func=rasterize_id_by_value,
+                args=(simplified_vector_path, target_raster_path, CODE_ID),
+                dependent_task_list=[simplify_task],
+                task_name=(
+                    f'rasterizing {simplified_vector_path} to '
+                    f'{os.path.basename(target_raster_path)}'))
+
+    if args.single_raster_mode_name is not None:
+        # create global bounding box
+        single_bounding_box = geoprocessing.merge_bounding_box_list(
+            [info['bounding_box'] for info in vector_path_list], 'union')
+        xwidth = numpy.subtract(*[single_bounding_box[i] for i in (2, 0)])
+        ywidth = numpy.subtract(*[single_bounding_box[i] for i in (3, 1)])
         n_cols = int(xwidth / TARGET_PIXEL_SIZE)
         n_rows = int(ywidth / TARGET_PIXEL_SIZE)
         LOGGER.info(f'expected raster size for {basename} is ({n_cols}x{n_rows})')
 
-        target_raster_path = os.path.join(path_to_target_rasters, f'{basename}_lulc.tif')
+        target_raster_path = os.path.join(
+            path_to_target_rasters, f'{args.single_raster_mode_name}_lulc.tif')
         if not os.path.exists(target_raster_path):
             geoprocessing.create_raster_from_vector_extents(
                 simplified_vector_path, target_raster_path,
