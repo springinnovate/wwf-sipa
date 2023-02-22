@@ -33,6 +33,12 @@ LOGGER.setLevel(logging.DEBUG)
 
 WORKSPACE_DIR = '_workspace_land_change_scenario'
 
+TABLE_PATH_FIELD = 'path'
+INFLUENCE_DIST_FIELD = 'influence dist'
+CONVERSION_CODE_FIELD = 'conversion code'
+ATTRIBUTE_KEY_FIELD = 'attribute key'
+ATTRIBUTE_VALUE_FIELD = 'attribute code'
+
 
 def main():
     """Entry point."""
@@ -40,16 +46,17 @@ def main():
     parser.add_argument('base_raster_path', help='Path to base raster.')
     parser.add_argument(
         'infrastructure_scenario_path', help='Path to land change pressure '
-        'table. Expected format is to have the columns `path`, '
-        '`influence dist`, and `conversion code` where:\n'
+        f'table. Expected format is to have the columns `{TABLE_PATH_FIELD}`, '
+        f'`{INFLUENCE_DIST_FIELD}`, and `{CONVERSION_CODE_FIELD}` where:\n'
         '\t`path`: path to vector\n'
-        '\t`influence dist`: maximum influence distance in meters\n'
-        '\t`conversion code`: if target conversion landscape code\n'
-        'additional parameters include `attribute key` and `attribute value` '
-        'to allow subsets of the vectors where\n'
-        '\t`attribute key` (optional): field in the vector to filter by\n'
-        '\t`attribute code` (optional): if field is defined, what value to '
-        'match')
+        f'\t`{INFLUENCE_DIST_FIELD}`: maximum influence distance in meters\n'
+        f'\t`{CONVERSION_CODE_FIELD}`: if target conversion landscape code\n'
+        f'additional parameters include `{ATTRIBUTE_KEY_FIELD}` and '
+        f'`{ATTRIBUTE_VALUE_FIELD}` to allow subsets of the vectors where\n'
+        f'\t`{ATTRIBUTE_KEY_FIELD}` (optional): field in the vector to filter '
+        'by\n'
+        f'\t`{ATTRIBUTE_VALUE_FIELD}` (optional): if field is defined, what '
+        'value to match')
     args = parser.parse_args()
 
     pandas.read_csv(args.infrastructure_scenario_path)
