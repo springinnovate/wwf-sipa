@@ -1,4 +1,4 @@
-path,ID,attribute key,attribute value,effective impact dist,conversion code
+path,ID,attribute key,attribute code,effective impact dist,conversion code
 data\infrastructure\PH_NationalRoad_DPWH.gpkg,,ROADS,1,4000,99
 data\infrastructure\PH_NationalRoad_DPWH.gpkg,,ROADS,2,3000,100
 data\infrastructure\PH_NationalRoad_DPWH.gpkg,,ROADS,3,2000,101
