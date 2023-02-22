@@ -12,6 +12,7 @@ import shutil
 import tempfile
 
 import numpy
+import scipy
 import pyproj
 from osgeo import osr
 from osgeo import ogr
@@ -132,20 +133,41 @@ def main():
         reprojected_vector_path = os.path.join(
             local_workspace,
             f'{raw_basename(row[PATH_FIELD])}_{where_filter}.gpkg')
+        vector_info = geoprocessing.get_vector_info(row[PATH_FIELD])
         geoprocessing.reproject_vector(
             row[PATH_FIELD], raster_info['projection_wkt'],
             reprojected_vector_path, layer_id=0,
             driver_name='GPKG', copy_fields=True,
+            geometry_type=vector_info['geometry_type'],
             simplify_tol=tol,
             where_filter=where_filter)
 
-        mask_raster_path = os.path.join(
-            local_workspace,
+        mask_raster_path = (
             f'{os.path.splitext(reprojected_vector_path)[0]}.tif')
         geoprocessing.new_raster_from_base(
-            args.base_raster_path, mask_raster_path, gdal.GDT_BYTE,
+            args.base_raster_path, mask_raster_path, gdal.GDT_Byte,
             [0])
-        geoprocessing.rasterize(reprojected_vector_path, mask_raster_path)
+        geoprocessing.rasterize(
+            reprojected_vector_path, mask_raster_path, burn_values=[1])
+
+        decay_kernel_path = os.path.join(
+            local_workspace, f'{where_filter}_{pixel_units}.tif')
+
+        base_array = numpy.ones(([2*int(v)+1 for v in pixel_units]))
+        base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
+        decay_kernel = scipy.ndimage.distance_transform_edt(
+            base_array)
+        decay_kernel = 1/(1+decay_kernel)
+        geoprocessing.numpy_array_to_raster(
+            base_array, None, [1, -1], [0, 0], None, decay_kernel_path)
+
+        effect_path = (
+            f'{os.path.splitext(reprojected_vector_path)[0]}_effect.tif')
+        geoprocessing.convolve_2d(
+            mask_raster_path, decay_kernel_path, effect_path,
+            ignore_nodata_and_edges=False, mask_nodata=False,
+            normalize_kernel=True, target_datatype=gdal.GDT_Float64,
+            target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
 
         LOGGER.debug(pixel_units)
 
