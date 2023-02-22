@@ -1,0 +1,5 @@
+﻿path,ID,attribute key,attribute value,influence dist,conversion code
+data\infrastructure\PH_NationalRoad_DPWH.gpkg,,ROADS,1,4000,99
+data\infrastructure\PH_NationalRoad_DPWH.gpkg,,ROADS,2,3000,100
+data\infrastructure\PH_NationalRoad_DPWH.gpkg,,ROADS,3,2000,101
+data\infrastructure\PH_NationalRoad_DPWH.gpkg,,ROADS,4,1000,102
