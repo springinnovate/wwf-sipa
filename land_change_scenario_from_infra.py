@@ -39,9 +39,20 @@ def main():
     parser = argparse.ArgumentParser(description='Model land change')
     parser.add_argument('base_raster_path', help='Path to base raster.')
     parser.add_argument(
-        'change_pressure_table_path', help='Path to land change pressure '
-        'table.')
+        'infrastructure_scenario_path', help='Path to land change pressure '
+        'table. Expected format is to have the columns `path`, '
+        '`influence dist`, and `conversion code` where:\n'
+        '\t`path`: path to vector\n'
+        '\t`influence dist`: maximum influence distance in meters\n'
+        '\t`conversion code`: if target conversion landscape code\n'
+        'additional parameters include `attribute key` and `attribute value` '
+        'to allow subsets of the vectors where\n'
+        '\t`attribute key` (optional): field in the vector to filter by\n'
+        '\t`attribute code` (optional): if field is defined, what value to '
+        'match')
     args = parser.parse_args()
+
+    pandas.read_csv(args.infrastructure_scenario_path)
 
     os.makedirs(WORKSPACE_DIR, exist_ok=True)
 
