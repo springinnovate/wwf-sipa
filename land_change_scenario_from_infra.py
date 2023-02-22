@@ -69,6 +69,7 @@ def load_table(table_path):
             '\t* '+'\n\t* '.join(table.columns))
     return table
 
+
 def convert_meters_to_pixel_units(raster_path, value):
     """Return `value` as a distance in `raster_path` units."""
     raster_info = geoprocessing.get_raster_info(raster_path)
@@ -118,9 +119,34 @@ def main():
         WORKSPACE_DIR, raw_basename(args.infrastructure_scenario_path))
     os.makedirs(local_workspace, exist_ok=True)
 
+    raster_info = geoprocessing.get_raster_info(args.base_raster_path)
     for index, row in infrastructure_scenario_table.iterrows():
         pixel_units = convert_meters_to_pixel_units(
             args.base_raster_path, row[INFLUENCE_DIST_FIELD])
+
+        tol = raster_info['pixel_size'][0]/2
+        where_filter = None
+        if ATTRIBUTE_KEY_FIELD in row:
+            where_filter = (
+                f'{row[ATTRIBUTE_KEY_FIELD]}={row[ATTRIBUTE_VALUE_FIELD]}')
+        reprojected_vector_path = os.path.join(
+            local_workspace,
+            f'{raw_basename(row[PATH_FIELD])}_{where_filter}.gpkg')
+        geoprocessing.reproject_vector(
+            row[PATH_FIELD], raster_info['projection_wkt'],
+            reprojected_vector_path, layer_id=0,
+            driver_name='GPKG', copy_fields=True,
+            simplify_tol=tol,
+            where_filter=where_filter)
+
+        mask_raster_path = os.path.join(
+            local_workspace,
+            f'{os.path.splitext(reprojected_vector_path)[0]}.tif')
+        geoprocessing.new_raster_from_base(
+            args.base_raster_path, mask_raster_path, gdal.GDT_BYTE,
+            [0])
+        geoprocessing.rasterize(reprojected_vector_path, mask_raster_path)
+
         LOGGER.debug(pixel_units)
 
 
