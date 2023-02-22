@@ -13,6 +13,8 @@ from osgeo import ogr
 from osgeo import osr
 import numpy
 
+from ecoshard.geoprocessing.geoprocessing_core import DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS
+
 logging.basicConfig(
     level=logging.DEBUG,
     format=(
@@ -21,7 +23,8 @@ logging.basicConfig(
 logging.getLogger('taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-TARGET_PIXEL_SIZE = 30.0
+#TARGET_PIXEL_SIZE = 30.0
+TARGET_PIXEL_SIZE = 1/3600
 CODE_ID = 'id'
 
 
@@ -45,26 +48,14 @@ def simplify_poly(base_vector_path, target_vector_path, tol, description_field_i
     """Simplify base to target."""
     vector = ogr.Open(base_vector_path)
     layer = vector.GetLayer()
-    vector_srs = layer.GetSpatialRef()
-    if not vector_srs.IsProjected():
-        LOGGER.info(
-            f'{base_vector_path} is not projected, creating local UTM '
-            f'projection based off of centroid')
-        centroid = _get_centroid(base_vector_path)
-        LOGGER.debug(centroid)
-        utm_epsg = geoprocessing.get_utm_zone(centroid.GetX(), centroid.GetY())
-        LOGGER.debug(utm_epsg)
-
-        target_srs = osr.SpatialReference()
-        target_srs.ImportFromEPSG(utm_epsg)
-    else:
-        target_srs = vector_srs
+    target_srs = osr.SpatialReference()
+    target_srs.ImportFromEPSG(4326)
     geoprocessing.reproject_vector(
         base_vector_path, target_srs.ExportToWkt(), target_vector_path,
         driver_name='GPKG',
         copy_fields=True,
         geometry_type=ogr.wkbMultiPolygon,
-        simplify_tol=TARGET_PIXEL_SIZE/2)
+        simplify_tol=tol)
 
     vector = ogr.Open(target_vector_path, 1)
     layer = vector.GetLayer()
@@ -119,6 +110,8 @@ def main():
     simplified_vector_dir = './data/simplified_vectors'
     path_to_target_rasters = './data/landcover_rasters/'
     path_to_template_table = './data/biophysical_template.csv'
+    if args.single_raster_mode_name:
+        path_to_template_table = f'./data/{args.single_raster_mode_name}.csv'
 
     os.makedirs(path_to_target_rasters, exist_ok=True)
     os.makedirs(simplified_vector_dir, exist_ok=True)
@@ -147,6 +140,7 @@ def main():
             table_file.write('lulc_id,lulc_description\n')
             for field_description, field_id in description_to_landcover.items():
                 table_file.write(f'{field_id},{field_description}\n')
+
     bounding_box_list = []
     simplified_vector_path_list = []
     for vector_path in vector_path_list:
@@ -201,9 +195,25 @@ def main():
         target_raster_path = os.path.join(
             path_to_target_rasters, f'{args.single_raster_mode_name}.tif')
         if not os.path.exists(target_raster_path):
-            geoprocessing.create_raster_from_vector_extents(
-                simplified_vector_path, target_raster_path,
-                (TARGET_PIXEL_SIZE, -TARGET_PIXEL_SIZE), gdal.GDT_Byte, 128)
+            # geoprocessing.create_raster_from_vector_extents(
+            #     simplified_vector_path, target_raster_path,
+            #     (TARGET_PIXEL_SIZE, -TARGET_PIXEL_SIZE), gdal.GDT_Byte, 128)
+            driver = gdal.GetDriverByName('GTiff')
+            raster = driver.Create(
+                target_raster_path, n_cols, n_rows, 1, gdal.GDT_Byte,
+                options=DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS[1])
+            raster.GetRasterBand(1).SetNoDataValue(128)
+
+            raster_transform = [
+                single_bounding_box[0], TARGET_PIXEL_SIZE, 0.0,
+                single_bounding_box[3], 0.0, -TARGET_PIXEL_SIZE]
+            raster.SetGeoTransform(raster_transform)
+
+            # Use the same projection on the raster as the shapefile
+            target_srs = osr.SpatialReference()
+            target_srs.ImportFromEPSG(4326)
+            raster.SetProjection(target_srs.ExportToWkt())
+            raster = None
 
         for simplified_vector_path in simplified_vector_path_list:
             task_graph.add_task(
