@@ -18,6 +18,7 @@ from ecoshard import geoprocessing
 from ecoshard import taskgraph
 from ecoshard.geoprocessing.geoprocessing_core import DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS
 from ecoshard.geoprocessing.geoprocessing_core import DEFAULT_OSR_AXIS_MAPPING_STRATEGY
+import pandas
 
 
 RASTER_CREATE_OPTIONS = DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS[1]
@@ -40,6 +41,9 @@ ATTRIBUTE_KEY_FIELD = 'attribute key'
 ATTRIBUTE_VALUE_FIELD = 'attribute code'
 
 
+def raw_basename(path): return os.path.basename(os.path.splitext(path)[0])
+
+
 def main():
     """Entry point."""
     parser = argparse.ArgumentParser(description='Model land change')
@@ -59,9 +63,14 @@ def main():
         'value to match')
     args = parser.parse_args()
 
-    pandas.read_csv(args.infrastructure_scenario_path)
+    infrastructure_scenario_table = pandas.read_csv(
+        args.infrastructure_scenario_path)
+    local_workspace = os.path.join(
+        WORKSPACE_DIR, raw_basename(args.infrastructure_scenario_path))
+    os.makedirs(local_workspace, exist_ok=True)
 
-    os.makedirs(WORKSPACE_DIR, exist_ok=True)
+    for index, row in infrastructure_scenario_table.iterrows():
+        LOGGER.debug(row['ID'])
 
 
 if __name__ == '__main__':
