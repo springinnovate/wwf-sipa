@@ -34,6 +34,7 @@ logging.basicConfig(
         ' [%(pathname)s.%(funcName)s:%(lineno)d] %(message)s'),
     stream=sys.stdout)
 LOGGER = logging.getLogger(__name__)
+logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 LOGGER.setLevel(logging.DEBUG)
 
 WORKSPACE_DIR = '_workspace_land_change_scenario'
@@ -46,6 +47,7 @@ ATTRIBUTE_VALUE_FIELD = 'attribute code'
 
 
 def raw_basename(path): return os.path.basename(os.path.splitext(path)[0])
+
 
 def load_table(table_path):
     """Load infrastructure table and raise errors if needed."""
@@ -171,13 +173,13 @@ def main():
 
         effect_path = (
             f'{os.path.splitext(reprojected_vector_path)[0]}_effect.tif')
+        LOGGER.debug(f'calculate effect for {effect_path}')
         geoprocessing.convolve_2d(
             (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
             ignore_nodata_and_edges=False, mask_nodata=False,
             normalize_kernel=True, target_datatype=gdal.GDT_Float64,
             target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
         LOGGER.debug(pixel_units)
-        return
 
 
 if __name__ == '__main__':
