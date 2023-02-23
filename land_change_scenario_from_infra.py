@@ -142,34 +142,42 @@ def main():
             simplify_tol=tol,
             where_filter=where_filter)
 
-        mask_raster_path = (
-            f'{os.path.splitext(reprojected_vector_path)[0]}.tif')
-        geoprocessing.new_raster_from_base(
-            args.base_raster_path, mask_raster_path, gdal.GDT_Byte,
-            [0])
-        geoprocessing.rasterize(
-            reprojected_vector_path, mask_raster_path, burn_values=[1])
-
         decay_kernel_path = os.path.join(
             local_workspace, f'{where_filter}_{pixel_units}.tif')
 
         base_array = numpy.ones(([2*int(v)+1 for v in pixel_units]))
         base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
+        LOGGER.debug('calculate distance transform')
         decay_kernel = scipy.ndimage.distance_transform_edt(
             base_array)
-        decay_kernel = 1/(1+decay_kernel)
+        valid_mask = decay_kernel < (max(base_array.shape)/2)
+        decay_kernel[~valid_mask] = 0
+        decay_kernel[valid_mask] = (
+            numpy.max(decay_kernel)-decay_kernel[valid_mask])
+
+        LOGGER.debug(decay_kernel)
         geoprocessing.numpy_array_to_raster(
-            base_array, None, [1, -1], [0, 0], None, decay_kernel_path)
+            decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
+
+        mask_raster_path = (
+            f'{os.path.splitext(reprojected_vector_path)[0]}.tif')
+        geoprocessing.new_raster_from_base(
+            args.base_raster_path, mask_raster_path, gdal.GDT_Byte,
+            [0])
+        LOGGER.debug(f'rasterize {mask_raster_path}')
+        geoprocessing.rasterize(
+            reprojected_vector_path, mask_raster_path, burn_values=[1],
+            option_list=['ALL_TOUCHED=TRUE'])
 
         effect_path = (
             f'{os.path.splitext(reprojected_vector_path)[0]}_effect.tif')
         geoprocessing.convolve_2d(
-            mask_raster_path, decay_kernel_path, effect_path,
+            (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
             ignore_nodata_and_edges=False, mask_nodata=False,
             normalize_kernel=True, target_datatype=gdal.GDT_Float64,
             target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
-
         LOGGER.debug(pixel_units)
+        return
 
 
 if __name__ == '__main__':
