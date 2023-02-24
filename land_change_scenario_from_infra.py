@@ -122,7 +122,8 @@ def main():
         'value to match')
     parser.add_argument(
         'effect_threshold',
-        help='Value in 0..1 for when to flip a landcover effect')
+        help='Value in 0..1 for when to flip a landcover effect',
+        type=float)
     args = parser.parse_args()
 
     infrastructure_scenario_table = load_table(
@@ -143,7 +144,7 @@ def main():
     for index, row in infrastructure_scenario_table.iterrows():
         if row['type'] == 'vector':
             pixel_units = convert_meters_to_pixel_units(
-                args.base_raster_path, row[INFLUENCE_DIST_FIELD])
+                working_base_raster_path, row[INFLUENCE_DIST_FIELD])
 
             tol = raster_info['pixel_size'][0]/2
             where_filter = None
@@ -183,7 +184,7 @@ def main():
             mask_raster_path = (
                 f'{os.path.splitext(reprojected_vector_path)[0]}.tif')
             geoprocessing.new_raster_from_base(
-                args.base_raster_path, mask_raster_path, gdal.GDT_Byte,
+                working_base_raster_path, mask_raster_path, gdal.GDT_Byte,
                 [0])
             LOGGER.debug(f'rasterize {mask_raster_path}')
             geoprocessing.rasterize(
@@ -211,7 +212,7 @@ def main():
                 gdal.GDT_Byte, 0)
 
             pixel_units = convert_meters_to_pixel_units(
-                args.base_raster_path, row[INFLUENCE_DIST_FIELD])
+                working_base_raster_path, row[INFLUENCE_DIST_FIELD])
 
             decay_kernel_path = os.path.join(
                 local_workspace,
@@ -244,28 +245,47 @@ def main():
 
     def conversion_op(base_lulc_array, *effect_path_code_list):
         result = base_lulc_array.copy()
-        effect_sum = numpy.sum(effect_path_code_list[0::2])
+        effect_sum = numpy.zeros(effect_path_code_list[0].shape)
+        for array in effect_path_code_list[0::2]:
+            effect_sum += array
+
         conversion_code = base_lulc_array.copy()
         max_effect_so_far = numpy.zeros(result.shape)
         for effect_array, code in zip(
                 effect_path_code_list[0::2], effect_path_code_list[1::2]):
+            # account for multiple pressures
+            normalize_effect_array = effect_array/len(effect_path_code_list)/2
             if not numpy.isnan(code):
-                effect_larger_than_max = effect_array > max_effect_so_far
+                LOGGER.debug(code)
+                effect_larger_than_max = normalize_effect_array > max_effect_so_far
                 conversion_code[effect_larger_than_max] = code
                 max_effect_so_far[effect_larger_than_max] = (
-                    effect_array[effect_larger_than_max])
-        result[effect_sum > args.threshold] = (
+                    normalize_effect_array[effect_larger_than_max])
+        result[effect_sum > args.effect_threshold] = (
             conversion_code[effect_sum > args.effect_threshold])
+        LOGGER.debug(result)
+        result[base_lulc_array == raster_info['nodata']] = (
+            raster_info['nodata'])
         return result
 
     converted_raster_path = (
-        f'{raw_basename(args.base_raster_path)}_'
+        f'{raw_basename(working_base_raster_path)}_'
         f'{raw_basename(args.infrastructure_scenario_path)}_'
         f'{args.effect_threshold}_.tif')
     geoprocessing.raster_calculator(
-        [(args.base_raster_path, 1)]+effect_path_code_list,
+        [(working_base_raster_path, 1)]+effect_path_code_list,
         conversion_op, converted_raster_path, raster_info['datatype'],
         raster_info['nodata'][0])
+
+    def sum_op(*array_list):
+        result = numpy.zeros(array_list[0].shape)
+        for array in array_list[0::2]:
+            result += array
+        return result
+
+    geoprocessing.raster_calculator(
+        effect_path_code_list, sum_op,
+        'sum.tif', gdal.GDT_Float32, None)
 
 
 if __name__ == '__main__':
