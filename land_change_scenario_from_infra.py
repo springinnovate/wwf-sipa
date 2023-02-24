@@ -41,6 +41,7 @@ WORKSPACE_DIR = '_workspace_land_change_scenario'
 
 PATH_FIELD = 'path'
 INFLUENCE_DIST_FIELD = 'effective impact dist'
+MAX_INFLUENCE_DIST_FIELD = 'max impact dist'
 CONVERSION_CODE_FIELD = 'conversion code'
 ATTRIBUTE_KEY_FIELD = 'attribute key'
 ATTRIBUTE_VALUE_FIELD = 'attribute code'
@@ -57,7 +58,7 @@ def load_table(table_path):
     error_list = []
     for field_name in [
             INFLUENCE_DIST_FIELD, CONVERSION_CODE_FIELD, PATH_FIELD,
-            GIS_TYPE_FIELD, RASTER_VALUE_FIELD]:
+            GIS_TYPE_FIELD, RASTER_VALUE_FIELD, MAX_INFLUENCE_DIST_FIELD]:
         if field_name not in table:
             error_list.append(f'Expected field `{field_name}` but not found')
     if (ATTRIBUTE_VALUE_FIELD in table) ^ (ATTRIBUTE_KEY_FIELD in table):
@@ -121,7 +122,7 @@ def main():
         f'\t`{ATTRIBUTE_VALUE_FIELD}` (optional): if field is defined, what '
         'value to match')
     parser.add_argument(
-        'effect_threshold',
+        'probability_of_conversion',
         help='Value in 0..1 for when to flip a landcover effect',
         type=float)
     args = parser.parse_args()
@@ -170,16 +171,6 @@ def main():
             base_array = numpy.ones(([2*int(v)+1 for v in pixel_units]))
             base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
             LOGGER.debug('calculate distance transform')
-            decay_kernel = scipy.ndimage.distance_transform_edt(
-                base_array)
-            valid_mask = decay_kernel < (max(base_array.shape)/2)
-            decay_kernel[~valid_mask] = 0
-            decay_kernel[valid_mask] = (
-                numpy.max(decay_kernel)-decay_kernel[valid_mask])
-
-            LOGGER.debug(decay_kernel)
-            geoprocessing.numpy_array_to_raster(
-                decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
 
             mask_raster_path = (
                 f'{os.path.splitext(reprojected_vector_path)[0]}.tif')
@@ -191,12 +182,34 @@ def main():
                 reprojected_vector_path, mask_raster_path, burn_values=[1],
                 option_list=['ALL_TOUCHED=TRUE'])
 
+            decay_kernel = scipy.ndimage.distance_transform_edt(
+                base_array)
+            valid_mask = decay_kernel < (max(base_array.shape)/2)
+            decay_kernel[~valid_mask] = 0
+            # calculate what threshold of gaussian is 0.5 when p=1 and distance
+            # is effective distance
+            max_extent_in_pixel_units = convert_meters_to_pixel_units(
+                working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
+            effective_extent_in_pixel_units = convert_meters_to_pixel_units(
+                working_base_raster_path, row[INFLUENCE_DIST_FIELD])[0]
+
+            s_val = numpy.log(0.5)/(-(
+                effective_extent_in_pixel_units/max_extent_in_pixel_units)**2)
+            decay_kernel[valid_mask] = (
+                numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
+                    s_val/args.probability_of_conversion))
+            decay_kernel[valid_mask] /= numpy.count_nonzero(valid_mask)
+
+            geoprocessing.numpy_array_to_raster(
+                decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
+
+
             effect_path = (
-                f'{os.path.splitext(reprojected_vector_path)[0]}_effect.tif')
+                f'{os.path.splitext(reprojected_vector_path)[0]}_effect_{args.probability_of_conversion}.tif')
             LOGGER.debug(f'calculate effect for {effect_path}')
             geoprocessing.convolve_2d(
                 (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
-                ignore_nodata_and_edges=False, mask_nodata=False,
+                ignore_nodata_and_edges=True, mask_nodata=False,
                 normalize_kernel=True, target_datatype=gdal.GDT_Float64,
                 target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
             effect_path_code_list.extend([
@@ -211,33 +224,40 @@ def main():
                 mask_raster_path,
                 gdal.GDT_Byte, 0)
 
-            pixel_units = convert_meters_to_pixel_units(
-                working_base_raster_path, row[INFLUENCE_DIST_FIELD])
+            max_extent_in_pixel_units = convert_meters_to_pixel_units(
+                working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
+            effective_extent_in_pixel_units = convert_meters_to_pixel_units(
+                working_base_raster_path, row[INFLUENCE_DIST_FIELD])[0]
 
             decay_kernel_path = os.path.join(
                 local_workspace,
-                f"{raw_basename(row['path'])}_decay_{pixel_units}.tif")
+                f"{raw_basename(row['path'])}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
 
-            base_array = numpy.ones(([2*int(v)+1 for v in pixel_units]))
+            base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
             base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
             LOGGER.debug('calculate distance transform')
             decay_kernel = scipy.ndimage.distance_transform_edt(
                 base_array)
             valid_mask = decay_kernel < (max(base_array.shape)/2)
             decay_kernel[~valid_mask] = 0
+            # calculate what threshold of gaussian is 0.5 when p=1 and distance
+            # is effective distance
+            s_val = numpy.log(0.5)/(-(
+                effective_extent_in_pixel_units/max_extent_in_pixel_units)**2)
             decay_kernel[valid_mask] = (
-                numpy.max(decay_kernel)-decay_kernel[valid_mask])
+                numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
+                    s_val/args.probability_of_conversion))
 
-            LOGGER.debug(decay_kernel)
+            decay_kernel[valid_mask] /= numpy.count_nonzero(valid_mask)
             geoprocessing.numpy_array_to_raster(
                 decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
 
             effect_path = (
-                f'{os.path.splitext(mask_raster_path)[0]}_effect.tif')
+                f'{os.path.splitext(mask_raster_path)[0]}_effect_{args.probability_of_conversion}.tif')
             LOGGER.debug(f'calculate effect for {effect_path}')
             geoprocessing.convolve_2d(
                 (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
-                ignore_nodata_and_edges=False, mask_nodata=False,
+                ignore_nodata_and_edges=True, mask_nodata=False,
                 normalize_kernel=True, target_datatype=gdal.GDT_Float64,
                 target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
             effect_path_code_list.extend([
@@ -261,8 +281,9 @@ def main():
                 conversion_code[effect_larger_than_max] = code
                 max_effect_so_far[effect_larger_than_max] = (
                     normalize_effect_array[effect_larger_than_max])
-        result[effect_sum > args.effect_threshold] = (
-            conversion_code[effect_sum > args.effect_threshold])
+        threshold_mask = effect_sum > 0.005
+        result[threshold_mask] = (
+            conversion_code[threshold_mask])
         LOGGER.debug(result)
         result[base_lulc_array == raster_info['nodata']] = (
             raster_info['nodata'])
@@ -271,7 +292,7 @@ def main():
     converted_raster_path = (
         f'{raw_basename(working_base_raster_path)}_'
         f'{raw_basename(args.infrastructure_scenario_path)}_'
-        f'{args.effect_threshold}_.tif')
+        f'{args.probability_of_conversion}_.tif')
     geoprocessing.raster_calculator(
         [(working_base_raster_path, 1)]+effect_path_code_list,
         conversion_op, converted_raster_path, raster_info['datatype'],
