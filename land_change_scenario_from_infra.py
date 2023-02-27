@@ -212,7 +212,7 @@ def main():
             else:
                 working_row_raster_path = row['path']
 
-            geoprocessing.raster_calculator(
+            geoprocessing.single_thread_raster_calculator(
                 [(working_row_raster_path, 1)],
                 mask_out_value_op(row['raster value']), mask_raster_path,
                 gdal.GDT_Byte, 0)
@@ -278,10 +278,9 @@ def main():
             ['near']*len(aligned_raster_path_list),
             raster_info['pixel_size'], 'union')
 
-        effect_path_code_list[prob_type] = [
-            ((aligned_effect_path, 1), conversion_tuple)
-            for aligned_effect_path, (_, conversion_tuple)
-            in zip(aligned_raster_path_list, effect_path_code_list[prob_type])]
+        for index, aligned_raster_path in enumerate(aligned_raster_path_list):
+            effect_path_code_list[prob_type][index*2] = (
+                aligned_raster_path, 1)
         LOGGER.debug(
             f'algiend path code list: {effect_path_code_list[prob_type]}')
 
