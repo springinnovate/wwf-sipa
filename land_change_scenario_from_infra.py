@@ -232,6 +232,29 @@ def main():
             result += array
         return result
 
+    for prob_type in ['full', 'conversion']:
+        base_raster_path_list = [
+            path_tuple[0][0] for path_tuple in effect_path_code_list[prob_type]]
+        aligned_raster_path_list = [
+            os.path.join(os.dirname(path), f'{raw_basename(path)}_aligned.tif')
+            for path in base_raster_path_list]
+
+        LOGGER.debug(
+            f'aligning:\n{base_raster_path_list}\n\n\tto\n\n'
+            f'{aligned_raster_path_list}')
+
+        geoprocessing.align_and_resize_raster_stack(
+            base_raster_path_list, aligned_raster_path_list,
+            ['near']*len(aligned_raster_path_list),
+            raster_info['pixel_size'], 'union')
+
+        effect_path_code_list[prob_type] = [
+            ((aligned_effect_path, 1), conversion_tuple)
+            for aligned_effect_path, (_, conversion_tuple)
+            in zip(aligned_raster_path_list, effect_path_code_list[prob_type])]
+        LOGGER.debug(
+            f'algiend path code list: {effect_path_code_list[prob_type]}')
+
     full_effect_path = os.path.join(local_workspace, 'full_effect.tif')
     geoprocessing.raster_calculator(
         effect_path_code_list['full'], sum_op,
