@@ -29,13 +29,13 @@ import pandas
 RASTER_CREATE_OPTIONS = DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS[1]
 
 logging.basicConfig(
-    level=logging.WARNING,
+    level=logging.DEBUG,
     format=(
         '%(asctime)s (%(relativeCreated)d) %(levelname)s %(name)s'
         ' [%(pathname)s.%(funcName)s:%(lineno)d] %(message)s'),
     stream=sys.stdout)
 LOGGER = logging.getLogger(__name__)
-logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
+logging.getLogger('ecoshard.geoprocessing').setLevel(logging.DEBUG)
 LOGGER.setLevel(logging.DEBUG)
 
 WORKSPACE_DIR = '_workspace_land_change_scenario'
@@ -219,13 +219,10 @@ def main():
                 [(row['path'], 1)], lambda x: x == row['raster value'],
                 mask_raster_path,
                 gdal.GDT_Byte, 0)
-            max_extent_in_pixel_units = convert_meters_to_pixel_units(
-                working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
-            effective_extent_in_pixel_units = convert_meters_to_pixel_units(
-                working_base_raster_path, row[INFLUENCE_DIST_FIELD])[0]
-            decay_kernel_path = os.path.join(
-                local_workspace,
-                f"{raw_basename(row['path'])}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
+        max_extent_in_pixel_units = convert_meters_to_pixel_units(
+            working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
+        effective_extent_in_pixel_units = convert_meters_to_pixel_units(
+            working_base_raster_path, row[INFLUENCE_DIST_FIELD])[0]
 
         for prob_key, prob_conversion in [('full', 1.0), ('current', args.probability_of_conversion)]:
             base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
@@ -241,12 +238,17 @@ def main():
                 effective_extent_in_pixel_units/max_extent_in_pixel_units)**2)
             decay_kernel[valid_mask] = (
                 numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
-                    s_val/args.probability_of_conversion))
+                    s_val/prob_conversion))
+            LOGGER.debug(s_val)
+            LOGGER.debug(decay_kernel)
 
+            decay_kernel_path = os.path.join(
+                local_workspace,
+                f"{raw_basename(row['path'])}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{prob_conversion}.tif")
             geoprocessing.numpy_array_to_raster(
                 decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
             effect_path = (
-                f'{os.path.splitext(mask_raster_path)[0]}_effect_{args.probability_of_conversion}.tif')
+                f'{os.path.splitext(mask_raster_path)[0]}_effect_{prob_conversion}.tif')
             LOGGER.debug(f'calculate effect for {effect_path}')
             geoprocessing.convolve_2d(
                 (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
@@ -256,12 +258,23 @@ def main():
             effect_path_code_list[prob_key].extend([
                 (effect_path, 1), (row[CONVERSION_CODE_FIELD], 'raw')])
 
+    def sum_op(*array_list):
+        result = numpy.zeros(array_list[0].shape)
+        for array in array_list[0::2]:
+            result += array
+        return result
+
     full_effect_path = os.path.join(local_workspace, 'full_effect.tif')
     geoprocessing.raster_calculator(
-        effect_path_code_list['full'], lambda x: numpy.sum(x),
+        effect_path_code_list['full'], sum_op,
         full_effect_path, gdal.GDT_Float32, None)
 
-    def conversion_op(base_lulc_array, full_effect_array, *effect_path_code_list):
+    decayed_full_effect_path = os.path.join(local_workspace, 'decay_full_effect.tif')
+    geoprocessing.raster_calculator(
+        effect_path_code_list['current'], sum_op,
+        decayed_full_effect_path, gdal.GDT_Float32, None)
+
+    def conversion_op(base_lulc_array, decayed_effect_array, full_effect_array, *effect_path_code_list):
         result = base_lulc_array.copy()
         effect_sum = numpy.zeros(effect_path_code_list[0].shape)
         for array in effect_path_code_list[0::2]:
@@ -272,17 +285,13 @@ def main():
         for effect_array, code in zip(
                 effect_path_code_list[0::2], effect_path_code_list[1::2]):
             # account for multiple pressures
-            normalize_effect_array = effect_array/len(effect_path_code_list)/2
             if not numpy.isnan(code):
-                LOGGER.debug(code)
-                effect_larger_than_max = normalize_effect_array > max_effect_so_far
+                effect_larger_than_max = effect_array > max_effect_so_far
                 conversion_code[effect_larger_than_max] = code
                 max_effect_so_far[effect_larger_than_max] = (
-                    normalize_effect_array[effect_larger_than_max])
-        threshold_mask = effect_sum >= full_effect_array
-        result[threshold_mask] = (
-            conversion_code[threshold_mask])
-        LOGGER.debug(result)
+                    effect_array[effect_larger_than_max])
+        threshold_mask = decayed_effect_array >= full_effect_array
+        result[threshold_mask] = conversion_code[threshold_mask]
         result[base_lulc_array == raster_info['nodata']] = (
             raster_info['nodata'])
         return result
@@ -292,19 +301,9 @@ def main():
         f'{raw_basename(args.infrastructure_scenario_path)}_'
         f'{args.probability_of_conversion}_.tif')
     geoprocessing.raster_calculator(
-        [(working_base_raster_path, 1), (full_effect_path, 1)] +
-        effect_path_code_list, conversion_op, converted_raster_path,
+        [(working_base_raster_path, 1), (decayed_full_effect_path, 1), (full_effect_path, 1)] +
+        effect_path_code_list['current'], conversion_op, converted_raster_path,
         raster_info['datatype'], raster_info['nodata'][0])
-
-    def sum_op(*array_list):
-        result = numpy.zeros(array_list[0].shape)
-        for array in array_list[0::2]:
-            result += array
-        return result
-
-    geoprocessing.raster_calculator(
-        effect_path_code_list, sum_op,
-        'sum.tif', gdal.GDT_Float32, None)
 
 
 if __name__ == '__main__':
