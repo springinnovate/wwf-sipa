@@ -50,6 +50,14 @@ GIS_TYPE_FIELD = 'type'
 RASTER_VALUE_FIELD = 'raster value'
 
 
+def mask_out_value_op(value):
+    def _mask_out_value(x):
+        result = (x == value)
+        LOGGER.debug(f'mask out value {x} {result}')
+        return result
+    return _mask_out_value
+
+
 def raw_basename(path): return os.path.basename(os.path.splitext(path)[0])
 
 
@@ -206,7 +214,7 @@ def main():
 
             geoprocessing.raster_calculator(
                 [(working_row_raster_path, 1)],
-                lambda x: x == row['raster value'], mask_raster_path,
+                mask_out_value_op(row['raster value']), mask_raster_path,
                 gdal.GDT_Byte, 0)
         max_extent_in_pixel_units = convert_meters_to_pixel_units(
             working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
@@ -237,6 +245,8 @@ def main():
                 decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
             effect_path = (
                 f'{os.path.splitext(mask_raster_path)[0]}_effect_{prob_conversion}.tif')
+            LOGGER.debug(f'mask_raster_path info: {geoprocessing.get_raster_info(mask_raster_path)}')
+            LOGGER.debug(f'decay_kernel_path info: {geoprocessing.get_raster_info(decay_kernel_path)}')
             LOGGER.debug(f'calculate effect for {effect_path}')
             geoprocessing.convolve_2d(
                 (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
