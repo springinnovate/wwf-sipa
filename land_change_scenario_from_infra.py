@@ -53,6 +53,12 @@ RASTER_VALUE_FIELD = 'raster value'
 def raw_basename(path): return os.path.basename(os.path.splitext(path)[0])
 
 
+def square_blocksize(path):
+    """Return true if 256x256."""
+    raster_info = geoprocessing.get_raster_info(path)
+    return tuple(raster_info['blocksize']) == (256, 256)
+
+
 def load_table(table_path):
     """Load infrastructure table and raise errors if needed."""
     table = pandas.read_csv(table_path)
@@ -135,16 +141,20 @@ def main():
     os.makedirs(local_workspace, exist_ok=True)
 
     # convert to correct block size
-    working_base_raster_path = os.path.join(
-        local_workspace, os.path.basename(args.base_raster_path))
-    raster_info = geoprocessing.get_raster_info(args.base_raster_path)
 
-    geoprocessing.warp_raster(
-        args.base_raster_path, raster_info['pixel_size'],
-        working_base_raster_path, 'near')
+    raster_info = geoprocessing.get_raster_info(args.base_raster_path)
+    if not square_blocksize(args.base_raster_path):
+        working_base_raster_path = os.path.join(
+            local_workspace, os.path.basename(args.base_raster_path))
+        geoprocessing.warp_raster(
+            args.base_raster_path, raster_info['pixel_size'],
+            working_base_raster_path, 'near')
+    else:
+        working_base_raster_path = args.base_raster_path
 
     effect_path_code_list = collections.defaultdict(list)
     for index, row in infrastructure_scenario_table.iterrows():
+        LOGGER.debug(f'processing {row}')
         if row['type'] == 'vector':
             pixel_units = convert_meters_to_pixel_units(
                 working_base_raster_path, row[INFLUENCE_DIST_FIELD])
@@ -183,9 +193,20 @@ def main():
             mask_raster_path = os.path.join(
                 local_workspace,
                 f"{raw_basename(row['path'])}_mask_{row['raster value']}.tif")
+
+            if not square_blocksize(row['path']):
+                working_row_raster_path = os.path.join(
+                    local_workspace,
+                    f'256x256_{os.path.basename(args.base_raster_path)}')
+                geoprocessing.warp_raster(
+                    args.base_raster_path, raster_info['pixel_size'],
+                    working_row_raster_path, 'near')
+            else:
+                working_row_raster_path = row['path']
+
             geoprocessing.raster_calculator(
-                [(row['path'], 1)], lambda x: x == row['raster value'],
-                mask_raster_path,
+                [(working_row_raster_path, 1)],
+                lambda x: x == row['raster value'], mask_raster_path,
                 gdal.GDT_Byte, 0)
         max_extent_in_pixel_units = convert_meters_to_pixel_units(
             working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
@@ -196,8 +217,7 @@ def main():
             base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
             base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
             LOGGER.debug('calculate distance transform')
-            decay_kernel = scipy.ndimage.distance_transform_edt(
-                base_array)
+            decay_kernel = scipy.ndimage.distance_transform_edt(base_array)
             valid_mask = decay_kernel < (max(base_array.shape)/2)
             decay_kernel[~valid_mask] = 0
             # calculate what threshold of gaussian is 0.5 when p=1 and distance
