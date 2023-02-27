@@ -56,7 +56,7 @@ def raw_basename(path): return os.path.basename(os.path.splitext(path)[0])
 def square_blocksize(path):
     """Return true if 256x256."""
     raster_info = geoprocessing.get_raster_info(path)
-    return tuple(raster_info['blocksize']) == (256, 256)
+    return tuple(raster_info['block_size']) == (256, 256)
 
 
 def load_table(table_path):
