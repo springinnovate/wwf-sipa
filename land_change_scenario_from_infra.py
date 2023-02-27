@@ -199,7 +199,7 @@ def main():
                     local_workspace,
                     f'256x256_{os.path.basename(args.base_raster_path)}')
                 geoprocessing.warp_raster(
-                    args.base_raster_path, raster_info['pixel_size'],
+                    row['path'], raster_info['pixel_size'],
                     working_row_raster_path, 'near')
             else:
                 working_row_raster_path = row['path']
