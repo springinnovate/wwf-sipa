@@ -293,7 +293,7 @@ def main():
 
     decayed_full_effect_path = os.path.join(local_workspace, 'decay_full_effect.tif')
     geoprocessing.raster_calculator(
-        effect_path_code_list['current'], sum_op,
+        effect_path_code_list['conversion'], sum_op,
         decayed_full_effect_path, gdal.GDT_Float32, None)
 
     def conversion_op(base_lulc_array, decayed_effect_array, full_effect_array, *effect_path_code_list):
@@ -324,7 +324,7 @@ def main():
         f'{args.probability_of_conversion}_.tif')
     geoprocessing.raster_calculator(
         [(working_base_raster_path, 1), (decayed_full_effect_path, 1), (full_effect_path, 1)] +
-        effect_path_code_list['current'], conversion_op, converted_raster_path,
+        effect_path_code_list['conversion'], conversion_op, converted_raster_path,
         raster_info['datatype'], raster_info['nodata'][0])
 
 
