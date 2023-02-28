@@ -264,7 +264,7 @@ def main():
 
     for prob_type in ['full', 'conversion']:
         base_raster_path_list = [
-            path_tuple[0][0] for path_tuple in effect_path_code_list[prob_type]]
+            path_tuple[0] for path_tuple in effect_path_code_list[prob_type]]
         aligned_raster_path_list = [
             os.path.join(os.dirname(path), f'{raw_basename(path)}_aligned.tif')
             for path in base_raster_path_list]
