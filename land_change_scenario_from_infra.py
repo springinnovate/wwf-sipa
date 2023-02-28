@@ -322,7 +322,7 @@ def main():
         f'{raw_basename(working_base_raster_path)}_'
         f'{raw_basename(args.infrastructure_scenario_path)}_'
         f'{args.probability_of_conversion}_.tif')
-    geoprocessing.raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(working_base_raster_path, 1), (decayed_full_effect_path, 1), (full_effect_path, 1)] +
         effect_path_code_list['conversion'], conversion_op, converted_raster_path,
         raster_info['datatype'], raster_info['nodata'][0])
