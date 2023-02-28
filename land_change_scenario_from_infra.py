@@ -221,7 +221,7 @@ def main():
         effective_extent_in_pixel_units = convert_meters_to_pixel_units(
             working_base_raster_path, row[INFLUENCE_DIST_FIELD])[0]
 
-        for prob_key, prob_conversion in [('full', 1.0), ('current', args.probability_of_conversion)]:
+        for prob_key, prob_conversion in [('full', 1.0), ('conversion', args.probability_of_conversion)]:
             base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
             base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
             LOGGER.debug('calculate distance transform')
@@ -263,6 +263,7 @@ def main():
         return result
 
     for prob_type in ['full', 'conversion']:
+
         base_raster_path_list = [
             path_tuple[0] for path_tuple in effect_path_code_list[prob_type]
             if path_tuple[1] != 'raw']
@@ -272,7 +273,7 @@ def main():
 
         LOGGER.debug(
             f'aligning:\n{base_raster_path_list}\n\n\tto\n\n'
-            f'{aligned_raster_path_list}')
+            f'{aligned_raster_path_list} from {effect_path_code_list[prob_type]}')
 
         geoprocessing.align_and_resize_raster_stack(
             base_raster_path_list, aligned_raster_path_list,
