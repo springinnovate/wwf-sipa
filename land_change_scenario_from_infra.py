@@ -148,6 +148,9 @@ def main():
         type=float)
     parser.add_argument('--do_not_convert', nargs='+', type=int, help=(
         'Pass landcover codes to NOT convert in the `base_raster_path`.'))
+    parser.add_argument('--conversion_code_override', type=int, help=(
+        'This is the code that will be converted on the landcover map if '
+        'pressure requirements are met.'))
     args = parser.parse_args()
 
     infrastructure_scenario_table = load_table(
@@ -225,6 +228,8 @@ def main():
     for mask_raster_path, row in raster_mask_path_list:
         if not numpy.isnan(row[CONVERSION_CODE_FIELD]):
             conversion_code = int(row[CONVERSION_CODE_FIELD])
+            if args.conversion_code_override:
+                conversion_code = args.conversion_code_override
         # save the mask for later in case we need to mask it out further
         # before we
         LOGGER.info(f'processing mask {mask_raster_path}/{row}')
