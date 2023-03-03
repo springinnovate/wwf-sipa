@@ -41,6 +41,7 @@ ATTRIBUTE_KEY_FIELD = 'attribute key'
 ATTRIBUTE_VALUE_FIELD = 'attribute code'
 GIS_TYPE_FIELD = 'type'
 RASTER_VALUE_FIELD = 'raster value'
+PRESSURE_VALUE_FIELD = 'pressure'
 
 
 def mask_out_value_op(value):
@@ -267,11 +268,15 @@ def main():
             LOGGER.info(f'************* threshold_val: {threshold_val}')
             decay_kernel /= threshold_val
 
+        pressure = 1.0
+        if not numpy.nan(row[PRESSURE_VALUE_FIELD]):
+            pressure = float(row[PRESSURE_VALUE_FIELD])
+
         decay_kernel_path = os.path.join(
             local_workspace,
             f"{raw_basename(mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
         geoprocessing.numpy_array_to_raster(
-            decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
+            decay_kernel*pressure, None, [1, -1], [0, 0], None, decay_kernel_path)
         effect_path = (
             f'{os.path.splitext(mask_raster_path)[0]}_effect_{args.probability_of_conversion}.tif')
         LOGGER.debug(f'calculate effect for {effect_path}')
