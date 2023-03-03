@@ -275,7 +275,7 @@ def main():
             ignore_nodata_and_edges=False, mask_nodata=False,
             normalize_kernel=False, target_datatype=gdal.GDT_Float64,
             target_nodata=None, working_dir=None, set_tol_to_zero=1e-8,
-            n_workers=multiprocessing.cpu_count()//2)
+            n_workers=multiprocessing.cpu_count()//4)
         effect_path_list.append(effect_path)
 
     def sum_op(*array_list):
