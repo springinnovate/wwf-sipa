@@ -254,6 +254,12 @@ def main():
         decay_kernel[valid_mask] = (
             numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
                 s_val/args.probability_of_conversion))
+        if not numpy.isnan(row[CONVERSION_CODE_FIELD]):
+            # this defines the threshold, a single pixel
+            center_val = decay_kernel[
+                decay_kernel.shape[0]//2, decay_kernel.shape[1]//2]
+            threshold_val = center_val/numpy.sum(decay_kernel)
+            LOGGER.info(f'************* threshold_val: {threshold_val}')
 
         decay_kernel_path = os.path.join(
             local_workspace,
@@ -311,7 +317,7 @@ def main():
 
     def conversion_op(base_lulc_array, decayed_effect_array):
         result = base_lulc_array.copy()
-        threshold_mask = decayed_effect_array >= 0.5**(
+        threshold_mask = decayed_effect_array >= threshold_val**(
             1-args.probability_of_conversion)
         result[threshold_mask] = conversion_code
         result[base_lulc_array == raster_info['nodata']] = (
