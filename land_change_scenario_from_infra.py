@@ -7,6 +7,7 @@ infrastructure.
 import argparse
 import os
 import logging
+import multiprocessing
 import sys
 
 import numpy
@@ -273,7 +274,8 @@ def main():
             (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
             ignore_nodata_and_edges=False, mask_nodata=False,
             normalize_kernel=False, target_datatype=gdal.GDT_Float64,
-            target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
+            target_nodata=None, working_dir=None, set_tol_to_zero=1e-8,
+            n_workers=multiprocessing.cpu_count()//2)
         effect_path_list.append(effect_path)
 
     def sum_op(*array_list):
