@@ -27,7 +27,7 @@ logging.basicConfig(
         ' [%(pathname)s.%(funcName)s:%(lineno)d] %(message)s'),
     stream=sys.stdout)
 LOGGER = logging.getLogger(__name__)
-logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
+logging.getLogger('ecoshard.geoprocessing').setLevel(logging.WARN)
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.WARN)
 LOGGER.setLevel(logging.DEBUG)
 
@@ -217,28 +217,12 @@ def main():
                 mask_out_value_op(row['raster value']), mask_raster_path,
                 gdal.GDT_Byte, 0)
 
-        if not numpy.isnan(row[CONVERSION_CODE_FIELD]):
-            # this is a raster that will be a conversion
-            distance_raster_path = (
-                f'{os.path.splitext(mask_raster_path)[0]}_distance_transform.tif')
-            geoprocessing.distance_transform_edt(
-                (mask_raster_path, 1), distance_raster_path)
-            effective_extent_in_pixel_units = convert_meters_to_pixel_units(
-                working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
-            valid_mask_path = (
-                f'{os.path.splitext(mask_raster_path)[0]}_valid_area.tif')
-            geoprocessing.raster_calculator(
-                [(distance_raster_path, 1)],
-                lambda x: x <= effective_extent_in_pixel_units,
-                valid_mask_path, gdal.GDT_Byte, None)
-            conversion_code = row[CONVERSION_CODE_FIELD]
-
         raster_mask_path_list.append((mask_raster_path, row))
 
     for mask_raster_path, row in raster_mask_path_list:
         # save the mask for later in case we need to mask it out further
         # before we
-        LOGGER.info(f'processing mask {mask_raster_path}')
+        LOGGER.info(f'processing mask {mask_raster_path}/{row}')
         max_extent_in_pixel_units = convert_meters_to_pixel_units(
             working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
         effective_extent_in_pixel_units = convert_meters_to_pixel_units(
@@ -269,28 +253,20 @@ def main():
             decay_kernel /= threshold_val
 
         pressure = 1.0
-        if not numpy.nan(row[PRESSURE_VALUE_FIELD]):
+        if not numpy.isnan(row[PRESSURE_VALUE_FIELD]):
             pressure = float(row[PRESSURE_VALUE_FIELD])
+            LOGGER.debug(pressure)
 
         decay_kernel_path = os.path.join(
             local_workspace,
             f"{raw_basename(mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
         geoprocessing.numpy_array_to_raster(
-            decay_kernel*pressure, None, [1, -1], [0, 0], None, decay_kernel_path)
+            decay_kernel*pressure**2, None, [1, -1], [0, 0], None, decay_kernel_path)
         effect_path = (
             f'{os.path.splitext(mask_raster_path)[0]}_effect_{args.probability_of_conversion}.tif')
         LOGGER.debug(f'calculate effect for {effect_path}')
-
-        scrubbed_mask_raster_path = f'{os.path.splitext(mask_raster_path)[0]}_scrubbed.tif'
-        mask_raster_info = geoprocessing.get_raster_info(mask_raster_path)
-        geoprocessing.raster_calculator(
-            [(mask_raster_path, 1), (valid_mask_path, 1)],
-            lambda mask, valid: numpy.where(valid, mask, 0),
-            scrubbed_mask_raster_path, mask_raster_info['datatype'],
-            mask_raster_info['nodata'][0])
-
         geoprocessing.convolve_2d(
-            (scrubbed_mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
+            (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
             ignore_nodata_and_edges=False, mask_nodata=False,
             normalize_kernel=False, target_datatype=gdal.GDT_Float64,
             target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
@@ -298,7 +274,7 @@ def main():
 
     def sum_op(*array_list):
         result = numpy.zeros(array_list[0].shape)
-        for array in array_list[0::2]:
+        for array in array_list:
             result += array
         return result
 
