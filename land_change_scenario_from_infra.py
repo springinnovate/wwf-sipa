@@ -145,7 +145,7 @@ def main():
         'probability_of_conversion',
         help='Value in 0..1 for when to flip a landcover effect',
         type=float)
-    parser.add_argument('--do_not_convert', nargs='+', type=int, description=(
+    parser.add_argument('--do_not_convert', nargs='+', type=int, help=(
         'Pass landcover codes to NOT convert in the `base_raster_path`.'))
     args = parser.parse_args()
 
@@ -308,7 +308,9 @@ def main():
 
     def conversion_op(base_lulc_array, decayed_effect_array):
         result = base_lulc_array.copy()
-        threshold_mask = decayed_effect_array >= 1
+        do_not_convert_mask = numpy.isin(
+            base_lulc_array, numpy.array(args.do_not_convert))
+        threshold_mask = (decayed_effect_array >= 1) & (~do_not_convert_mask)
         result[threshold_mask] = conversion_code
         result[base_lulc_array == raster_info['nodata']] = (
             raster_info['nodata'])
