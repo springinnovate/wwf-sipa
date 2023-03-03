@@ -5,24 +5,16 @@ infrastructure.
 
 """
 import argparse
-import collections
 import os
 import logging
 import sys
-import shutil
-import tempfile
 
 import numpy
 import scipy
 import pyproj
-from osgeo import osr
-from osgeo import ogr
 from osgeo import gdal
-from shapely.geometry import Point, LineString
 from ecoshard import geoprocessing
-from ecoshard import taskgraph
 from ecoshard.geoprocessing.geoprocessing_core import DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS
-from ecoshard.geoprocessing.geoprocessing_core import DEFAULT_OSR_AXIS_MAPPING_STRATEGY
 import pandas
 
 
@@ -53,7 +45,6 @@ RASTER_VALUE_FIELD = 'raster value'
 def mask_out_value_op(value):
     def _mask_out_value(x):
         result = (x == value)
-        LOGGER.debug(f'mask out value {x} {result}')
         return result
     return _mask_out_value
 
@@ -69,6 +60,9 @@ def square_blocksize(path):
 
 def load_table(table_path):
     """Load infrastructure table and raise errors if needed."""
+    # TODO check if there' more than one conversion code
+    # TODO check if raster value is not just a number
+
     table = pandas.read_csv(table_path)
     error_list = []
     for field_name in [
@@ -89,6 +83,16 @@ def load_table(table_path):
             '\n\nFor reference, the following column headings were detected '
             'in the table:\n' +
             '\t* '+'\n\t* '.join(table.columns))
+
+    conversion_code_lines = 0
+    for index, row in table.iterrows():
+        if not numpy.isnan(row[CONVERSION_CODE_FIELD]):
+            conversion_code_lines += 1
+    if conversion_code_lines != 1:
+        raise ValueError(
+            f'Expected exactly 1 row with a {CONVERSION_CODE_FIELD} defined '
+            f'but found {conversion_code_lines} instead, please edit '
+            f'{table_path} so there is only one')
     return table
 
 
@@ -111,7 +115,6 @@ def convert_meters_to_pixel_units(raster_path, value):
             abs(value/(raster_info['pixel_size'][1]*111111))
             ]
 
-        LOGGER.debug(proj)
     return pixel_units
 
 
@@ -144,12 +147,12 @@ def main():
 
     infrastructure_scenario_table = load_table(
         args.infrastructure_scenario_path)
+
     local_workspace = os.path.join(
         WORKSPACE_DIR, raw_basename(args.infrastructure_scenario_path))
     os.makedirs(local_workspace, exist_ok=True)
 
     # convert to correct block size
-
     raster_info = geoprocessing.get_raster_info(args.base_raster_path)
     if not square_blocksize(args.base_raster_path):
         working_base_raster_path = os.path.join(
@@ -160,13 +163,11 @@ def main():
     else:
         working_base_raster_path = args.base_raster_path
 
-    effect_path_code_list = collections.defaultdict(list)
+    effect_path_list = []
+    raster_mask_path_list = []
     for index, row in infrastructure_scenario_table.iterrows():
-        LOGGER.debug(f'processing {row}')
+        LOGGER.info(f'processing {row}')
         if row['type'] == 'vector':
-            pixel_units = convert_meters_to_pixel_units(
-                working_base_raster_path, row[INFLUENCE_DIST_FIELD])
-
             tol = raster_info['pixel_size'][0]/2
             where_filter = None
             if ATTRIBUTE_KEY_FIELD in row and not numpy.isnan(
@@ -185,15 +186,12 @@ def main():
                 simplify_tol=tol,
                 where_filter=where_filter)
 
-            decay_kernel_path = os.path.join(
-                local_workspace, f'{where_filter}_{pixel_units}.tif')
-
             mask_raster_path = (
                 f'{os.path.splitext(reprojected_vector_path)[0]}.tif')
             geoprocessing.new_raster_from_base(
                 working_base_raster_path, mask_raster_path, gdal.GDT_Byte,
                 [0])
-            LOGGER.debug(f'rasterize {mask_raster_path}')
+            LOGGER.info(f'rasterize {mask_raster_path}')
             geoprocessing.rasterize(
                 reprojected_vector_path, mask_raster_path, burn_values=[1],
                 option_list=['ALL_TOUCHED=TRUE'])
@@ -216,45 +214,70 @@ def main():
                 [(working_row_raster_path, 1)],
                 mask_out_value_op(row['raster value']), mask_raster_path,
                 gdal.GDT_Byte, 0)
+
+        if not numpy.isnan(row[CONVERSION_CODE_FIELD]):
+            # this is a raster that will be a conversion
+            distance_raster_path = (
+                f'{os.path.splitext(mask_raster_path)[0]}_distance_transform.tif')
+            geoprocessing.distance_transform_edt(
+                (mask_raster_path, 1), distance_raster_path)
+            effective_extent_in_pixel_units = convert_meters_to_pixel_units(
+                working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
+            valid_mask_path = (
+                f'{os.path.splitext(mask_raster_path)[0]}_valid_area.tif')
+            geoprocessing.raster_calculator(
+                [(distance_raster_path, 1)],
+                lambda x: x <= effective_extent_in_pixel_units,
+                valid_mask_path, gdal.GDT_Byte, None)
+            conversion_code = row[CONVERSION_CODE_FIELD]
+
+        raster_mask_path_list.append((mask_raster_path, row))
+
+    for mask_raster_path, row in raster_mask_path_list:
+        # save the mask for later in case we need to mask it out further
+        # before we
+        LOGGER.info(f'processing mask {mask_raster_path}')
         max_extent_in_pixel_units = convert_meters_to_pixel_units(
             working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
         effective_extent_in_pixel_units = convert_meters_to_pixel_units(
             working_base_raster_path, row[INFLUENCE_DIST_FIELD])[0]
 
-        for prob_key, prob_conversion in [('full', 1.0), ('conversion', args.probability_of_conversion)]:
-            base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
-            base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
-            LOGGER.debug('calculate distance transform')
-            decay_kernel = scipy.ndimage.distance_transform_edt(base_array)
-            valid_mask = decay_kernel < (max(base_array.shape)/2)
-            decay_kernel[~valid_mask] = 0
-            # calculate what threshold of gaussian is 0.5 when p=1 and distance
-            # is effective distance
-            s_val = numpy.log(0.5)/(-(
-                effective_extent_in_pixel_units/max_extent_in_pixel_units)**2)
-            decay_kernel[valid_mask] = (
-                numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
-                    s_val/prob_conversion))
-            LOGGER.debug(s_val)
-            LOGGER.debug(decay_kernel)
+        base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
+        base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
+        decay_kernel = scipy.ndimage.distance_transform_edt(base_array)
+        valid_mask = decay_kernel < (max(base_array.shape)/2)
+        decay_kernel[~valid_mask] = 0
+        # calculate what threshold of gaussian is 0.5 when p=1 and distance
+        # is effective distance
+        s_val = numpy.log(0.5)/(-(
+            effective_extent_in_pixel_units/max_extent_in_pixel_units)**2)
+        decay_kernel[valid_mask] = (
+            numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
+                s_val/args.probability_of_conversion))
 
-            decay_kernel_path = os.path.join(
-                local_workspace,
-                f"{raw_basename(row['path'])}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{prob_conversion}.tif")
-            geoprocessing.numpy_array_to_raster(
-                decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
-            effect_path = (
-                f'{os.path.splitext(mask_raster_path)[0]}_effect_{prob_conversion}.tif')
-            LOGGER.debug(f'mask_raster_path info: {geoprocessing.get_raster_info(mask_raster_path)}')
-            LOGGER.debug(f'decay_kernel_path info: {geoprocessing.get_raster_info(decay_kernel_path)}')
-            LOGGER.debug(f'calculate effect for {effect_path}')
-            geoprocessing.convolve_2d(
-                (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
-                ignore_nodata_and_edges=False, mask_nodata=False,
-                normalize_kernel=True, target_datatype=gdal.GDT_Float64,
-                target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
-            effect_path_code_list[prob_key].extend([
-                (effect_path, 1), (row[CONVERSION_CODE_FIELD], 'raw')])
+        decay_kernel_path = os.path.join(
+            local_workspace,
+            f"{raw_basename(row['path'])}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
+        geoprocessing.numpy_array_to_raster(
+            decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
+        effect_path = (
+            f'{os.path.splitext(mask_raster_path)[0]}_effect_{args.probability_of_conversion}.tif')
+        LOGGER.debug(f'calculate effect for {effect_path}')
+
+        scrubbed_mask_raster_path = f'{os.path.splitext(mask_raster_path)[0]}_scrubbed.tif'
+        mask_raster_info = geoprocessing.get_raster_info(mask_raster_path)
+        geoprocessing.raster_calculator(
+            [(mask_raster_path, 1), (valid_mask_path, 1)],
+            lambda mask, valid: numpy.where(valid, mask, 0),
+            scrubbed_mask_raster_path, mask_raster_info['datatype'],
+            mask_raster_info['nodata'][0])
+
+        geoprocessing.convolve_2d(
+            (scrubbed_mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
+            ignore_nodata_and_edges=False, mask_nodata=False,
+            normalize_kernel=True, target_datatype=gdal.GDT_Float64,
+            target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
+        effect_path_list.append(effect_path)
 
     def sum_op(*array_list):
         result = numpy.zeros(array_list[0].shape)
@@ -262,58 +285,35 @@ def main():
             result += array
         return result
 
-    for prob_type in ['full', 'conversion']:
+    aligned_raster_path_list = [
+        os.path.join(
+            os.path.dirname(path), f'{raw_basename(path)}_aligned.tif')
+        for path in effect_path_list]
 
-        base_raster_path_list = [
-            path_tuple[0] for path_tuple in effect_path_code_list[prob_type]
-            if path_tuple[1] != 'raw']
-        aligned_raster_path_list = [
-            os.path.join(os.path.dirname(path), f'{raw_basename(path)}_aligned.tif')
-            for path in base_raster_path_list]
+    LOGGER.debug(
+        f'aligning:\n{effect_path_list}\n\n\tto\n\n'
+        f'{aligned_raster_path_list} from {effect_path_list}')
 
-        LOGGER.debug(
-            f'aligning:\n{base_raster_path_list}\n\n\tto\n\n'
-            f'{aligned_raster_path_list} from {effect_path_code_list[prob_type]}')
+    geoprocessing.align_and_resize_raster_stack(
+        effect_path_list, aligned_raster_path_list,
+        ['near']*len(aligned_raster_path_list),
+        raster_info['pixel_size'], 'union')
 
-        geoprocessing.align_and_resize_raster_stack(
-            base_raster_path_list, aligned_raster_path_list,
-            ['near']*len(aligned_raster_path_list),
-            raster_info['pixel_size'], 'union')
+    # update the list with the aligned rasters
+    effect_path_list = aligned_raster_path_list
+    LOGGER.info(f'sum all the decay effects: {effect_path_list}')
 
-        for index, aligned_raster_path in enumerate(aligned_raster_path_list):
-            effect_path_code_list[prob_type][index*2] = (
-                aligned_raster_path, 1)
-        LOGGER.debug(
-            f'algiend path code list: {effect_path_code_list[prob_type]}')
-
-    full_effect_path = os.path.join(local_workspace, 'full_effect.tif')
+    decayed_effect_path = os.path.join(
+        local_workspace, 'decay_effect.tif')
     geoprocessing.raster_calculator(
-        effect_path_code_list['full'], sum_op,
-        full_effect_path, gdal.GDT_Float32, None)
+        [(path, 1) for path in effect_path_list], sum_op,
+        decayed_effect_path, gdal.GDT_Float32, None)
 
-    decayed_full_effect_path = os.path.join(local_workspace, 'decay_full_effect.tif')
-    geoprocessing.raster_calculator(
-        effect_path_code_list['conversion'], sum_op,
-        decayed_full_effect_path, gdal.GDT_Float32, None)
-
-    def conversion_op(base_lulc_array, decayed_effect_array, full_effect_array, *effect_path_code_list):
+    def conversion_op(base_lulc_array, decayed_effect_array):
         result = base_lulc_array.copy()
-        effect_sum = numpy.zeros(effect_path_code_list[0].shape)
-        for array in effect_path_code_list[0::2]:
-            effect_sum += array
-
-        conversion_code = base_lulc_array.copy()
-        max_effect_so_far = numpy.zeros(result.shape)
-        for effect_array, code in zip(
-                effect_path_code_list[0::2], effect_path_code_list[1::2]):
-            # account for multiple pressures
-            if not numpy.isnan(code):
-                effect_larger_than_max = effect_array > max_effect_so_far
-                conversion_code[effect_larger_than_max] = code
-                max_effect_so_far[effect_larger_than_max] = (
-                    effect_array[effect_larger_than_max])
-        threshold_mask = decayed_effect_array >= full_effect_array
-        result[threshold_mask] = conversion_code[threshold_mask]
+        threshold_mask = decayed_effect_array >= 0.5**(
+            1-args.probability_of_conversion)
+        result[threshold_mask] = conversion_code
         result[base_lulc_array == raster_info['nodata']] = (
             raster_info['nodata'])
         return result
@@ -323,8 +323,8 @@ def main():
         f'{raw_basename(args.infrastructure_scenario_path)}_'
         f'{args.probability_of_conversion}_.tif')
     geoprocessing.single_thread_raster_calculator(
-        [(working_base_raster_path, 1), (decayed_full_effect_path, 1), (full_effect_path, 1)] +
-        effect_path_code_list['conversion'], conversion_op, converted_raster_path,
+        [(working_base_raster_path, 1), (decayed_effect_path, 1)],
+        conversion_op, converted_raster_path,
         raster_info['datatype'], raster_info['nodata'][0])
 
 
