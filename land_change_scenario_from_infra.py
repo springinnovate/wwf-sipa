@@ -220,6 +220,8 @@ def main():
         raster_mask_path_list.append((mask_raster_path, row))
 
     for mask_raster_path, row in raster_mask_path_list:
+        if not numpy.isnan(row[CONVERSION_CODE_FIELD]):
+            conversion_code = int(row[CONVERSION_CODE_FIELD])
         # save the mask for later in case we need to mask it out further
         # before we
         LOGGER.info(f'processing mask {mask_raster_path}/{row}')
