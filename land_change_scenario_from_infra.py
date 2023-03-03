@@ -27,7 +27,8 @@ logging.basicConfig(
         ' [%(pathname)s.%(funcName)s:%(lineno)d] %(message)s'),
     stream=sys.stdout)
 LOGGER = logging.getLogger(__name__)
-logging.getLogger('ecoshard.geoprocessing').setLevel(logging.DEBUG)
+logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
+logging.getLogger('ecoshard.taskgraph').setLevel(logging.WARN)
 LOGGER.setLevel(logging.DEBUG)
 
 WORKSPACE_DIR = '_workspace_land_change_scenario'
@@ -254,16 +255,21 @@ def main():
         decay_kernel[valid_mask] = (
             numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
                 s_val/args.probability_of_conversion))
+        decay_kernel /= numpy.sum(decay_kernel)
+
+        # determine the threshold for the transform of the main pressure
         if not numpy.isnan(row[CONVERSION_CODE_FIELD]):
             # this defines the threshold, a single pixel
             center_val = decay_kernel[
-                decay_kernel.shape[0]//2, decay_kernel.shape[1]//2]
-            threshold_val = center_val/numpy.sum(decay_kernel)
+                decay_kernel.shape[0]//2+int(effective_extent_in_pixel_units),
+                decay_kernel.shape[1]//2]
+            threshold_val = numpy.sqrt(center_val/numpy.sum(decay_kernel))*numpy.sqrt(0.1*args.probability_of_conversion)
             LOGGER.info(f'************* threshold_val: {threshold_val}')
+            decay_kernel /= threshold_val
 
         decay_kernel_path = os.path.join(
             local_workspace,
-            f"{raw_basename(row['path'])}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
+            f"{raw_basename(mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
         geoprocessing.numpy_array_to_raster(
             decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
         effect_path = (
@@ -281,7 +287,7 @@ def main():
         geoprocessing.convolve_2d(
             (scrubbed_mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
             ignore_nodata_and_edges=False, mask_nodata=False,
-            normalize_kernel=True, target_datatype=gdal.GDT_Float64,
+            normalize_kernel=False, target_datatype=gdal.GDT_Float64,
             target_nodata=None, working_dir=None, set_tol_to_zero=1e-8)
         effect_path_list.append(effect_path)
 
@@ -317,8 +323,7 @@ def main():
 
     def conversion_op(base_lulc_array, decayed_effect_array):
         result = base_lulc_array.copy()
-        threshold_mask = decayed_effect_array >= threshold_val**(
-            1-args.probability_of_conversion)
+        threshold_mask = decayed_effect_array >= 1
         result[threshold_mask] = conversion_code
         result[base_lulc_array == raster_info['nodata']] = (
             raster_info['nodata'])
