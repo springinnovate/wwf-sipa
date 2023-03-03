@@ -145,6 +145,8 @@ def main():
         'probability_of_conversion',
         help='Value in 0..1 for when to flip a landcover effect',
         type=float)
+    parser.add_argument('--do_not_convert', nargs='+', type=int, description=(
+        'Pass landcover codes to NOT convert in the `base_raster_path`.'))
     args = parser.parse_args()
 
     infrastructure_scenario_table = load_table(
