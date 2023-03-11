@@ -206,13 +206,15 @@ def main():
 
     # Align input rasters from table and --convert_mask_path to
     # base_raster_path
+    pressure_raster_list = []
     for index, row in infrastructure_scenario_table.iterrows():
         LOGGER.info(f'processing {row}')
+        pressure_raster_info = {}
         if row[GIS_TYPE_FIELD] == RASTER_TYPE:
             raster_path = row[PATH_FIELD]
             local_path = os.path.join(
                 local_workspace, os.path.basename(raster_path))
-            row[PATH_FIELD] = local_path
+            pressure_raster_info[PATH_FIELD] = local_path
             _warp_local(task_graph, raster_path, local_path)
         elif row[GIS_TYPE_FIELD] == VECTOR_TYPE:
             vector_path = row[PATH_FIELD]
@@ -221,8 +223,17 @@ def main():
             _rasterize_vector(
                 args.base_raster_path, vector_path, row,
                 rasterized_vector_path)
-            row[PATH_FIELD] = rasterized_vector_path
+            pressure_raster_info[PATH_FIELD] = rasterized_vector_path
 
+        pressure_raster_info.update({
+            x: row[x] for x in [
+                DECAY_TYPE_FIELD, PARAM_VAL_AT_MIN_DIST_FIELD,
+                MAX_INFLUENCE_DIST_FIELD, RASTER_VALUE_FIELD]
+            })
+        pressure_raster_list.append(pressure_raster_info)
+        del pressure_raster_info
+
+    LOGGER.debug(pressure_raster_list)
     return
 
     convert_mask_path = args.convert_mask_path
