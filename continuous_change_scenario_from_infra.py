@@ -42,9 +42,11 @@ VECTOR_KEY_FIELD = 'vector key'
 VECTOR_VALUE_FIELD = 'vector value'
 RASTER_VALUE_FIELD = 'raster value'
 PARAM_VAL_AT_MIN_DIST_FIELD = 'value of parameter at min distance'
-MAX_INFLUENCE_DIST_FIELD = 'max impact dist'
+MAX_IMPACT_DIST_FIELD = 'max impact dist'
 DECAY_TYPE_FIELD = 'decay type'
-DECAY_TYPES = []
+DECAY_TYPES = ['linear', 'exponential', 'log']
+DISTANCE_TYPE_FIELD = 'distance type'
+DISTANCE_TYPES = ['nearest', 'convolution']
 
 
 DECAY_TYPES = ['exponential', 'linear', 'soft', 'block']
@@ -74,8 +76,9 @@ def load_table(table_path):
     error_list = []
     for field_name in [
             DECAY_TYPE_FIELD, PATH_FIELD,
-            GIS_TYPE_FIELD, MAX_INFLUENCE_DIST_FIELD,
-            VECTOR_VALUE_FIELD, PARAM_VAL_AT_MIN_DIST_FIELD]:
+            GIS_TYPE_FIELD, MAX_IMPACT_DIST_FIELD,
+            VECTOR_VALUE_FIELD, PARAM_VAL_AT_MIN_DIST_FIELD,
+            DISTANCE_TYPE_FIELD]:
         if field_name not in table:
             error_list.append(f'Expected field `{field_name}` but not found')
     if (VECTOR_VALUE_FIELD in table) ^ (VECTOR_KEY_FIELD in table):
@@ -215,7 +218,7 @@ def main():
         f'\t`{PATH_FIELD}`: path to vector or raster\n'
         f'\t`{DECAY_TYPE_FIELD}`: decay type in {DECAY_TYPES} where:\n'
         '\t`path`: path to vector\n'
-        f'\t`{MAX_INFLUENCE_DIST_FIELD}`: effective distance of '
+        f'\t`{MAX_IMPACT_DIST_FIELD}`: effective maximum distance of '
         'impact in meters\n'
         f'\t`{GIS_TYPE_FIELD}`: has one of the values {GIS_TYPES}\n'
         f'value in the raster produces the effect\n'
@@ -267,95 +270,23 @@ def main():
         pressure_raster_info.update({
             x: row[x] for x in [
                 DECAY_TYPE_FIELD, PARAM_VAL_AT_MIN_DIST_FIELD,
-                MAX_INFLUENCE_DIST_FIELD, RASTER_VALUE_FIELD]
+                MAX_IMPACT_DIST_FIELD, RASTER_VALUE_FIELD]
             })
         pressure_raster_list.append(pressure_raster_info)
         del pressure_raster_info
 
     LOGGER.debug(pressure_raster_list)
-    return
-    # At this point, all the pahts in pressure_raster_list are rasterized and
+    # At this point, all the paths in pressure_raster_list are rasterized and
     # ready to be spread over space
-# [{
-# 'path': '_workspace_land_change_scenario\\infrastructure_scenario_continuous\\PH_NationalRoad_DPWH.tif',
-#  'decay type': 'linear',
-#  'value of parameter at min distance': 0.8,
-#  'max impact dist': 5000,
-#  'raster value': nan},
-#  {'path': '_workspace_land_change_scenario\\infrastructure_scenario_continuous\\ph_clip.tif',
-#  'decay type': 'linear', 'value of parameter at min distance': 0.6, 'max impact dist': 20000, 'raster value': 3.0}]
 
-    convert_mask_path = args.convert_mask_path
-    if convert_mask_path is not None:
-        local_convert_mask_path = os.path.join(
-            local_workspace, os.path.basename(convert_mask_path))
-        _warp_local(task_graph, convert_mask_path, local_convert_mask_path)
-        convert_mask_path = local_convert_mask_path
-
-
-
-    effect_path_list = []
-    raster_mask_path_list = []
-    for index, row in infrastructure_scenario_table.iterrows():
-        LOGGER.info(f'processing {row}')
-        if row['type'] == 'vector':
-            tol = raster_info['pixel_size'][0]/2
-            where_filter = None
-            if VECTOR_KEY_FIELD in row and not numpy.isnan(
-                    row[VECTOR_KEY_FIELD]):
-                where_filter = (
-                    f'{row[VECTOR_KEY_FIELD]}={row[RASTER_VALUE_FIELD]}')
-            reprojected_vector_path = os.path.join(
-                local_workspace,
-                f'{raw_basename(row[PATH_FIELD])}_{where_filter}.gpkg')
-            vector_info = geoprocessing.get_vector_info(row[PATH_FIELD])
-            geoprocessing.reproject_vector(
-                row[PATH_FIELD], raster_info['projection_wkt'],
-                reprojected_vector_path, layer_id=0,
-                driver_name='GPKG', copy_fields=True,
-                geometry_type=vector_info['geometry_type'],
-                simplify_tol=tol,
-                where_filter=where_filter)
-
-            mask_raster_path = (
-                f'{os.path.splitext(reprojected_vector_path)[0]}.tif')
-            geoprocessing.new_raster_from_base(
-                working_base_raster_path, mask_raster_path, gdal.GDT_Byte,
-                [0])
-            LOGGER.info(f'rasterize {mask_raster_path}')
-            geoprocessing.rasterize(
-                reprojected_vector_path, mask_raster_path, burn_values=[1],
-                option_list=['ALL_TOUCHED=TRUE'])
-        else:
-            mask_raster_path = os.path.join(
-                local_workspace,
-                f"{raw_basename(row['path'])}_mask_{row['raster value']}.tif")
-
-            if not square_blocksize(row['path']):
-                working_row_raster_path = os.path.join(
-                    local_workspace,
-                    f'256x256_{os.path.basename(args.base_raster_path)}')
-                geoprocessing.warp_raster(
-                    row['path'], raster_info['pixel_size'],
-                    working_row_raster_path, 'near')
-            else:
-                working_row_raster_path = row['path']
-
-            geoprocessing.single_thread_raster_calculator(
-                [(working_row_raster_path, 1)],
-                mask_out_value_op(row['raster value']), mask_raster_path,
-                gdal.GDT_Byte, 0)
-
-        raster_mask_path_list.append((mask_raster_path, row))
-
-    for mask_raster_path, row in raster_mask_path_list:
+    for pressure_raster_dict in pressure_raster_list:
         # save the mask for later in case we need to mask it out further
         # before we
-        LOGGER.info(f'processing mask {mask_raster_path}/{row}')
+        pressure_raster_path = pressure_raster_dict[PATH_FIELD]
+        LOGGER.info(
+            f'processing mask {pressure_raster_path}/{row}')
         max_extent_in_pixel_units = convert_meters_to_pixel_units(
-            working_base_raster_path, row[MAX_INFLUENCE_DIST_FIELD])[0]
-        effective_extent_in_pixel_units = convert_meters_to_pixel_units(
-            working_base_raster_path, row[INFLUENCE_DIST_FIELD])[0]
+            pressure_raster_path, row[MAX_IMPACT_DIST_FIELD])[0]
 
         base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
         base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
