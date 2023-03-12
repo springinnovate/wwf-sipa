@@ -117,21 +117,59 @@ def convert_meters_to_pixel_units(raster_path, value):
     return pixel_units
 
 
-def _warp_local(task_graph, base_raster_path, target_raster_path):
+def _mask_op(raster_mask_value_list):
+    # Use in raster calculator to make a mask based off the value list
+    def _internal_mask_op(array):
+        result = numpy.isin(array, raster_mask_value_list)
+        return result
+    return _internal_mask_op
+
+
+def _mask_raster(task_graph, base_raster_path, row, target_raster_path):
     """Warp local."""
     base_raster_info = geoprocessing.get_raster_info(base_raster_path)
+    raster_mask_value = row[RASTER_VALUE_FIELD]
+    if numpy.isnan(raster_mask_value):
+        # no need to further mask
+        intermediate_raster_path = target_raster_path
+    else:
+        intermediate_raster_path = f'%s_warp_for_{str(raster_mask_value)}%s' % (
+            os.path.splitext(target_raster_path))
+
     task_graph.add_task(
         func=geoprocessing.warp_raster,
         args=(
             base_raster_path, base_raster_info['pixel_size'],
-            target_raster_path, 'near'),
+            intermediate_raster_path, 'near'),
         kwargs={
             'target_bb': base_raster_info['bounding_box'],
             'target_projection_wkt': base_raster_info['projection_wkt'],
-            'working_dir': os.path.dirname(target_raster_path),
+            'working_dir': os.path.dirname(intermediate_raster_path),
         },
+        target_path_list=[intermediate_raster_path],
+        task_name=f'warp {intermediate_raster_path}')
+
+    if numpy.isnan(raster_mask_value):
+        # just a warp is all that's needed
+        return
+
+    try:
+        raster_mask_value_list = [float(raster_mask_value)]
+    except TypeError:
+        if ',' in raster_mask_value:
+            split_char = ','
+        else:
+            split_char = ' '
+        raster_mask_value_list = [
+            float(x) for x in raster_mask_value.split(split_char)]
+
+    task_graph.add_task(
+        func=geoprocessing.raster_calculator,
+        args=(
+            [(intermediate_raster_path, 1)], _mask_op(raster_mask_value_list),
+            target_raster_path, gdal.GDT_Byte, None),
         target_path_list=[target_raster_path],
-        task_name=f'warp {target_raster_path}')
+        task_name=f'mask {target_raster_path} with {raster_mask_value_list}')
 
 
 def _rasterize_vector(
@@ -208,14 +246,15 @@ def main():
     # base_raster_path
     pressure_raster_list = []
     for index, row in infrastructure_scenario_table.iterrows():
-        LOGGER.info(f'processing {row}')
+        LOGGER.info(f'processing path {row[PATH_FIELD]}')
+        LOGGER.info(f'{row[RASTER_VALUE_FIELD]}: {numpy.isnan(row[RASTER_VALUE_FIELD])}')
         pressure_raster_info = {}
         if row[GIS_TYPE_FIELD] == RASTER_TYPE:
             raster_path = row[PATH_FIELD]
             local_path = os.path.join(
                 local_workspace, os.path.basename(raster_path))
             pressure_raster_info[PATH_FIELD] = local_path
-            _warp_local(task_graph, raster_path, local_path)
+            _mask_raster(task_graph, raster_path, row, local_path)
         elif row[GIS_TYPE_FIELD] == VECTOR_TYPE:
             vector_path = row[PATH_FIELD]
             rasterized_vector_path = os.path.join(
@@ -235,6 +274,16 @@ def main():
 
     LOGGER.debug(pressure_raster_list)
     return
+    # At this point, all the pahts in pressure_raster_list are rasterized and
+    # ready to be spread over space
+# [{
+# 'path': '_workspace_land_change_scenario\\infrastructure_scenario_continuous\\PH_NationalRoad_DPWH.tif',
+#  'decay type': 'linear',
+#  'value of parameter at min distance': 0.8,
+#  'max impact dist': 5000,
+#  'raster value': nan},
+#  {'path': '_workspace_land_change_scenario\\infrastructure_scenario_continuous\\ph_clip.tif',
+#  'decay type': 'linear', 'value of parameter at min distance': 0.6, 'max impact dist': 20000, 'raster value': 3.0}]
 
     convert_mask_path = args.convert_mask_path
     if convert_mask_path is not None:
