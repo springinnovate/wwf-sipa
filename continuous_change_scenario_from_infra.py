@@ -45,8 +45,10 @@ PARAM_VAL_AT_MIN_DIST_FIELD = 'value of parameter at min distance'
 MAX_IMPACT_DIST_FIELD = 'max impact dist'
 DECAY_TYPE_FIELD = 'decay type'
 DECAY_TYPES = ['linear', 'exponential', 'log']
-DISTANCE_TYPE_FIELD = 'distance type'
-DISTANCE_TYPES = ['nearest', 'convolution']
+EFFECT_DISTANCE_TYPE_FIELD = 'effect distance type'
+NEAREST_DISTANCE_TYPE = 'nearest'
+CONVOLUTION_DISTANCE_TYPE = 'nearest'
+DISTANCE_TYPES = [NEAREST_DISTANCE_TYPE, CONVOLUTION_DISTANCE_TYPE]
 
 
 DECAY_TYPES = ['exponential', 'linear', 'soft', 'block']
@@ -78,7 +80,7 @@ def load_table(table_path):
             DECAY_TYPE_FIELD, PATH_FIELD,
             GIS_TYPE_FIELD, MAX_IMPACT_DIST_FIELD,
             VECTOR_VALUE_FIELD, PARAM_VAL_AT_MIN_DIST_FIELD,
-            DISTANCE_TYPE_FIELD]:
+            EFFECT_DISTANCE_TYPE_FIELD]:
         if field_name not in table:
             error_list.append(f'Expected field `{field_name}` but not found')
     if (VECTOR_VALUE_FIELD in table) ^ (VECTOR_KEY_FIELD in table):
@@ -247,16 +249,16 @@ def main():
 
     # Align input rasters from table and --convert_mask_path to
     # base_raster_path
-    pressure_raster_list = []
+    pressure_mask_raster_list = []
     for index, row in infrastructure_scenario_table.iterrows():
         LOGGER.info(f'processing path {row[PATH_FIELD]}')
         LOGGER.info(f'{row[RASTER_VALUE_FIELD]}: {numpy.isnan(row[RASTER_VALUE_FIELD])}')
-        pressure_raster_info = {}
+        pressure_mask_raster_info = {}
         if row[GIS_TYPE_FIELD] == RASTER_TYPE:
             raster_path = row[PATH_FIELD]
             local_path = os.path.join(
                 local_workspace, os.path.basename(raster_path))
-            pressure_raster_info[PATH_FIELD] = local_path
+            pressure_mask_raster_info[PATH_FIELD] = local_path
             _mask_raster(task_graph, raster_path, row, local_path)
         elif row[GIS_TYPE_FIELD] == VECTOR_TYPE:
             vector_path = row[PATH_FIELD]
@@ -265,70 +267,76 @@ def main():
             _rasterize_vector(
                 args.base_raster_path, vector_path, row,
                 rasterized_vector_path)
-            pressure_raster_info[PATH_FIELD] = rasterized_vector_path
+            pressure_mask_raster_info[PATH_FIELD] = rasterized_vector_path
 
-        pressure_raster_info.update({
+        pressure_mask_raster_info.update({
             x: row[x] for x in [
                 DECAY_TYPE_FIELD, PARAM_VAL_AT_MIN_DIST_FIELD,
                 MAX_IMPACT_DIST_FIELD, RASTER_VALUE_FIELD]
             })
-        pressure_raster_list.append(pressure_raster_info)
-        del pressure_raster_info
+        pressure_mask_raster_list.append(pressure_mask_raster_info)
+        del pressure_mask_raster_info
 
-    LOGGER.debug(pressure_raster_list)
-    # At this point, all the paths in pressure_raster_list are rasterized and
+    LOGGER.debug(pressure_mask_raster_list)
+    # At this point, all the paths in pressure_mask_raster_list are rasterized and
     # ready to be spread over space
 
-    for pressure_raster_dict in pressure_raster_list:
+    for pressure_mask_raster_dict in pressure_mask_raster_list:
         # save the mask for later in case we need to mask it out further
         # before we
-        pressure_raster_path = pressure_raster_dict[PATH_FIELD]
+        pressure_mask_raster_path = pressure_mask_raster_dict[PATH_FIELD]
         LOGGER.info(
-            f'processing mask {pressure_raster_path}/{row}')
+            f'processing mask {pressure_mask_raster_path}/{row}')
         max_extent_in_pixel_units = convert_meters_to_pixel_units(
-            pressure_raster_path, row[MAX_IMPACT_DIST_FIELD])[0]
+            pressure_mask_raster_path, row[MAX_IMPACT_DIST_FIELD])[0]
 
-        base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
-        base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
-        decay_kernel = scipy.ndimage.distance_transform_edt(base_array)
-        valid_mask = decay_kernel < (max(base_array.shape)/2)
-        decay_kernel[~valid_mask] = 0
-        # calculate what threshold of gaussian is 0.5 when p=1 and distance
-        # is effective distance
-        s_val = numpy.log(0.5)/(-(
-            effective_extent_in_pixel_units/max_extent_in_pixel_units)**2)
-        decay_kernel[valid_mask] = (
-            numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
-                s_val/args.probability_of_conversion))
-        decay_kernel /= numpy.sum(decay_kernel)
+        pressure_raster_path = '%s_pressure%s' % os.splitext(
+            pressure_mask_raster_path)
 
-        # determine the threshold for the transform of the main pressure
-        if not numpy.isnan(row[DECAY_TYPE]):
-            # this defines the threshold, a single pixel
-            center_val = decay_kernel[
-                decay_kernel.shape[0]//2+int(effective_extent_in_pixel_units),
-                decay_kernel.shape[1]//2]
-            threshold_val = numpy.sqrt(center_val/numpy.sum(decay_kernel))*numpy.sqrt(0.1*args.probability_of_conversion)
-            LOGGER.info(f'************* threshold_val: {threshold_val}')
-            decay_kernel /= threshold_val
+        if row[EFFECT_DISTANCE_TYPE_FIELD] == NEAREST_DISTANCE_TYPE:
+            pass
+        elif row[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
+            base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
+            base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
+            decay_kernel = scipy.ndimage.distance_transform_edt(base_array)
+            valid_mask = decay_kernel < (max(base_array.shape)/2)
+            decay_kernel[~valid_mask] = 0
+
+            # TODO: i left off here because i got tired but this is where we turn exponential/linear/etc
+            # into code for a decay kernel
+
+            decay_kernel[valid_mask] = (
+                numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
+                    s_val/args.probability_of_conversion))
+            decay_kernel /= numpy.sum(decay_kernel)
+
+            # determine the threshold for the transform of the main pressure
+            if not numpy.isnan(row[DECAY_TYPE]):
+                # this defines the threshold, a single pixel
+                center_val = decay_kernel[
+                    decay_kernel.shape[0]//2+int(effective_extent_in_pixel_units),
+                    decay_kernel.shape[1]//2]
+                threshold_val = numpy.sqrt(center_val/numpy.sum(decay_kernel))*numpy.sqrt(0.1*args.probability_of_conversion)
+                LOGGER.info(f'************* threshold_val: {threshold_val}')
+                decay_kernel /= threshold_val
 
 
 
-        decay_kernel_path = os.path.join(
-            local_workspace,
-            f"{raw_basename(mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
-        geoprocessing.numpy_array_to_raster(
-            decay_kernel**2, None, [1, -1], [0, 0], None, decay_kernel_path)
-        effect_path = (
-            f'{os.path.splitext(mask_raster_path)[0]}_effect_{args.probability_of_conversion}.tif')
-        LOGGER.debug(f'calculate effect for {effect_path}')
-        geoprocessing.convolve_2d(
-            (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
-            ignore_nodata_and_edges=False, mask_nodata=False,
-            normalize_kernel=False, target_datatype=gdal.GDT_Float64,
-            target_nodata=None, working_dir=None, set_tol_to_zero=1e-8,
-            n_workers=multiprocessing.cpu_count()//4)
-        effect_path_list.append(effect_path)
+            decay_kernel_path = os.path.join(
+                local_workspace,
+                f"{raw_basename(mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
+            geoprocessing.numpy_array_to_raster(
+                decay_kernel**2, None, [1, -1], [0, 0], None, decay_kernel_path)
+            effect_path = (
+                f'{os.path.splitext(mask_raster_path)[0]}_effect_{args.probability_of_conversion}.tif')
+            LOGGER.debug(f'calculate effect for {effect_path}')
+            geoprocessing.convolve_2d(
+                (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
+                ignore_nodata_and_edges=False, mask_nodata=False,
+                normalize_kernel=False, target_datatype=gdal.GDT_Float64,
+                target_nodata=None, working_dir=None, set_tol_to_zero=1e-8,
+                n_workers=multiprocessing.cpu_count()//4)
+            effect_path_list.append(effect_path)
 
     def conversion_op(base_lulc_array, decayed_effect_array):
         result = base_lulc_array.copy()
