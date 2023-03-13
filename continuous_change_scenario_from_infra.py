@@ -8,6 +8,7 @@ import logging
 import multiprocessing
 import sys
 
+from scipy.optimize import fsolve
 import numpy
 import scipy
 import pyproj
@@ -59,6 +60,9 @@ EFFECT_DISTANCE_TYPE_FIELD = 'effect distance type'
 NEAREST_DISTANCE_TYPE = 'nearest'
 CONVOLUTION_DISTANCE_TYPE = 'convolution'
 DISTANCE_TYPES = [NEAREST_DISTANCE_TYPE, CONVOLUTION_DISTANCE_TYPE]
+
+# Exponential decay alpha
+ALPHA = 3
 
 
 def mask_out_value_op(value):
@@ -215,20 +219,45 @@ def _rasterize_vector(
         option_list=['ALL_TOUCHED=TRUE'])
 
 
+"""
+print((numpy.cos((xp*numpy.pi))+1)/2)
+
+y = -(numpy.sin(((x-0.5)*numpy.pi))-1)/2
+plt.plot(x, y)
+#y = numpy.exp(-x-1)
+alpha = 3
+
+def func(x):
+    return [
+        x[0]*numpy.exp(-alpha*(0-1))+x[1]-1,
+        x[0]*numpy.exp(-alpha*(1-1))+x[1]]
+
+from scipy.optimize import fsolve
+A, B = fsolve(func, [1, 1])
+y = A*numpy.exp(-alpha*(x-1))+B
+plt.plot(x, y)
+
+y = 1-x
+"""
+
 def decay_op(decay_type, max_dist):
     """Defines a function for decay based on the types in `DECAY_TYPES`."""
     if decay_type == EXPONENTIAL_DECAY_TYPE:
+        def func(x):
+            return [
+                x[0]*numpy.exp(-ALPHA*(0-1))+x[1]-1,
+                x[0]*numpy.exp(-ALPHA*(1-1))+x[1]]
+        A, B = fsolve(func, [1, 1])
         def _decay_op(array):
-            return numpy.exp(
-                -(array/max_extent_in_pixel_units)**2)**(
-                s_val/args.probability_of_conversion)
+            return A*numpy.exp(-ALPHA*(array/max_dist-1))+B
     elif decay_type == LINEAR_DECAY_TYPE:
         # a linear decay is just inverting the distance from the max
         def _decay_op(array):
-            decay_kernel[valid_mask] -= max(decay_kernel[valid_mask])
+            return (max_dist-array)
     elif decay_type == SIGMOID_DECAY_TYPE:
-        decay_kernel[valid_mask] = numpy.cos(
-            numpy.pi*decay_kernel[valid_mask]/max(decay_kernel[valid_mask]))/2+0.5
+        def _decay_op(array):
+            return numpy.cos(numpy.pi*array/max_dist)/2+0.5
+    return _decay_op
 
 
 def main():
@@ -321,8 +350,6 @@ def main():
             #   it so we get a 1 to 0 (and negative) distance, from there apply
             #   exponential/sigmoid/linear decay as appropriate.
             pass
-
-
         elif row[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
             # build a distance transform kernel by converting meter extent
             # to pixel extent
@@ -334,29 +361,10 @@ def main():
             valid_mask = decay_kernel <= (max(base_array.shape)/2)
             decay_kernel[~valid_mask] = 0
 
-            if row[DECAY_TYPE_FIELD] == EXPONENTIAL_DECAY_TYPE:
-                decay_kernel[valid_mask] = (
-                    numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
-                        s_val/args.probability_of_conversion))
-            elif row[DECAY_TYPE_FIELD] == LINEAR_DECAY_TYPE:
-                # a linear decay is just inverting the distance from the max
-                decay_kernel[valid_mask] -= max(decay_kernel[valid_mask])
-            elif rwo[DECAY_TYPE_FIELD] == SIGMOID_DECAY_TYPE:
-                decay_kernel[valid_mask] = numpy.cos(
-                    numpy.pi*decay_kernel[valid_mask]/max(decay_kernel[valid_mask]))/2+0.5
+            decay_kernel[valid_mask] = decay_op(
+                row[DECAY_TYPE_FIELD], max_extent_in_pixel_units)(
+                decay_kernel[valid_mask])
             decay_kernel /= numpy.sum(decay_kernel)
-
-            # TODO: left off here, to head over to office
-
-            # determine the threshold for the transform of the main pressure
-            if not numpy.isnan(row[DECAY_TYPE]):
-                # this defines the threshold, a single pixel
-                center_val = decay_kernel[
-                    decay_kernel.shape[0]//2+int(effective_extent_in_pixel_units),
-                    decay_kernel.shape[1]//2]
-                threshold_val = numpy.sqrt(center_val/numpy.sum(decay_kernel))*numpy.sqrt(0.1*args.probability_of_conversion)
-                LOGGER.info(f'************* threshold_val: {threshold_val}')
-                decay_kernel /= threshold_val
 
             decay_kernel_path = os.path.join(
                 local_workspace,
