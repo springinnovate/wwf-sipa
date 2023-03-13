@@ -240,7 +240,7 @@ plt.plot(x, y)
 y = 1-x
 """
 
-def decay_op(decay_type, max_dist):
+def decay_op(decay_type, max_dist, base_nodata, target_nodata):
     """Defines a function for decay based on the types in `DECAY_TYPES`."""
     if decay_type == EXPONENTIAL_DECAY_TYPE:
         def func(x):
@@ -249,14 +249,26 @@ def decay_op(decay_type, max_dist):
                 x[0]*numpy.exp(-ALPHA*(1-1))+x[1]]
         A, B = fsolve(func, [1, 1])
         def _decay_op(array):
-            return A*numpy.exp(-ALPHA*(array/max_dist-1))+B
+            valid_mask = (array <= max_dist) & (array != base_nodata)
+            result = numpy.empty(array.shape)
+            result[valid_mask] = A*numpy.exp(-ALPHA*(array[valid_mask]/max_dist-1))+B
+            result[~valid_mask] = target_nodata
+            return result
     elif decay_type == LINEAR_DECAY_TYPE:
         # a linear decay is just inverting the distance from the max
         def _decay_op(array):
-            return (max_dist-array)
+            valid_mask = (array <= max_dist) & (array != base_nodata)
+            result = numpy.empty(array.shape)
+            result[valid_mask] = (max_dist-array[valid_mask])
+            result[~valid_mask] = target_nodata
+            return result
     elif decay_type == SIGMOID_DECAY_TYPE:
         def _decay_op(array):
-            return numpy.cos(numpy.pi*array/max_dist)/2+0.5
+            valid_mask = (array <= max_dist) & (array != base_nodata)
+            result = numpy.empty(array.shape)
+            result[valid_mask] = numpy.cos(numpy.pi*array[valid_mask]/max_dist)/2+0.5
+            result[~valid_mask] = target_nodata
+            return result
     return _decay_op
 
 
@@ -340,8 +352,11 @@ def main():
         max_extent_in_pixel_units = convert_meters_to_pixel_units(
             pressure_mask_raster_path, row[MAX_IMPACT_DIST_FIELD])[0]
 
-        pressure_raster_path = '%s_pressure%s' % os.splitext(
-            pressure_mask_raster_path)
+        effect_path = (
+            f'{os.path.splitext(mask_raster_path)[0]}_'
+            f'{row[EFFECT_DISTANCE_TYPE_FIELD]}_'
+            f'{row[DECAY_TYPE_FIELD]}_effect.tif')
+        effect_path_list.append(effect_path)
 
         if row[EFFECT_DISTANCE_TYPE_FIELD] == NEAREST_DISTANCE_TYPE:
             # TODO: distance transform
@@ -349,7 +364,19 @@ def main():
             #   that function will first subtract by the max distance then divide by
             #   it so we get a 1 to 0 (and negative) distance, from there apply
             #   exponential/sigmoid/linear decay as appropriate.
-            pass
+            nearest_dist_raster_path = '%s_nearest_dist%s' % os.splitext(
+                pressure_mask_raster_path)
+            geoprocessing.distance_transform_edt(
+                (mask_raster_path, 1), nearest_dist_raster_path,
+                working_dir=os.dirname(nearest_dist_raster_path))
+
+            target_nodata = -1
+            geoprocessing.raster_calculator(
+                [(nearest_dist_raster_path, 1)], decay_op(
+                    row[DECAY_TYPE_FIELD], max_extent_in_pixel_units, None,
+                    target_nodata),
+                effect_path, gdal.GDT_Float32, target_nodata)
+
         elif row[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
             # build a distance transform kernel by converting meter extent
             # to pixel extent
@@ -363,16 +390,14 @@ def main():
 
             decay_kernel[valid_mask] = decay_op(
                 row[DECAY_TYPE_FIELD], max_extent_in_pixel_units)(
-                decay_kernel[valid_mask])
+                decay_kernel[valid_mask], 0, 0)
             decay_kernel /= numpy.sum(decay_kernel)
 
             decay_kernel_path = os.path.join(
                 local_workspace,
                 f"{raw_basename(mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
             geoprocessing.numpy_array_to_raster(
-                decay_kernel**2, None, [1, -1], [0, 0], None, decay_kernel_path)
-            effect_path = (
-                f'{os.path.splitext(mask_raster_path)[0]}_effect_{args.probability_of_conversion}.tif')
+                decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
             LOGGER.debug(f'calculate effect for {effect_path}')
             geoprocessing.convolve_2d(
                 (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
@@ -380,7 +405,6 @@ def main():
                 normalize_kernel=False, target_datatype=gdal.GDT_Float64,
                 target_nodata=None, working_dir=None, set_tol_to_zero=1e-8,
                 n_workers=multiprocessing.cpu_count()//4)
-            effect_path_list.append(effect_path)
 
     def conversion_op(base_lulc_array, decayed_effect_array):
         result = base_lulc_array.copy()
