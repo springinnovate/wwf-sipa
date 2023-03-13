@@ -242,6 +242,12 @@ y = 1-x
 
 def decay_op(decay_type, max_dist, base_nodata, target_nodata):
     """Defines a function for decay based on the types in `DECAY_TYPES`."""
+    def _calc_valid_mask(array, max_dist, base_nodata):
+        valid_mask = (array <= max_dist)
+        if base_nodata is not None:
+            valid_mask &= (array != base_nodata)
+        return valid_mask
+
     if decay_type == EXPONENTIAL_DECAY_TYPE:
         def func(x):
             return [
@@ -249,7 +255,7 @@ def decay_op(decay_type, max_dist, base_nodata, target_nodata):
                 x[0]*numpy.exp(-ALPHA*(1-1))+x[1]]
         A, B = fsolve(func, [1, 1])
         def _decay_op(array):
-            valid_mask = (array <= max_dist) & (array != base_nodata)
+            valid_mask = _calc_valid_mask(array, max_dist, base_nodata)
             result = numpy.empty(array.shape)
             result[valid_mask] = A*numpy.exp(-ALPHA*(array[valid_mask]/max_dist-1))+B
             result[~valid_mask] = target_nodata
@@ -257,14 +263,14 @@ def decay_op(decay_type, max_dist, base_nodata, target_nodata):
     elif decay_type == LINEAR_DECAY_TYPE:
         # a linear decay is just inverting the distance from the max
         def _decay_op(array):
-            valid_mask = (array <= max_dist) & (array != base_nodata)
+            valid_mask = _calc_valid_mask(array, max_dist, base_nodata)
             result = numpy.empty(array.shape)
             result[valid_mask] = (max_dist-array[valid_mask])
             result[~valid_mask] = target_nodata
             return result
     elif decay_type == SIGMOID_DECAY_TYPE:
         def _decay_op(array):
-            valid_mask = (array <= max_dist) & (array != base_nodata)
+            valid_mask = _calc_valid_mask(array, max_dist, base_nodata)
             result = numpy.empty(array.shape)
             result[valid_mask] = numpy.cos(numpy.pi*array[valid_mask]/max_dist)/2+0.5
             result[~valid_mask] = target_nodata
@@ -353,7 +359,7 @@ def main():
             pressure_mask_raster_path, row[MAX_IMPACT_DIST_FIELD])[0]
 
         effect_path = (
-            f'{os.path.splitext(mask_raster_path)[0]}_'
+            f'{os.path.splitext(pressure_mask_raster_path)[0]}_'
             f'{row[EFFECT_DISTANCE_TYPE_FIELD]}_'
             f'{row[DECAY_TYPE_FIELD]}_effect.tif')
         effect_path_list.append(effect_path)
@@ -367,7 +373,7 @@ def main():
             nearest_dist_raster_path = '%s_nearest_dist%s' % os.splitext(
                 pressure_mask_raster_path)
             geoprocessing.distance_transform_edt(
-                (mask_raster_path, 1), nearest_dist_raster_path,
+                (pressure_mask_raster_path, 1), nearest_dist_raster_path,
                 working_dir=os.dirname(nearest_dist_raster_path))
 
             target_nodata = -1
@@ -395,35 +401,41 @@ def main():
 
             decay_kernel_path = os.path.join(
                 local_workspace,
-                f"{raw_basename(mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
+                f"{raw_basename(pressure_mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
             geoprocessing.numpy_array_to_raster(
                 decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
             LOGGER.debug(f'calculate effect for {effect_path}')
             geoprocessing.convolve_2d(
-                (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
+                (pressure_mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
                 ignore_nodata_and_edges=False, mask_nodata=False,
                 normalize_kernel=False, target_datatype=gdal.GDT_Float64,
                 target_nodata=None, working_dir=None, set_tol_to_zero=1e-8,
                 n_workers=multiprocessing.cpu_count()//4)
 
-    def conversion_op(base_lulc_array, decayed_effect_array):
-        result = base_lulc_array.copy()
-        do_not_convert_mask = numpy.isin(
-            base_lulc_array, numpy.array(args.do_not_convert))
-        threshold_mask = (decayed_effect_array >= 1) & (~do_not_convert_mask)
-        result[threshold_mask] = conversion_code
-        result[base_lulc_array == raster_info['nodata']] = (
-            raster_info['nodata'])
+    def conversion_op(base_raster, *decay_effect_list):
+        valid_mask = (base_raster_path != nodata) & ~(
+            numpy.isnan(base_raster_path))
+        decay_effect_exponent = numpy.zeros(base_raster_path.shape)
+
+        for decay_effect_array in decay_effect_list:
+            decay_effect_exponent[valid_mask] += numpy.log(
+                1-decay_effect_array[valid_mask])
+        result = numpy.empty(base_raster.shape)
+        result[valid_mask] = base_raster[valid_mask] * numpy.exp(
+            decay_effect_exponent[valid_mask])
         return result
 
     converted_raster_path = (
-        f'{raw_basename(working_base_raster_path)}_'
+        f'{raw_basename(args.base_raster_path)}_'
         f'{raw_basename(args.infrastructure_scenario_path)}_'
         f'{args.probability_of_conversion}_.tif')
     geoprocessing.single_thread_raster_calculator(
-        [(working_base_raster_path, 1), (decayed_effect_path, 1)],
+        [(args.base_raster_path, 1)]+[(path, 1) for path in effect_path_list],
         conversion_op, converted_raster_path,
         raster_info['datatype'], raster_info['nodata'][0])
+
+    # TODO: I think there's a 'min/max' conversion level and stuff that needs to
+    #   go in there'
 
 
 if __name__ == '__main__':
