@@ -13,7 +13,8 @@ import scipy
 import pyproj
 from osgeo import gdal
 from ecoshard import geoprocessing
-from ecoshard.geoprocessing.geoprocessing_core import DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS
+from ecoshard.geoprocessing.geoprocessing_core \
+    import DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS
 from ecoshard import taskgraph
 import pandas
 
@@ -43,17 +44,21 @@ VECTOR_VALUE_FIELD = 'vector value'
 RASTER_VALUE_FIELD = 'raster value'
 PARAM_VAL_AT_MIN_DIST_FIELD = 'value of parameter at min distance'
 MAX_IMPACT_DIST_FIELD = 'max impact dist'
+
+# Decay describes how quickly the effect falls off
 DECAY_TYPE_FIELD = 'decay type'
-DECAY_TYPES = ['linear', 'exponential', 'log']
+LINEAR_DECAY_TYPE = 'linear'
+EXPONENTIAL_DECAY_TYPE = 'exponential'
+SIGMOID_DECAY_TYPE = 'sigmoid'
+DECAY_TYPES = [LINEAR_DECAY_TYPE, EXPONENTIAL_DECAY_TYPE, SIGMOID_DECAY_TYPE]
+
+# effect describes how the effect propagates from the source, is it
+# a function of only how near it is, or is it how near and how many
+# there are?
 EFFECT_DISTANCE_TYPE_FIELD = 'effect distance type'
 NEAREST_DISTANCE_TYPE = 'nearest'
-CONVOLUTION_DISTANCE_TYPE = 'nearest'
+CONVOLUTION_DISTANCE_TYPE = 'convolution'
 DISTANCE_TYPES = [NEAREST_DISTANCE_TYPE, CONVOLUTION_DISTANCE_TYPE]
-
-
-DECAY_TYPES = ['exponential', 'linear', 'soft', 'block']
-CLOSEST_IMPACT_FACTOR_FIELD = 'closest impact factor'
-FURTHEST_IMPACE_FACTOR_FIELD = 'furthest impact factor'
 
 
 def mask_out_value_op(value):
@@ -296,19 +301,29 @@ def main():
         if row[EFFECT_DISTANCE_TYPE_FIELD] == NEAREST_DISTANCE_TYPE:
             pass
         elif row[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
+            # build a distance transform kernel by converting meter extent
+            # to pixel extent
             base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
             base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
             decay_kernel = scipy.ndimage.distance_transform_edt(base_array)
-            valid_mask = decay_kernel < (max(base_array.shape)/2)
+            # only valid where it's <= than the maximum distance defined
+            # in meters but turned to pixels
+            valid_mask = decay_kernel <= (max(base_array.shape)/2)
             decay_kernel[~valid_mask] = 0
 
-            # TODO: i left off here because i got tired but this is where we turn exponential/linear/etc
-            # into code for a decay kernel
-
-            decay_kernel[valid_mask] = (
-                numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
-                    s_val/args.probability_of_conversion))
+            if row[DECAY_TYPE_FIELD] == EXPONENTIAL_DECAY_TYPE:
+                decay_kernel[valid_mask] = (
+                    numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
+                        s_val/args.probability_of_conversion))
+            elif row[DECAY_TYPE_FIELD] == LINEAR_DECAY_TYPE:
+                # a linear decay is just inverting the distance from the max
+                decay_kernel[valid_mask] -= max(decay_kernel[valid_mask])
+            elif rwo[DECAY_TYPE_FIELD] == SIGMOID_DECAY_TYPE:
+                decay_kernel[valid_mask] = numpy.cos(
+                    numpy.pi*decay_kernel[valid_mask]/max(decay_kernel[valid_mask]))/2+0.5
             decay_kernel /= numpy.sum(decay_kernel)
+
+            # TODO: left off here, to head over to office
 
             # determine the threshold for the transform of the main pressure
             if not numpy.isnan(row[DECAY_TYPE]):
@@ -319,8 +334,6 @@ def main():
                 threshold_val = numpy.sqrt(center_val/numpy.sum(decay_kernel))*numpy.sqrt(0.1*args.probability_of_conversion)
                 LOGGER.info(f'************* threshold_val: {threshold_val}')
                 decay_kernel /= threshold_val
-
-
 
             decay_kernel_path = os.path.join(
                 local_workspace,
