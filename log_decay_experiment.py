@@ -4,10 +4,11 @@ import numpy
 # initializing the data
 x = numpy.linspace(0, 1)
 
-y = numpy.cos(x*numpy.pi)/2+0.5
-
-# plotting the data
+y = numpy.sin(numpy.pi+(x**5*numpy.pi))/2+0.5
 plt.plot(x, y)
+y = numpy.exp(-x)**2
+plt.plot(x, y)
+# plotting the data
 
 # Adding the title
 plt.title("Simple Plot")

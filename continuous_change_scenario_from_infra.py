@@ -215,6 +215,22 @@ def _rasterize_vector(
         option_list=['ALL_TOUCHED=TRUE'])
 
 
+def decay_op(decay_type, max_dist):
+    """Defines a function for decay based on the types in `DECAY_TYPES`."""
+    if decay_type == EXPONENTIAL_DECAY_TYPE:
+        def _decay_op(array):
+            return numpy.exp(
+                -(array/max_extent_in_pixel_units)**2)**(
+                s_val/args.probability_of_conversion)
+    elif decay_type == LINEAR_DECAY_TYPE:
+        # a linear decay is just inverting the distance from the max
+        def _decay_op(array):
+            decay_kernel[valid_mask] -= max(decay_kernel[valid_mask])
+    elif decay_type == SIGMOID_DECAY_TYPE:
+        decay_kernel[valid_mask] = numpy.cos(
+            numpy.pi*decay_kernel[valid_mask]/max(decay_kernel[valid_mask]))/2+0.5
+
+
 def main():
     """Entry point."""
     parser = argparse.ArgumentParser(description='Model land change')
@@ -299,7 +315,14 @@ def main():
             pressure_mask_raster_path)
 
         if row[EFFECT_DISTANCE_TYPE_FIELD] == NEAREST_DISTANCE_TYPE:
+            # TODO: distance transform
+            # TODO: pass distance transform to the correct kind of decay function
+            #   that function will first subtract by the max distance then divide by
+            #   it so we get a 1 to 0 (and negative) distance, from there apply
+            #   exponential/sigmoid/linear decay as appropriate.
             pass
+
+
         elif row[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
             # build a distance transform kernel by converting meter extent
             # to pixel extent
