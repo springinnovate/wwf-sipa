@@ -63,6 +63,7 @@ DISTANCE_TYPES = [NEAREST_DISTANCE_TYPE, CONVOLUTION_DISTANCE_TYPE]
 
 # Exponential decay alpha
 ALPHA = 3
+EFFECT_NODATA = -1
 
 
 def mask_out_value_op(value):
@@ -161,6 +162,7 @@ def _mask_raster(task_graph, base_raster_path, row, target_raster_path):
         },
         target_path_list=[intermediate_raster_path],
         task_name=f'warp {intermediate_raster_path}')
+    task_graph.join()
 
     if numpy.isnan(raster_mask_value):
         # just a warp is all that's needed
@@ -183,6 +185,7 @@ def _mask_raster(task_graph, base_raster_path, row, target_raster_path):
             target_raster_path, gdal.GDT_Byte, None),
         target_path_list=[target_raster_path],
         task_name=f'mask {target_raster_path} with {raster_mask_value_list}')
+    task_graph.join()
 
 
 def _rasterize_vector(
@@ -200,6 +203,7 @@ def _rasterize_vector(
         os.path.dirname(target_rasterized_vector_path),
         f'{raw_basename(row[PATH_FIELD])}_{where_filter}.gpkg')
     vector_info = geoprocessing.get_vector_info(row[PATH_FIELD])
+    LOGGER.debug(vector_info)
     geoprocessing.reproject_vector(
         row[PATH_FIELD], target_projection_wkt,
         reprojected_vector_path, layer_id=0,
@@ -215,27 +219,6 @@ def _rasterize_vector(
         reprojected_vector_path, target_rasterized_vector_path, burn_values=[1],
         option_list=['ALL_TOUCHED=TRUE'])
 
-
-"""
-print((numpy.cos((xp*numpy.pi))+1)/2)
-
-y = -(numpy.sin(((x-0.5)*numpy.pi))-1)/2
-plt.plot(x, y)
-#y = numpy.exp(-x-1)
-alpha = 3
-
-def func(x):
-    return [
-        x[0]*numpy.exp(-alpha*(0-1))+x[1]-1,
-        x[0]*numpy.exp(-alpha*(1-1))+x[1]]
-
-from scipy.optimize import fsolve
-A, B = fsolve(func, [1, 1])
-y = A*numpy.exp(-alpha*(x-1))+B
-plt.plot(x, y)
-
-y = 1-x
-"""
 
 def decay_op(decay_type, max_dist, base_nodata=None, target_nodata=None):
     """Defines a function for decay based on the types in `DECAY_TYPES`."""
@@ -291,6 +274,7 @@ def main():
         f'\t`{PATH_FIELD}`: path to vector or raster\n'
         f'\t`{DECAY_TYPE_FIELD}`: decay type in {DECAY_TYPES} where:\n'
         '\t`path`: path to vector\n'
+        f'\t`{EFFECT_DISTANCE_TYPE_FIELD}: one of {DISTANCE_TYPES}\n'
         f'\t`{MAX_IMPACT_DIST_FIELD}`: effective maximum distance of '
         'impact in meters\n'
         f'\t`{GIS_TYPE_FIELD}`: has one of the values {GIS_TYPES}\n'
@@ -318,7 +302,36 @@ def main():
 
     task_graph = taskgraph.TaskGraph(local_workspace, n_workers=-1)
 
+    local_base_raster_path = args.base_raster_path
+    base_raster_info = geoprocessing.get_raster_info(args.base_raster_path)
+    if not square_blocksize(args.base_raster_path):
+        local_base_raster_path = os.path.join(
+            local_workspace, os.path.basename(args.base_raster_path))
+        task_graph.add_task(
+            func=geoprocessing.warp_raster,
+            args=(
+                args.base_raster_path, base_raster_info['pixel_size'],
+                local_base_raster_path, 'nearest'),
+            kwargs={'working_dir': local_workspace},
+            target_path_list=[local_base_raster_path],
+            task_name=f'warp {local_base_raster_path} to square blocksize')
+        task_graph.join()
+
     # TODO: deal with convert mask path
+    local_convert_mask_path = os.path.join(
+        local_workspace, os.path.basename(args.convert_mask_path))
+    if args.convert_mask_path is not None:
+        task_graph.add_task(
+            func=geoprocessing.warp_raster,
+            args=(
+                args.convert_mask_path, base_raster_info['pixel_size'],
+                local_convert_mask_path, 'nearest'),
+            kwargs={
+                'working_dir': local_workspace,
+                'target_bb': base_raster_info['bounding_box']},
+            target_path_list=[local_convert_mask_path],
+            task_name=f'warp {local_convert_mask_path} to square blocksize')
+        task_graph.join()
 
     # Align input rasters from table and --convert_mask_path to
     # base_raster_path
@@ -337,10 +350,15 @@ def main():
             vector_path = row[PATH_FIELD]
             rasterized_vector_path = os.path.join(
                 local_workspace, f'{raw_basename(vector_path)}.tif')
-            _rasterize_vector(
-                args.base_raster_path, vector_path, row,
-                rasterized_vector_path)
+            task_graph.add_task(
+                func=_rasterize_vector,
+                args=(
+                    local_base_raster_path, vector_path, row,
+                    rasterized_vector_path),
+                target_path_list=[rasterized_vector_path],
+                task_name=f'rasterize to {rasterized_vector_path}')
             pressure_mask_raster_info[PATH_FIELD] = rasterized_vector_path
+            task_graph.join()
 
         pressure_mask_raster_info.update({
             x: row[x] for x in [
@@ -382,16 +400,21 @@ def main():
             #   exponential/sigmoid/linear decay as appropriate.
             nearest_dist_raster_path = '%s_nearest_dist%s' % os.path.splitext(
                 pressure_mask_raster_path)
-            geoprocessing.distance_transform_edt(
-                (pressure_mask_raster_path, 1), nearest_dist_raster_path,
-                working_dir=os.path.dirname(nearest_dist_raster_path))
+            task_graph.add_task(
+                func=geoprocessing.distance_transform_edt,
+                args=(
+                    (pressure_mask_raster_path, 1), nearest_dist_raster_path),
+                kwargs={
+                    'working_dir': os.path.dirname(nearest_dist_raster_path)},
+                target_path_list=[nearest_dist_raster_path],
+                task_name=f'distance transform to {nearest_dist_raster_path}')
+            task_graph.join()
 
-            target_nodata = -1
             geoprocessing.raster_calculator(
                 [(nearest_dist_raster_path, 1)], decay_op(
                     pressure_mask_raster_dict[DECAY_TYPE_FIELD], max_extent_in_pixel_units, None,
-                    target_nodata),
-                effect_path, gdal.GDT_Float32, target_nodata)
+                    EFFECT_NODATA),
+                effect_path, gdal.GDT_Float32, EFFECT_NODATA)
 
         elif pressure_mask_raster_dict[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
             # build a distance transform kernel by converting meter extent
@@ -417,30 +440,41 @@ def main():
             geoprocessing.numpy_array_to_raster(
                 decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
             LOGGER.debug(f'calculate effect for {effect_path}')
-            geoprocessing.convolve_2d(
-                (pressure_mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
-                ignore_nodata_and_edges=False, mask_nodata=False,
-                normalize_kernel=False, target_datatype=gdal.GDT_Float64,
-                target_nodata=None, working_dir=None, set_tol_to_zero=1e-8,
-                n_workers=multiprocessing.cpu_count()//4)
+            task_graph.add_task(
+                func=geoprocessing.convolve_2d,
+                args=(
+                    (pressure_mask_raster_path, 1), (decay_kernel_path, 1),
+                    effect_path),
+                kwargs={
+                    'ignore_nodata_and_edges': False, 'mask_nodata': False,
+                    'normalize_kernel': False,
+                    'target_datatype': gdal.GDT_Float64,
+                    'target_nodata': None, 'working_dir': None,
+                    'set_tol_to_zero': 1e-8,
+                    'n_workers': multiprocessing.cpu_count()//4},
+                target_path_list=[effect_path],
+                task_name=f'convolving effect for {effect_path}')
+            task_graph.join()
 
-    def conversion_op(base_array, nodata, *decay_effect_list):
+    def conversion_op(base_array, nodata, include_array_mask, *decay_effect_list):
         """decay_effect_list is list of (array, param) tuples."""
+        if nodata is None:
+            nodata = -99999
         valid_mask = (base_array != nodata) & ~numpy.isnan(base_array)
+        if include_array_mask is not None:
+            valid_mask &= (include_array_mask == 1)
         decay_effect_exponent = numpy.zeros(base_array.shape)
-        decay_val_sum = numpy.zeros(base_array.shape)
-        exp_val_sum = numpy.zeros(base_array.shape)
+        decay_val_sum = numpy.zeros(base_array.shape, dtype=float)
+        exp_val_sum = numpy.zeros(base_array.shape, dtype=float)
         decay_effect_iter = iter(decay_effect_list)
         for decay_effect_array, val_at_min_dist in zip(
                 decay_effect_iter, decay_effect_iter):
-
-            # sum up all the 1-ln(effect) for later use in
-            #   exp(sum(1-ln(effect)_i))
             local_valid_mask = (
                 valid_mask &
                 (decay_effect_array > 0) &
-                (decay_effect_array < 1))
-            exponent_val = numpy.zeros(base_array.shape)
+                (decay_effect_array < 1) &
+                (decay_effect_array != EFFECT_NODATA))
+            exponent_val = numpy.zeros(base_array.shape, dtype=float)
             exponent_val[local_valid_mask] = numpy.log(
                 1-decay_effect_array[local_valid_mask])
 
@@ -451,31 +485,31 @@ def main():
             exp_val_sum[valid_mask] += (
                 1-numpy.exp(exponent_val[valid_mask]))
 
-        local_valid_mask = valid_mask & (exp_val_sum > 0)
+        local_valid_mask = valid_mask & (exp_val_sum != 0)
         weighted_exp_val = numpy.full(base_array.shape, nodata)
         weighted_exp_val[local_valid_mask] = (
             decay_val_sum[local_valid_mask] / exp_val_sum[local_valid_mask])
 
-        result = numpy.empty(base_array.shape)
-        param_val = numpy.full(base_array.shape, nodata)
+        result = base_array.copy()
+        param_val = numpy.full(base_array.shape, nodata, dtype=float)
         param_val[valid_mask] = numpy.exp(decay_effect_exponent[valid_mask])
 
-        result[valid_mask] = (
-            base_array[valid_mask] * param_val[valid_mask] +
-            (1-param_val[valid_mask]) * weighted_exp_val[valid_mask])
-        result[~valid_mask] = nodata
+        param_val_mask = (weighted_exp_val != nodata) & valid_mask
+        result[param_val_mask] = (
+            base_array[param_val_mask] * param_val[param_val_mask] +
+            (1-param_val[param_val_mask]) * weighted_exp_val[param_val_mask])
         return result
 
     converted_raster_path = (
         f'{raw_basename(args.base_raster_path)}_'
         f'{raw_basename(args.infrastructure_scenario_path)}.tif')
-    base_raster_info = geoprocessing.get_raster_info(args.base_raster_path)
 
     geoprocessing.single_thread_raster_calculator(
-        [(args.base_raster_path, 1), (base_raster_info['nodata'][0], 'raw')] +
+        [(local_base_raster_path, 1), (base_raster_info['nodata'][0], 'raw')] +
+        ([(local_convert_mask_path, 1)] if local_convert_mask_path is not None else [(None, 'raw')]) +
         effect_path_list,
         conversion_op, converted_raster_path,
-        base_raster_info['datatype'], base_raster_info['nodata'][0])
+        gdal.GDT_Float32, base_raster_info['nodata'][0])
 
     # TODO: I think there's a 'min/max' conversion level and stuff that needs to
     #   go in there'
