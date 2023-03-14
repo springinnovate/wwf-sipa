@@ -56,7 +56,7 @@ DECAY_TYPES = [LINEAR_DECAY_TYPE, EXPONENTIAL_DECAY_TYPE, SIGMOID_DECAY_TYPE]
 # effect describes how the effect propagates from the source, is it
 # a function of only how near it is, or is it how near and how many
 # there are?
-EFFECT_DISTANCE_TYPE_FIELD = 'effect distance type'
+EFFECT_DISTANCE_TYPE_FIELD = 'effect_distance_type'
 NEAREST_DISTANCE_TYPE = 'nearest'
 CONVOLUTION_DISTANCE_TYPE = 'convolution'
 DISTANCE_TYPES = [NEAREST_DISTANCE_TYPE, CONVOLUTION_DISTANCE_TYPE]
@@ -105,7 +105,6 @@ def load_table(table_path):
             '\n\nFor reference, the following column headings were detected '
             'in the table:\n' +
             '\t* '+'\n\t* '.join(table.columns))
-
     return table
 
 
@@ -209,13 +208,11 @@ def _rasterize_vector(
         simplify_tol=tol,
         where_filter=where_filter)
 
-    mask_raster_path = (
-        f'{os.path.splitext(reprojected_vector_path)[0]}.tif')
     geoprocessing.new_raster_from_base(
-        base_raster_path, mask_raster_path, gdal.GDT_Byte, [0])
-    LOGGER.info(f'rasterize {mask_raster_path}')
+        base_raster_path, target_rasterized_vector_path, gdal.GDT_Byte, [0])
+    LOGGER.info(f'rasterize {target_rasterized_vector_path}')
     geoprocessing.rasterize(
-        reprojected_vector_path, mask_raster_path, burn_values=[1],
+        reprojected_vector_path, target_rasterized_vector_path, burn_values=[1],
         option_list=['ALL_TOUCHED=TRUE'])
 
 
@@ -240,7 +237,7 @@ plt.plot(x, y)
 y = 1-x
 """
 
-def decay_op(decay_type, max_dist, base_nodata, target_nodata):
+def decay_op(decay_type, max_dist, base_nodata=None, target_nodata=None):
     """Defines a function for decay based on the types in `DECAY_TYPES`."""
     def _calc_valid_mask(array, max_dist, base_nodata):
         valid_mask = (array <= max_dist)
@@ -258,23 +255,29 @@ def decay_op(decay_type, max_dist, base_nodata, target_nodata):
             valid_mask = _calc_valid_mask(array, max_dist, base_nodata)
             result = numpy.empty(array.shape)
             result[valid_mask] = A*numpy.exp(-ALPHA*(array[valid_mask]/max_dist-1))+B
-            result[~valid_mask] = target_nodata
+            if target_nodata is not None:
+                result[~valid_mask] = target_nodata
             return result
     elif decay_type == LINEAR_DECAY_TYPE:
         # a linear decay is just inverting the distance from the max
         def _decay_op(array):
             valid_mask = _calc_valid_mask(array, max_dist, base_nodata)
             result = numpy.empty(array.shape)
-            result[valid_mask] = (max_dist-array[valid_mask])
-            result[~valid_mask] = target_nodata
+            result[valid_mask] = (max_dist-array[valid_mask])/max_dist
+            if target_nodata is not None:
+                result[~valid_mask] = target_nodata
             return result
     elif decay_type == SIGMOID_DECAY_TYPE:
         def _decay_op(array):
             valid_mask = _calc_valid_mask(array, max_dist, base_nodata)
             result = numpy.empty(array.shape)
             result[valid_mask] = numpy.cos(numpy.pi*array[valid_mask]/max_dist)/2+0.5
-            result[~valid_mask] = target_nodata
+            if target_nodata is not None:
+                result[~valid_mask] = target_nodata
             return result
+    else:
+        raise ValueError(
+            f'unknown decay type: {decay_type} expected one of {DECAY_TYPES}')
     return _decay_op
 
 
@@ -315,6 +318,8 @@ def main():
 
     task_graph = taskgraph.TaskGraph(local_workspace, n_workers=-1)
 
+    # TODO: deal with convert mask path
+
     # Align input rasters from table and --convert_mask_path to
     # base_raster_path
     pressure_mask_raster_list = []
@@ -340,7 +345,8 @@ def main():
         pressure_mask_raster_info.update({
             x: row[x] for x in [
                 DECAY_TYPE_FIELD, PARAM_VAL_AT_MIN_DIST_FIELD,
-                MAX_IMPACT_DIST_FIELD, RASTER_VALUE_FIELD]
+                MAX_IMPACT_DIST_FIELD, RASTER_VALUE_FIELD,
+                EFFECT_DISTANCE_TYPE_FIELD]
             })
         pressure_mask_raster_list.append(pressure_mask_raster_info)
         del pressure_mask_raster_info
@@ -349,43 +355,49 @@ def main():
     # At this point, all the paths in pressure_mask_raster_list are rasterized and
     # ready to be spread over space
 
+    effect_path_list = []
     for pressure_mask_raster_dict in pressure_mask_raster_list:
         # save the mask for later in case we need to mask it out further
         # before we
         pressure_mask_raster_path = pressure_mask_raster_dict[PATH_FIELD]
         LOGGER.info(
-            f'processing mask {pressure_mask_raster_path}/{row}')
+            f'processing mask {pressure_mask_raster_path}/{pressure_mask_raster_dict}')
         max_extent_in_pixel_units = convert_meters_to_pixel_units(
-            pressure_mask_raster_path, row[MAX_IMPACT_DIST_FIELD])[0]
+            pressure_mask_raster_path,
+            pressure_mask_raster_dict[MAX_IMPACT_DIST_FIELD])[0]
 
         effect_path = (
             f'{os.path.splitext(pressure_mask_raster_path)[0]}_'
-            f'{row[EFFECT_DISTANCE_TYPE_FIELD]}_'
-            f'{row[DECAY_TYPE_FIELD]}_effect.tif')
-        effect_path_list.append(effect_path)
+            f'{pressure_mask_raster_dict[EFFECT_DISTANCE_TYPE_FIELD]}_'
+            f'{pressure_mask_raster_dict[DECAY_TYPE_FIELD]}_effect.tif')
+        effect_path_list.extend(
+            [(effect_path, 1),
+             (float(pressure_mask_raster_dict[PARAM_VAL_AT_MIN_DIST_FIELD]), 'raw')])
 
-        if row[EFFECT_DISTANCE_TYPE_FIELD] == NEAREST_DISTANCE_TYPE:
+        if pressure_mask_raster_dict[EFFECT_DISTANCE_TYPE_FIELD] == NEAREST_DISTANCE_TYPE:
             # TODO: distance transform
             # TODO: pass distance transform to the correct kind of decay function
             #   that function will first subtract by the max distance then divide by
             #   it so we get a 1 to 0 (and negative) distance, from there apply
             #   exponential/sigmoid/linear decay as appropriate.
-            nearest_dist_raster_path = '%s_nearest_dist%s' % os.splitext(
+            nearest_dist_raster_path = '%s_nearest_dist%s' % os.path.splitext(
                 pressure_mask_raster_path)
             geoprocessing.distance_transform_edt(
                 (pressure_mask_raster_path, 1), nearest_dist_raster_path,
-                working_dir=os.dirname(nearest_dist_raster_path))
+                working_dir=os.path.dirname(nearest_dist_raster_path))
 
             target_nodata = -1
             geoprocessing.raster_calculator(
                 [(nearest_dist_raster_path, 1)], decay_op(
-                    row[DECAY_TYPE_FIELD], max_extent_in_pixel_units, None,
+                    pressure_mask_raster_dict[DECAY_TYPE_FIELD], max_extent_in_pixel_units, None,
                     target_nodata),
                 effect_path, gdal.GDT_Float32, target_nodata)
 
-        elif row[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
+        elif pressure_mask_raster_dict[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
             # build a distance transform kernel by converting meter extent
             # to pixel extent
+            # TODO: make sure that convolutions that are larger than effective
+            # distance are just nodata or 0
             base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
             base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
             decay_kernel = scipy.ndimage.distance_transform_edt(base_array)
@@ -395,13 +407,13 @@ def main():
             decay_kernel[~valid_mask] = 0
 
             decay_kernel[valid_mask] = decay_op(
-                row[DECAY_TYPE_FIELD], max_extent_in_pixel_units)(
-                decay_kernel[valid_mask], 0, 0)
+                pressure_mask_raster_dict[DECAY_TYPE_FIELD], max_extent_in_pixel_units)(
+                decay_kernel[valid_mask])
             decay_kernel /= numpy.sum(decay_kernel)
 
             decay_kernel_path = os.path.join(
                 local_workspace,
-                f"{raw_basename(pressure_mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
+                f"{raw_basename(pressure_mask_raster_path)}_decay_{max_extent_in_pixel_units}.tif")
             geoprocessing.numpy_array_to_raster(
                 decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
             LOGGER.debug(f'calculate effect for {effect_path}')
@@ -412,27 +424,58 @@ def main():
                 target_nodata=None, working_dir=None, set_tol_to_zero=1e-8,
                 n_workers=multiprocessing.cpu_count()//4)
 
-    def conversion_op(base_raster, *decay_effect_list):
-        valid_mask = (base_raster_path != nodata) & ~(
-            numpy.isnan(base_raster_path))
-        decay_effect_exponent = numpy.zeros(base_raster_path.shape)
+    def conversion_op(base_array, nodata, *decay_effect_list):
+        """decay_effect_list is list of (array, param) tuples."""
+        valid_mask = (base_array != nodata) & ~numpy.isnan(base_array)
+        decay_effect_exponent = numpy.zeros(base_array.shape)
+        decay_val_sum = numpy.zeros(base_array.shape)
+        exp_val_sum = numpy.zeros(base_array.shape)
+        decay_effect_iter = iter(decay_effect_list)
+        for decay_effect_array, val_at_min_dist in zip(
+                decay_effect_iter, decay_effect_iter):
 
-        for decay_effect_array in decay_effect_list:
-            decay_effect_exponent[valid_mask] += numpy.log(
-                1-decay_effect_array[valid_mask])
-        result = numpy.empty(base_raster.shape)
-        result[valid_mask] = base_raster[valid_mask] * numpy.exp(
-            decay_effect_exponent[valid_mask])
+            # sum up all the 1-ln(effect) for later use in
+            #   exp(sum(1-ln(effect)_i))
+            local_valid_mask = (
+                valid_mask &
+                (decay_effect_array > 0) &
+                (decay_effect_array < 1))
+            exponent_val = numpy.zeros(base_array.shape)
+            exponent_val[local_valid_mask] = numpy.log(
+                1-decay_effect_array[local_valid_mask])
+
+            decay_effect_exponent[valid_mask] += exponent_val[valid_mask]
+
+            decay_val_sum[valid_mask] += (
+                1-numpy.exp(exponent_val[valid_mask]))*val_at_min_dist
+            exp_val_sum[valid_mask] += (
+                1-numpy.exp(exponent_val[valid_mask]))
+
+        local_valid_mask = valid_mask & (exp_val_sum > 0)
+        weighted_exp_val = numpy.full(base_array.shape, nodata)
+        weighted_exp_val[local_valid_mask] = (
+            decay_val_sum[local_valid_mask] / exp_val_sum[local_valid_mask])
+
+        result = numpy.empty(base_array.shape)
+        param_val = numpy.full(base_array.shape, nodata)
+        param_val[valid_mask] = numpy.exp(decay_effect_exponent[valid_mask])
+
+        result[valid_mask] = (
+            base_array[valid_mask] * param_val[valid_mask] +
+            (1-param_val[valid_mask]) * weighted_exp_val[valid_mask])
+        result[~valid_mask] = nodata
         return result
 
     converted_raster_path = (
         f'{raw_basename(args.base_raster_path)}_'
-        f'{raw_basename(args.infrastructure_scenario_path)}_'
-        f'{args.probability_of_conversion}_.tif')
+        f'{raw_basename(args.infrastructure_scenario_path)}.tif')
+    base_raster_info = geoprocessing.get_raster_info(args.base_raster_path)
+
     geoprocessing.single_thread_raster_calculator(
-        [(args.base_raster_path, 1)]+[(path, 1) for path in effect_path_list],
+        [(args.base_raster_path, 1), (base_raster_info['nodata'][0], 'raw')] +
+        effect_path_list,
         conversion_op, converted_raster_path,
-        raster_info['datatype'], raster_info['nodata'][0])
+        base_raster_info['datatype'], base_raster_info['nodata'][0])
 
     # TODO: I think there's a 'min/max' conversion level and stuff that needs to
     #   go in there'
