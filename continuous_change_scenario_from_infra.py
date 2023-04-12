@@ -195,10 +195,11 @@ def _rasterize_vector(
     tol = base_raster_info['pixel_size'][0]/2
     target_projection_wkt = base_raster_info['projection_wkt']
     where_filter = None
-    if VECTOR_KEY_FIELD in row and not numpy.isnan(
-            row[VECTOR_KEY_FIELD]):
+    if VECTOR_KEY_FIELD in row and (
+            isinstance(row[VECTOR_KEY_FIELD], str) or
+            not numpy.isnan(row[VECTOR_KEY_FIELD])):
         where_filter = (
-            f'{row[VECTOR_KEY_FIELD]}={row[RASTER_VALUE_FIELD]}')
+            f'{row[VECTOR_KEY_FIELD]}={row[VECTOR_VALUE_FIELD]}')
     reprojected_vector_path = os.path.join(
         os.path.dirname(target_rasterized_vector_path),
         f'{raw_basename(row[PATH_FIELD])}_{where_filter}.gpkg')
