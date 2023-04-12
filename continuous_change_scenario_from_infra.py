@@ -349,8 +349,10 @@ def main():
         pressure_mask_raster_info = {}
         if row[GIS_TYPE_FIELD] == RASTER_TYPE:
             raster_path = row[PATH_FIELD]
-            local_path = os.path.join(
-                local_workspace, os.path.basename(raster_path))
+            mask_value_str = row[RASTER_VALUE_FIELD]
+            local_path = sanitize_filename(os.path.join(
+                local_workspace, f'%s_{mask_value_str}%s' % os.path.basename(
+                    raster_path).splitext()))
             pressure_mask_raster_info[PATH_FIELD] = local_path
             _mask_raster(task_graph, raster_path, row, local_path)
         elif row[GIS_TYPE_FIELD] == VECTOR_TYPE:
