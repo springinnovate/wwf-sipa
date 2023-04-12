@@ -9,6 +9,7 @@ import multiprocessing
 import sys
 
 from scipy.optimize import fsolve
+from pathvalidate import sanitize_filename
 import numpy
 import scipy
 import pyproj
@@ -199,10 +200,15 @@ def _rasterize_vector(
             isinstance(row[VECTOR_KEY_FIELD], str) or
             not numpy.isnan(row[VECTOR_KEY_FIELD])):
         where_filter = (
-            f'{row[VECTOR_KEY_FIELD]}={row[VECTOR_VALUE_FIELD]}')
+            f'{row[VECTOR_KEY_FIELD]}="{row[VECTOR_VALUE_FIELD]}"')
+    LOGGER.debug(f'where filter -> {where_filter}')
+
+    filename = sanitize_filename(
+        f'{raw_basename(row[PATH_FIELD])}_{where_filter}.gpkg')
+
     reprojected_vector_path = os.path.join(
         os.path.dirname(target_rasterized_vector_path),
-        f'{raw_basename(row[PATH_FIELD])}_{where_filter}.gpkg')
+        filename)
     vector_info = geoprocessing.get_vector_info(row[PATH_FIELD])
     LOGGER.debug(vector_info)
     geoprocessing.reproject_vector(
