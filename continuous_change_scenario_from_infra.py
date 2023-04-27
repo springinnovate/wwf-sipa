@@ -324,7 +324,6 @@ def main():
             task_name=f'warp {local_base_raster_path} to square blocksize')
         task_graph.join()
 
-    # TODO: deal with convert mask path
     local_convert_mask_path = os.path.join(
         local_workspace, os.path.basename(args.convert_mask_path))
     if args.convert_mask_path is not None:
@@ -360,6 +359,12 @@ def main():
             vector_path = row[PATH_FIELD]
             rasterized_vector_path = os.path.join(
                 local_workspace, f'{raw_basename(vector_path)}.tif')
+            if VECTOR_KEY_FIELD in row and (
+                    isinstance(row[VECTOR_KEY_FIELD], str) or
+                    not numpy.isnan(row[VECTOR_KEY_FIELD])):
+                rasterized_vector_path = (
+                    f'%s{row[VECTOR_KEY_FIELD]}={row[VECTOR_VALUE_FIELD]}%s' % (
+                        os.path.splitext(rasterized_vector_path)))
             task_graph.add_task(
                 func=_rasterize_vector,
                 args=(
