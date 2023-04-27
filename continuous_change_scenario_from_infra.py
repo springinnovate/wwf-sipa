@@ -30,8 +30,8 @@ logging.basicConfig(
         ' [%(pathname)s.%(funcName)s:%(lineno)d] %(message)s'),
     stream=sys.stdout)
 LOGGER = logging.getLogger(__name__)
-logging.getLogger('ecoshard.geoprocessing').setLevel(logging.WARN)
-logging.getLogger('ecoshard.taskgraph').setLevel(logging.WARN)
+logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
+logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 LOGGER.setLevel(logging.DEBUG)
 
 WORKSPACE_DIR = '_workspace_land_change_scenario'
