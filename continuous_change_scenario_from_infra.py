@@ -514,6 +514,7 @@ def main():
         converted_raster_path = (
             f'{raw_basename(args.base_raster_path)}_'
             f'{raw_basename(args.infrastructure_scenario_path)}.tif')
+    os.makedirs(os.path.dirname(converted_raster_path), exist_ok=True)
 
     geoprocessing.single_thread_raster_calculator(
         [(local_base_raster_path, 1), (base_raster_info['nodata'][0], 'raw')] +
