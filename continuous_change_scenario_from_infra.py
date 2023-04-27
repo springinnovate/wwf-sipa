@@ -298,6 +298,8 @@ def main():
     parser.add_argument('--convert_mask_path',  help=(
         'Raster whose 1 values indicate areas that should be affected, '
         'if not set, all areas are affected.'))
+    parser.add_argument('--target_path', help=(
+        'If specified, sets the raster result to be located at this path'))
     args = parser.parse_args()
 
     infrastructure_scenario_table = load_table(
@@ -408,11 +410,6 @@ def main():
              (float(pressure_mask_raster_dict[PARAM_VAL_AT_MIN_DIST_FIELD]), 'raw')])
 
         if pressure_mask_raster_dict[EFFECT_DISTANCE_TYPE_FIELD] == NEAREST_DISTANCE_TYPE:
-            # TODO: distance transform
-            # TODO: pass distance transform to the correct kind of decay function
-            #   that function will first subtract by the max distance then divide by
-            #   it so we get a 1 to 0 (and negative) distance, from there apply
-            #   exponential/sigmoid/linear decay as appropriate.
             nearest_dist_raster_path = '%s_nearest_dist%s' % os.path.splitext(
                 pressure_mask_raster_path)
             task_graph.add_task(
@@ -432,10 +429,6 @@ def main():
                 effect_path, gdal.GDT_Float32, EFFECT_NODATA)
 
         elif pressure_mask_raster_dict[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
-            # build a distance transform kernel by converting meter extent
-            # to pixel extent
-            # TODO: make sure that convolutions that are larger than effective
-            # distance are just nodata or 0
             base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
             base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
             decay_kernel = scipy.ndimage.distance_transform_edt(base_array)
@@ -515,9 +508,12 @@ def main():
             (1-param_val[param_val_mask]) * weighted_exp_val[param_val_mask])
         return result
 
-    converted_raster_path = (
-        f'{raw_basename(args.base_raster_path)}_'
-        f'{raw_basename(args.infrastructure_scenario_path)}.tif')
+    if args.target_path not in [None, '']:
+        converted_raster_path = args.target_path
+    else:
+        converted_raster_path = (
+            f'{raw_basename(args.base_raster_path)}_'
+            f'{raw_basename(args.infrastructure_scenario_path)}.tif')
 
     geoprocessing.single_thread_raster_calculator(
         [(local_base_raster_path, 1), (base_raster_info['nodata'][0], 'raw')] +
