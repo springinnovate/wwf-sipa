@@ -115,7 +115,13 @@ def main():
     parser.add_argument(
         '--sum_of_downstream_aoi', action='store_true',
         help='Optional argument')
+    parser.add_argument(
+        '--output_suffix', default='',
+        help='Additional string to append to output filenames.')
     args = parser.parse_args()
+
+    if args.output_suffix and not args.output_suffix.startswith('_'):
+        args.output_suffix = '_' + args.output_suffix
 
     target_dir = (
         f'{os.path.splitext(os.path.basename(args.dem_path))[0]}_'
@@ -123,7 +129,7 @@ def main():
             args.vector_or_raster_value_path))[0]}''')
 
     workspace_dir = os.path.join(
-        'downstream_beneficiary_workspace',
+        f'downstream_beneficiary_workspace{args.output_suffix}',
         target_dir)
     os.makedirs(workspace_dir, exist_ok=True)
 
@@ -133,35 +139,63 @@ def main():
         task_graph, args.dem_path, args.aoi_path, args.target_pixel_size,
         workspace_dir)
 
-    rasterized_vector_path = os.path.join(
-        workspace_dir, 'rasterized_vector.tif')
-    new_raster_task = task_graph.add_task(
-        func=geoprocessing.new_raster_from_base,
-        args=(
-            args.dem_path, rasterized_vector_path, gdal.GDT_Byte, [0]),
-        target_path_list=[rasterized_vector_path],
-        task_name='new raster')
+    value_raster_path = os.path.join(
+        workspace_dir, f'value_raster{args.output_suffix}.tif')
+    if geoprocessing.get_gis_type(args.vector_or_raster_value_path) == \
+            geoprocessing.geoprocessing.VECTOR_TYPE:
+        # rasterize the vector onto a raster of the correct shape/resolution
+        new_raster_task = task_graph.add_task(
+            func=geoprocessing.create_raster_from_vector_extents,
+            args=(
+                args.aoi_path, value_raster_path, args.target_pixel_size,
+                gdal.GDT_Byte, 0),
+            target_path_list=[value_raster_path],
+            task_name=(
+                f'create a new raster for rasterization {value_raster_path}'))
 
-    # rasterize the vector
-    rasterize_task = task_graph.add_task(
-        func=geoprocessing.rasterize,
-        args=(args.vector_path, rasterized_vector_path),
-        kwargs={'burn_values': [1]},
-        dependent_task_list=[new_raster_task],
-        target_path_list=[rasterized_vector_path],
-        task_name='rasterize')
+        # rasterize the vector
+        # TODO: Do I need to project vector path to aoi's projection?
+        vector_path = args.vector_or_raster_value_path
+        value_raster_task = task_graph.add_task(
+            func=geoprocessing.rasterize,
+            args=(vector_path, value_raster_path),
+            kwargs={'burn_values': [1]},
+            dependent_task_list=[new_raster_task],
+            target_path_list=[value_raster_path],
+            task_name=f'rasterize {vector_path} to {value_raster_path}')
+    else:
+        # clip and reproject value raster to aoi's projection
+        aoi_info = geoprocessing.get_vector_info(args.aoi_path)
+        base_value_raster_path = args.vector_or_raster_value_path
+        value_raster_task = task_graph.add_task(
+            func=geoprocessing.warp_raster,
+            args=(
+                base_value_raster_path, args.target_pixel_size,
+                value_raster_path, 'bilinear'),
+            kwargs={
+                'target_bb': aoi_info['bounding_box'],
+                'target_projection_wkt': aoi_info['projection_wkt'],
+                },
+            target_path_list=[value_raster_path],
+            task_name=f'clip {value_raster_path}')
+
+    # TODO: check if there's a flag to do sum of downstream aoi
+
+    # TODO: calclate number of downstream value pixels for any pixel on
+    #   the raster
 
     # flow accum the vector on the routed DEM
-    target_flow_accum_raster_path = os.path.join(
-        workspace_dir, 'downstream_vector_coverage.tif')
+    flow_dir_mfd_raster_path = flow_dir_task.get()
+    downstream_value_sum_raster_path = os.path.join(
+        workspace_dir, f'downstream_value_sum{args.output_suffix}.tif')
     task_graph.add_task(
         func=routing.flow_accumulation_mfd,
         args=(
-            (flow_dir_mfd_raster_path, 1), target_flow_accum_raster_path),
+            (flow_dir_mfd_raster_path, 1), downstream_value_sum_raster_path),
         kwargs={
-            'weight_raster_path_band': (rasterized_vector_path, 1)},
-        target_path_list=[target_flow_accum_raster_path],
-        dependent_task_list=[rasterize_task, flow_dir_mfd_task],
+            'weight_raster_path_band': (value_raster_path, 1)},
+        target_path_list=[downstream_value_sum_raster_path],
+        dependent_task_list=[value_raster_task],
         task_name='flow accumulation')
 
     task_graph.close()
