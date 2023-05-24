@@ -16,11 +16,24 @@ Masks ar no
 """
 import argparse
 import os
+import logging
+import sys
+
 
 from ecoshard.geoprocessing import routing
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
 from osgeo import gdal
+
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stdout,
+    format=(
+        '%(asctime)s (%(relativeCreated)d) %(levelname)s %(name)s'
+        ' [%(funcName)s:%(lineno)d] %(message)s'))
+LOGGER = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
+LOGGER.setLevel(logging.DEBUG)
+logging.getLogger('ecoshard.fetch_data').setLevel(logging.INFO)
 
 
 def return_a_string(string_val):
@@ -49,7 +62,7 @@ def process_dem(
     # pitfill the DEM
     clipped_dem_raster_path = os.path.join(
         workspace_dir, 'clipped_dem.tif')
-    if geoprocessing.get_gis_type(aoi_path) == geoprocessing.geoprocessing.RASTER_TYPE:
+    if geoprocessing.get_gis_type(aoi_path) == geoprocessing.RASTER_TYPE:
         aoi_info = geoprocessing.get_raster_info(aoi_path)
     else:
         aoi_info = geoprocessing.get_vector_info(aoi_path)
@@ -57,8 +70,8 @@ def process_dem(
     clip_raster_task = task_graph.add_task(
         func=geoprocessing.warp_raster,
         args=(
-            base_dem_path, target_pixel_size, clipped_dem_raster_path,
-            'bilinear'),
+            base_dem_path, (target_pixel_size, -target_pixel_size),
+            clipped_dem_raster_path, 'bilinear'),
         kwargs={
             'target_bb': aoi_info['bounding_box'],
             'target_projection_wkt': aoi_info['projection_wkt'],
@@ -71,7 +84,7 @@ def process_dem(
     fill_pits_task = task_graph.add_task(
         func=routing.fill_pits,
         args=(
-            (base_dem_path, 1), filled_dem_raster_path),
+            (clipped_dem_raster_path, 1), filled_dem_raster_path),
         kwargs={
             'working_dir': workspace_dir,
             'max_pixel_fill_count': -1},
@@ -142,13 +155,15 @@ def main():
     value_raster_path = os.path.join(
         workspace_dir, f'value_raster{args.output_suffix}.tif')
     if geoprocessing.get_gis_type(args.vector_or_raster_value_path) == \
-            geoprocessing.geoprocessing.VECTOR_TYPE:
+            geoprocessing.VECTOR_TYPE:
         # rasterize the vector onto a raster of the correct shape/resolution
         new_raster_task = task_graph.add_task(
             func=geoprocessing.create_raster_from_vector_extents,
             args=(
-                args.aoi_path, value_raster_path, args.target_pixel_size,
+                args.aoi_path, value_raster_path, (
+                    args.target_pixel_size, -args.target_pixel_size),
                 gdal.GDT_Byte, 0),
+            ignore_path_list=[args.aoi_path],
             target_path_list=[value_raster_path],
             task_name=(
                 f'create a new raster for rasterization {value_raster_path}'))
@@ -170,7 +185,7 @@ def main():
         value_raster_task = task_graph.add_task(
             func=geoprocessing.warp_raster,
             args=(
-                base_value_raster_path, args.target_pixel_size,
+                base_value_raster_path, (args.target_pixel_size, -args.target_pixel_size),
                 value_raster_path, 'bilinear'),
             kwargs={
                 'target_bb': aoi_info['bounding_box'],
@@ -196,7 +211,7 @@ def main():
             'weight_raster_path_band': (value_raster_path, 1)},
         target_path_list=[downstream_value_sum_raster_path],
         dependent_task_list=[value_raster_task],
-        task_name='flow accumulation')
+        task_name='value accumulation')
 
     task_graph.close()
     task_graph.join()
