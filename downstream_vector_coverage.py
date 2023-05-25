@@ -17,13 +17,15 @@ Masks ar no
 import argparse
 import os
 import logging
+import shutil
 import sys
+import tempfile
 
-
+from osgeo import gdal
+from osgeo import osr
 from ecoshard.geoprocessing import routing
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
-from osgeo import gdal
 import numpy
 
 logging.basicConfig(
@@ -40,6 +42,50 @@ logging.getLogger('ecoshard.fetch_data').setLevel(logging.INFO)
 def return_a_string(string_val):
     """Returns `string_val`."""
     return string_val
+
+
+def warp_and_rescale(
+        base_raster_path, target_pixel_size, target_bb, target_projection_wkt,
+        target_raster_path):
+    """Warp a raster so units are consistent with a different pixel size."""
+    working_dir = tempfile.mkdtemp(dir=os.path.dirname(target_raster_path))
+    warped_raster_path = os.path.join(working_dir, 'warped.tif')
+
+    geoprocessing.warp_raster(
+        base_raster_path,
+        target_pixel_size,
+        warped_raster_path,
+        'bilinear',
+        target_bb=target_bb,
+        target_projection_wkt=target_projection_wkt)
+    warped_raster_info = geoprocessing.get_raster_info(warped_raster_path)
+
+    test_base_, base_pixel_area = \
+        geoprocessing.test_get_pixel_area_in_target_projection(
+            base_raster_path, warped_raster_info['projection_wkt'])
+
+    test_val, target_pixel_area = \
+        geoprocessing.test_get_pixel_area_in_target_projection(
+            target_raster_path, warped_raster_info['projection_wkt'])
+
+    LOGGER.debug(f'******************** values from base {test_base_} {base_pixel_area}')
+    LOGGER.debug(f'******************** these shoudl be the same {test_val} {target_pixel_area}')
+
+    scale_factor = target_pixel_area / base_pixel_area
+    target_nodata = warped_raster_info['nodata'][0]
+
+    def _scale_by_factor(array):
+        if target_nodata is not None:
+            result = array[array != target_nodata] * scale_factor
+        else:
+            result = array*scale_factor
+        return result
+
+    geoprocessing.raster_calculator(
+        [(warped_raster_path, 1)], _scale_by_factor, target_raster_path,
+        gdal.GDT_Float32, target_nodata)
+
+    shutil.rmtree(working_dir)
 
 
 def _sum_all_op(raster_path_list, target_raster):
@@ -238,16 +284,15 @@ def main():
             raster_path = vector_or_raster_value_path
             LOGGER.debug(
                 f'**** processing raster {raster_path}')
-            value_raster_task = task_graph.add_task(
-                func=geoprocessing.warp_raster,
+
+            warp_and_rescale_raster_task = task_graph.add_task(
+                func=warp_and_rescale,
                 args=(
-                    vector_or_raster_value_path,
+                    raster_path,
                     (args.target_pixel_size, -args.target_pixel_size),
-                    raster_path, 'bilinear'),
-                kwargs={
-                    'target_bb': aoi_info['bounding_box'],
-                    'target_projection_wkt': aoi_info['projection_wkt'],
-                    },
+                    aoi_info['bounding_box'],
+                    aoi_info['projection_wkt'],
+                    local_value_raster_path),
                 target_path_list=[local_value_raster_path],
                 task_name=f'clip {local_value_raster_path}')
 
@@ -315,10 +360,4 @@ def main():
 
 
 if __name__ == '__main__':
-
-    # geoprocessing.rasterize(
-    #     r"D:\repositories\spring\wwf-sipa\testroads.shp",
-    #     r"D:\repositories\spring\wwf-sipa\downstream_beneficiary_workspace_test\dem_testroads\value_raster_test.tif",
-    #     burn_values=[1])
-
     main()
