@@ -61,7 +61,7 @@ def warp_and_rescale(
     warped_raster_info = geoprocessing.get_raster_info(warped_raster_path)
 
     test_base_, base_pixel_area = \
-        geoprocessing.test_get_pixel_area_in_target_projection(
+        geoprocessing.get_pixel_area_in_target_projection(
             base_raster_path, warped_raster_info['projection_wkt'])
 
     test_val, target_pixel_area = \
