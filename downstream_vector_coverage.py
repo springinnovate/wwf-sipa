@@ -50,13 +50,16 @@ def _sum_all_op(raster_path_list, target_raster):
     local_nodata = -1
 
     def _sum_op(*array_list):
-        result = numpy.full(array_list[0].shape, local_nodata)
+        result = numpy.zeros(array_list[0].shape)
+        total_valid_mask = numpy.zeros(result.shape, dtype=bool)
         for array, nodata in zip(array_list, nodata_list):
             if nodata is not None:
                 valid_mask = array != nodata
             else:
                 valid_mask = numpy.ones(array.shape, dtype=bool)
             result[valid_mask] += array[valid_mask]
+            total_valid_mask |= valid_mask
+        result[~total_valid_mask] = local_nodata
         return result
 
     geoprocessing.raster_calculator(
@@ -154,6 +157,7 @@ def main():
     parser.add_argument(
         '--output_suffix', default='',
         help='Additional string to append to output filenames.')
+    parser.add_argument('--debug', action='store_true', help='debug mode')
     args = parser.parse_args()
 
     non_existent_files = [
@@ -177,7 +181,8 @@ def main():
     os.makedirs(workspace_dir, exist_ok=True)
 
     task_graph = taskgraph.TaskGraph(workspace_dir, min(
-        os.cpu_count(), len(args.vector_or_raster_value_paths)), 5)
+        os.cpu_count(), len(args.vector_or_raster_value_paths))
+        if not args.debug else -1, 5)
 
     flow_dir_task = process_dem(
         task_graph, args.dem_path, args.aoi_path, args.target_pixel_size,
@@ -206,7 +211,6 @@ def main():
                     f'create a new raster for rasterization '
                     f'{local_value_raster_path}'))
 
-            # TODO: Do I need to project vector path to aoi's projection?
             vector_path = vector_or_raster_value_path
             reprojected_vector_path = os.path.join(
                 workspace_dir,
@@ -229,6 +233,7 @@ def main():
                     f'rasterize {reprojected_vector_path} to {local_value_raster_path}'))
         else:
             # clip and reproject value raster to aoi's projection
+            # TODO: resample if it's a count?
             aoi_info = geoprocessing.get_vector_info(args.aoi_path)
             raster_path = vector_or_raster_value_path
             LOGGER.debug(
