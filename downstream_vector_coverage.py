@@ -156,6 +156,15 @@ def main():
         help='Additional string to append to output filenames.')
     args = parser.parse_args()
 
+    non_existent_files = [
+        file for file in args.vector_or_raster_value_paths
+        if not os.path.isfile(file)]
+
+    if non_existent_files:
+        raise FileNotFoundError(
+            "The following files do not exist: "
+            f"{', '.join(non_existent_files)}")
+
     if args.output_suffix and not args.output_suffix.startswith('_'):
         args.output_suffix = '_' + args.output_suffix
 
@@ -167,7 +176,8 @@ def main():
         target_dir)
     os.makedirs(workspace_dir, exist_ok=True)
 
-    task_graph = taskgraph.TaskGraph(workspace_dir, 2)
+    task_graph = taskgraph.TaskGraph(workspace_dir, min(
+        os.cpu_count(), len(args.vector_or_raster_value_paths)), 5)
 
     flow_dir_task = process_dem(
         task_graph, args.dem_path, args.aoi_path, args.target_pixel_size,
@@ -181,8 +191,10 @@ def main():
             workspace_dir,
             f'local_value_raster_{index}{args.output_suffix}.tif')
         value_raster_list.append(local_value_raster_path)
-        if geoprocessing.get_gis_type(args.vector_or_raster_value_path) == \
+        if geoprocessing.get_gis_type(vector_or_raster_value_path) == \
                 geoprocessing.VECTOR_TYPE:
+            LOGGER.debug(
+                f'**** processing vector {vector_or_raster_value_path}')
             new_raster_task = task_graph.add_task(
                 func=geoprocessing.new_raster_from_base,
                 args=(
@@ -219,6 +231,8 @@ def main():
             # clip and reproject value raster to aoi's projection
             aoi_info = geoprocessing.get_vector_info(args.aoi_path)
             raster_path = vector_or_raster_value_path
+            LOGGER.debug(
+                f'**** processing raster {raster_path}')
             value_raster_task = task_graph.add_task(
                 func=geoprocessing.warp_raster,
                 args=(
@@ -291,8 +305,8 @@ def main():
         dependent_task_list=[value_raster_task, sum_value_list_task],
         task_name='value accumulation')
 
-    task_graph.close()
     task_graph.join()
+    task_graph.close()
 
 
 if __name__ == '__main__':
