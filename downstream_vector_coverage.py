@@ -87,7 +87,7 @@ def sum_by_coverage(value_raster_path, mask_raster_path):
     running_sum = 0
     value_nodata = geoprocessing.get_raster_info(
         value_raster_path)['nodata'][0]
-    for value_array, mask_array in geoprocessing.iterblocks(
+    for (_, value_array), (_, mask_array) in geoprocessing.iterblocks(
             [(value_raster_path, 1), (mask_raster_path, 1)], skip_sparse=True):
         valid_mask = mask_array > 0
         if value_nodata is not None:
@@ -452,8 +452,9 @@ def main():
                 kwargs={
                     'weight_raster_path_band': (fid_mask_path, 1)},
                 target_path_list=[
-                    downstream_coverage_raster_path, rasterized_outlet_task],
-                dependent_task_list=[fid_rasterize_task],
+                    downstream_coverage_raster_path],
+                dependent_task_list=[
+                    fid_rasterize_task, rasterized_outlet_task],
                 task_name='value accumulation')
 
             sum_by_coverage_task = task_graph.add_task(
