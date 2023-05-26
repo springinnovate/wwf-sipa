@@ -22,7 +22,7 @@ import sys
 import tempfile
 
 from osgeo import gdal
-from osgeo import osr
+from osgeo import ogr
 from ecoshard.geoprocessing import routing
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
@@ -39,9 +39,80 @@ LOGGER.setLevel(logging.DEBUG)
 logging.getLogger('ecoshard.fetch_data').setLevel(logging.INFO)
 
 
+def copy_vector_to_downstream_value(
+        input_vector_path, fid_to_value_map, output_vector_path):
+    input_vector = ogr.Open(input_vector_path)
+    input_layer = input_vector.GetLayer()
+
+    # Create a new output vector
+    output_driver = ogr.GetDriverByName('GPKG')
+    output_vector = output_driver.CreateDataSource(output_vector_path)
+    output_layer = output_vector.CreateLayer(
+        os.path.splitext(os.path.basename(output_vector_path))[0],
+        geom_type=input_layer.GetGeomType())
+
+    # Create a new field called "downstream_value"
+    downstream_value_field = ogr.FieldDefn("downstream_value", ogr.OFTInteger)
+    output_layer.CreateField(downstream_value_field)
+
+    # Copy feature geometry and set "downstream_value" field
+    output_layer.StartTransaction()
+    for feature in input_layer:
+        output_feature = ogr.Feature(output_layer.GetLayerDefn())
+        output_feature.SetGeometry(feature.GetGeometryRef())
+        output_feature.SetField(
+            "downstream_value", fid_to_value_map[feature.GetFID()].get())
+        output_layer.CreateFeature(output_feature)
+    output_layer.CommitTransaction()
+
+    input_layer = None
+    output_layer = None
+    input_vector = None
+    output_vector = None
+
+
 def return_a_string(string_val):
     """Returns `string_val`."""
     return string_val
+
+
+def get_fid_list(downstream_value_sum_raster_path):
+    vector = gdal.OpenEx(downstream_value_sum_raster_path, gdal.OF_VECTOR)
+    layer = vector.GetLayer()
+    fid_list = [feature.GetFID() for feature in layer]
+    return fid_list
+
+
+def sum_by_coverage(value_raster_path, mask_raster_path):
+    running_sum = 0
+    for value_array, mask_array in geoprocessing.iterblocks(
+            [(value_raster_path, 1), (mask_raster_path, 1)], skip_sparse=True):
+        running_sum += numpy.sum(value_array[mask_array > 0])
+    return running_sum
+
+
+def rasterize_from_base_raster(
+        task_graph, base_raster_path, base_vector_path, rasterize_kwargs,
+        target_raster_path, dependent_task_list=[]):
+    new_raster_task = task_graph.add_task(
+        func=geoprocessing.new_raster_from_base,
+        args=(
+            base_raster_path,
+            target_raster_path,
+            gdal.GDT_Byte, [0]),
+        target_path_list=[target_raster_path],
+        task_name=(
+            f'create a new raster for outlets {target_raster_path}'))
+
+    value_raster_task = task_graph.add_task(
+        func=geoprocessing.rasterize,
+        args=(base_vector_path, target_raster_path),
+        kwargs=rasterize_kwargs,
+        dependent_task_list=dependent_task_list+[new_raster_task],
+        target_path_list=[target_raster_path],
+        task_name=f'rasterize {base_vector_path} to {target_raster_path}')
+
+    return value_raster_task
 
 
 def warp_and_rescale(
@@ -68,22 +139,24 @@ def warp_and_rescale(
         geoprocessing.get_pixel_area_in_target_projection(
             target_raster_path, warped_raster_info['projection_wkt'])
 
-    LOGGER.debug(f'******************** values from base {test_base_} {base_pixel_area}')
-    LOGGER.debug(f'******************** these shoudl be the same {test_val} {target_pixel_area}')
-
     scale_factor = target_pixel_area / base_pixel_area
     target_nodata = warped_raster_info['nodata'][0]
 
-    def _scale_by_factor(array):
-        if target_nodata is not None:
-            result = array[array != target_nodata] * scale_factor
-        else:
-            result = array*scale_factor
-        return result
+    if scale_factor != 1:
+        def _scale_by_factor(array):
+            result = array.copy().astype(float)
+            if target_nodata is not None:
+                nodata_mask = array != target_nodata
+                result[nodata_mask] = array[nodata_mask] * scale_factor
+            else:
+                result *= scale_factor
+            return result
 
-    geoprocessing.raster_calculator(
-        [(warped_raster_path, 1)], _scale_by_factor, target_raster_path,
-        gdal.GDT_Float32, target_nodata)
+        geoprocessing.raster_calculator(
+            [(warped_raster_path, 1)], _scale_by_factor, target_raster_path,
+            gdal.GDT_Float32, target_nodata)
+    else:
+        shutil.copyfile(warped_raster_path, target_raster_path)
 
     shutil.rmtree(working_dir)
 
@@ -246,16 +319,6 @@ def main():
                 geoprocessing.VECTOR_TYPE:
             LOGGER.debug(
                 f'**** processing vector {vector_or_raster_value_path}')
-            new_raster_task = task_graph.add_task(
-                func=geoprocessing.new_raster_from_base,
-                args=(
-                    flow_dir_task.get(),
-                    local_value_raster_path,
-                    gdal.GDT_Byte, [0]),
-                target_path_list=[local_value_raster_path],
-                task_name=(
-                    f'create a new raster for rasterization '
-                    f'{local_value_raster_path}'))
 
             vector_path = vector_or_raster_value_path
             reprojected_vector_path = os.path.join(
@@ -269,6 +332,17 @@ def main():
                 target_path_list=[reprojected_vector_path],
                 ignore_path_list=[reprojected_vector_path],
                 task_name=f'reproject {reprojected_vector_path}')
+
+            new_raster_task = task_graph.add_task(
+                func=geoprocessing.new_raster_from_base,
+                args=(
+                    flow_dir_task.get(),
+                    local_value_raster_path,
+                    gdal.GDT_Byte, [0]),
+                target_path_list=[local_value_raster_path],
+                task_name=(
+                    f'create a new raster for rasterization '
+                    f'{local_value_raster_path}'))
             value_raster_task = task_graph.add_task(
                 func=geoprocessing.rasterize,
                 args=(reprojected_vector_path, local_value_raster_path),
@@ -279,12 +353,10 @@ def main():
                     f'rasterize {reprojected_vector_path} to {local_value_raster_path}'))
         else:
             # clip and reproject value raster to aoi's projection
-            # TODO: resample if it's a count?
             aoi_info = geoprocessing.get_vector_info(args.aoi_path)
             raster_path = vector_or_raster_value_path
             LOGGER.debug(
                 f'**** processing raster {raster_path}')
-
             warp_and_rescale_raster_task = task_graph.add_task(
                 func=warp_and_rescale,
                 args=(
@@ -306,12 +378,8 @@ def main():
         target_path_list=[value_raster_path],
         task_name=f'sum all to {value_raster_path}')
 
-    # TODO: check if there's a flag to do sum of downstream aoi
-
-    # TODO: calclate number of downstream value pixels for any pixel on
-    #   the raster
-
-    # flow accum the vector on the routed DEM
+    # calculate the number of downstream value pixels for any pixel on
+    # the raster
     outlet_vector_path = os.path.join(
         workspace_dir, f'outlet_points{args.output_suffix}.gpkg')
     outlet_detection_task = task_graph.add_task(
@@ -324,23 +392,11 @@ def main():
 
     outlet_raster_path = os.path.join(
         workspace_dir, f'outlet_raster{args.output_suffix}.tif')
-    new_outlet_raster_task = task_graph.add_task(
-        func=geoprocessing.new_raster_from_base,
-        args=(
-            flow_dir_task.get(),
-            outlet_raster_path,
-            gdal.GDT_Byte, [0]),
-        target_path_list=[outlet_raster_path],
-        task_name=(
-            f'create a new raster for outlets {outlet_raster_path}'))
-
-    value_raster_task = task_graph.add_task(
-        func=geoprocessing.rasterize,
-        args=(outlet_vector_path, outlet_raster_path),
-        kwargs={'burn_values': [1], 'option_list': ['ALL_TOUCHED=TRUE']},
-        dependent_task_list=[outlet_detection_task, new_outlet_raster_task],
-        target_path_list=[outlet_raster_path],
-        task_name=f'rasterize {outlet_vector_path} to {outlet_raster_path}')
+    rasterize_kwargs = {'burn_values': [1], 'option_list': ['ALL_TOUCHED=TRUE']}
+    rasterized_outlet_task = rasterize_from_base_raster(
+        task_graph, flow_dir_task.get(), outlet_vector_path,
+        rasterize_kwargs, outlet_raster_path, dependent_task_list=[
+            outlet_detection_task])
 
     downstream_value_sum_raster_path = os.path.join(
         workspace_dir, f'downstream_value_sum{args.output_suffix}.tif')
@@ -352,8 +408,66 @@ def main():
         kwargs={
             'weight_raster_path_band': (value_raster_path, 1)},
         target_path_list=[downstream_value_sum_raster_path],
-        dependent_task_list=[value_raster_task, sum_value_list_task],
+        dependent_task_list=[rasterized_outlet_task, sum_value_list_task],
         task_name='value accumulation')
+
+    # TODO: check if there's a flag to do sum of downstream aoi
+    if args.sum_of_downstream_aoi_path is not None:
+        reprojected_downstream_aoi_path = os.path.join(
+            workspace_dir,
+            f'reprojected_{os.path.basename(args.sum_of_downstream_aoi_path)}')
+        reproject_task = task_graph.add_task(
+            func=geoprocessing.reproject_vector,
+            args=(
+                args.sum_of_downstream_aoi_path, aoi_info['projection_wkt'],
+                reprojected_downstream_aoi_path),
+            target_path_list=[reprojected_downstream_aoi_path],
+            ignore_path_list=[reprojected_downstream_aoi_path],
+            task_name=f'reproject {reprojected_downstream_aoi_path}')
+        reproject_task.join()
+        fid_list = get_fid_list(reprojected_downstream_aoi_path)
+        result_by_fid = {}
+        for fid in fid_list:
+            fid_mask_path = os.path.join(workspace_dir, f'{fid}_mask.tif')
+            fid_rasterize_kwargs = {
+                'burn_values': [1],
+                'option_list': ['ALL_TOUCHED=TRUE', f'WHERE="FID={fid}"']}
+            fid_rasterize_task = rasterize_from_base_raster(
+                task_graph, flow_dir_task.get(),
+                reprojected_downstream_aoi_path,
+                fid_rasterize_kwargs, fid_mask_path)
+
+            downstream_coverage_raster_path = os.path.join(
+                workspace_dir, f'downstream_coverage_{fid}.tif')
+            downstream_coverage_task = task_graph.add_task(
+                func=routing.distance_to_channel_mfd,
+                args=(
+                    (flow_dir_task.get(), 1), (outlet_raster_path, 1),
+                    downstream_coverage_raster_path),
+                kwargs={
+                    'weight_raster_path_band': (fid_mask_path, 1)},
+                target_path_list=[
+                    downstream_coverage_raster_path, rasterized_outlet_task],
+                dependent_task_list=[fid_rasterize_task],
+                task_name='value accumulation')
+
+            sum_by_coverage_task = task_graph.add_task(
+                func=sum_by_coverage,
+                args=(value_raster_path, downstream_coverage_raster_path),
+                store_result=True,
+                dependent_task_list=[
+                    sum_value_list_task, downstream_coverage_task],
+                task_name=f'sum coverage for fid {fid}')
+
+            result_by_fid[fid] = sum_by_coverage_task
+
+        downstream_sum_vector_path = os.path.join(
+            workspace_dir,
+            f'downstream_value_sum_by_aoi{args.output_suffix}.gpkg')
+        task_graph.join()
+        copy_vector_to_downstream_value(
+            reprojected_downstream_aoi_path, result_by_fid,
+            downstream_sum_vector_path)
 
     task_graph.join()
     task_graph.close()
