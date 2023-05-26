@@ -87,7 +87,7 @@ def sum_by_coverage(value_raster_path, mask_raster_path):
     running_sum = 0
     value_nodata = geoprocessing.get_raster_info(
         value_raster_path)['nodata'][0]
-    for (_, value_array), (_, mask_array) in geoprocessing.iterblocks(
+    for _, (value_array, mask_array) in geoprocessing.iterblocks(
             [(value_raster_path, 1), (mask_raster_path, 1)], skip_sparse=True):
         valid_mask = mask_array > 0
         if value_nodata is not None:
