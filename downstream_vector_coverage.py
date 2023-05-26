@@ -85,9 +85,14 @@ def get_fid_list(downstream_value_sum_raster_path):
 
 def sum_by_coverage(value_raster_path, mask_raster_path):
     running_sum = 0
+    value_nodata = geoprocessing.get_raster_info(
+        value_raster_path)['nodata'][0]
     for value_array, mask_array in geoprocessing.iterblocks(
             [(value_raster_path, 1), (mask_raster_path, 1)], skip_sparse=True):
-        running_sum += numpy.sum(value_array[mask_array > 0])
+        valid_mask = mask_array > 0
+        if value_nodata is not None:
+            valid_mask &= value_array != value_nodata
+        running_sum += numpy.sum(value_array[value_nodata])
     return running_sum
 
 
