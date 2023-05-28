@@ -96,7 +96,7 @@ def copy_vector_to_downstream_value(
         output_feature = ogr.Feature(output_layer.GetLayerDefn())
         output_feature.SetGeometry(feature.GetGeometryRef())
         output_feature.SetField(
-            "downstream_value", fid_to_value_map[feature.GetFID()].get())
+            "downstream_value", fid_to_value_map[str(feature.GetFID())].get())
         output_layer.CreateFeature(output_feature)
     output_layer.CommitTransaction()
 
