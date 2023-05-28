@@ -163,9 +163,10 @@ def rasterize_from_base_raster(
     if additional_mask_raster_path is None:
         rasterized_raster_path = target_raster_path
     else:
-        temp_dir = tempfile.mkdtemp(dir=os.path.dirname(target_raster_path))
+        temp_dir = tempfile.mkdtemp(
+            dir=os.path.dirname(target_raster_path))
         rasterized_raster_path = os.path.join(
-            temp_dir, 'rasterized.tif')
+            temp_dir, f'pre_masked_{os.path.basename(target_raster_path)}')
 
     last_task = task_graph.add_task(
         func=geoprocessing.new_raster_from_base,
@@ -197,11 +198,11 @@ def rasterize_from_base_raster(
             task_name=f'logical and {target_raster_path}'
             )
 
-        last_task = task_graph.add_task(
-            func=shutil.rmtree,
-            args=(temp_dir,),
-            dependent_task_list=[last_task],
-            task_name=f'rm {temp_dir} when done')
+        # last_task = task_graph.add_task(
+        #     func=shutil.rmtree,
+        #     args=(temp_dir,),
+        #     dependent_task_list=[last_task],
+        #     task_name=f'rm {temp_dir} when done')
 
     return last_task
 
@@ -499,7 +500,7 @@ def process_section(task_graph, config, section):
 
     local_benficiaries_per_pixel_raster_path = os.path.join(
         local_workspace_dir,
-        f'num_downstream_benficiaries_per_pixel_{section}.tif')
+        f'benficiaries_per_pixel_{section}.tif')
 
     combine_local_benficiaries_task = task_graph.add_task(
         func=_sum_all_op,
@@ -510,8 +511,8 @@ def process_section(task_graph, config, section):
         task_name=f'sum all to {local_benficiaries_per_pixel_raster_path}')
 
     calculate_per_pixel_beneficiary_raster = (
-        local_config['calculate_per_pixel_beneficiary_raster'].lower() \
-            == 'true')
+        local_config['calculate_per_pixel_beneficiary_raster'].lower() ==
+        'true')
     if calculate_per_pixel_beneficiary_raster:
         num_of_downstream_beneficiaries_per_pixel_path = os.path.join(
             GLOBAL_WORKSPACE_DIR,
