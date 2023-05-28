@@ -127,7 +127,6 @@ def sum_by_coverage(value_raster_path, mask_raster_path):
         valid_mask = mask_array > 0
         if value_nodata is not None:
             valid_mask &= value_array != value_nodata
-        LOGGER.debug(f'sum by coverage {valid_mask}')
         running_sum += numpy.sum(value_array[valid_mask])
     return running_sum
 
@@ -143,11 +142,13 @@ def logical_and_masks(raster_path_list, target_raster_path):
         running_valid_mask = numpy.zeros(result.shape, dtype=bool)
         for nodata, array in zip(nodata_list, array_list):
             if nodata is not None:
-                valid_mask = array != nodata
+                valid_mask = (array != nodata)
                 running_valid_mask |= valid_mask
             else:
-                valid_mask = slice(-1)
-            result[valid_mask] &= array[valid_mask] > 0
+                valid_mask = (numpy.ones(result.shape, dtype=bool))
+            result[valid_mask] &= (array[valid_mask] > 0)
+        LOGGER.debug(f'nonzero valid pixels for {target_raster_path}: {numpy.count_nonzero(running_valid_mask)}')
+        LOGGER.debug(f'nonzero result pixels for {target_raster_path}: {numpy.count_nonzero(result)}')
         result[~running_valid_mask] = nodata_target
         return result
 
@@ -499,10 +500,10 @@ def process_section(task_graph, config, section):
                 task_name=f'clip local beneficiary {local_beneficiary_raster_path}')
             beneficiary_task_list.append(warp_and_rescale_raster_task)
 
+    # this is okay and should be untouched except for analysis
     local_benficiaries_per_pixel_raster_path = os.path.join(
         local_workspace_dir,
         f'benficiaries_per_pixel_{section}.tif')
-
     combine_local_benficiaries_task = task_graph.add_task(
         func=_sum_all_op,
         args=(beneficiary_raster_list,
@@ -511,6 +512,7 @@ def process_section(task_graph, config, section):
         dependent_task_list=beneficiary_task_list,
         task_name=f'sum all to {local_benficiaries_per_pixel_raster_path}')
 
+    # this seems okay and shouldn't be used in other inputs
     calculate_per_pixel_beneficiary_raster = (
         local_config['calculate_per_pixel_beneficiary_raster'].lower() ==
         'true')
