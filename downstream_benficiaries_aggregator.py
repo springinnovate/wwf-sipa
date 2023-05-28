@@ -207,11 +207,11 @@ def rasterize_from_base_raster(
             task_name=f'logical and {target_raster_path}'
             )
 
-        # last_task = task_graph.add_task(
-        #     func=shutil.rmtree,
-        #     args=(temp_dir,),
-        #     dependent_task_list=[last_task],
-        #     task_name=f'rm {temp_dir} when done')
+        last_task = task_graph.add_task(
+            func=shutil.rmtree,
+            args=(temp_dir,),
+            dependent_task_list=[last_task],
+            task_name=f'rm {temp_dir} when done')
 
     return last_task
 
