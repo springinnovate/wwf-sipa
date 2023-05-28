@@ -137,9 +137,11 @@ def logical_and_masks(raster_path_list, target_raster_path):
         for path in raster_path_list]
     nodata_target = 2
 
+    LOGGER.debug(f'in (logical_and_masks): {raster_path_list}, {target_raster_path}')
     def _logical_and(*array_list):
         result = numpy.ones(array_list[0].shape, dtype=bool)
         running_valid_mask = numpy.zeros(result.shape, dtype=bool)
+        LOGGER.debug(f'array list: {array_list} nodata list: {nodata_list}')
         for nodata, array in zip(nodata_list, array_list):
             if nodata is not None:
                 valid_mask = (array != nodata)
@@ -190,6 +192,9 @@ def rasterize_from_base_raster(
         task_name=f'rasterize {base_vector_path} to {rasterized_raster_path}')
 
     if additional_mask_raster_path:
+        LOGGER.debug(
+            f'********* logical ANDing {rasterized_raster_path} and '
+            f'{additional_mask_raster_path}')
         last_task = task_graph.add_task(
             func=logical_and_masks,
             args=(
