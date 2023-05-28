@@ -376,6 +376,9 @@ def main():
                 task_name=f'rasterize to {rasterized_vector_path}')
             pressure_mask_raster_info[PATH_FIELD] = rasterized_vector_path
             task_graph.join()
+        else:
+            LOGGER.warn(f'found a weird line, skipping: {row}')
+            continue
 
         pressure_mask_raster_info.update({
             x: row[x] for x in [
@@ -394,6 +397,7 @@ def main():
     for pressure_mask_raster_dict in pressure_mask_raster_list:
         # save the mask for later in case we need to mask it out further
         # before we
+        LOGGER.debug(f'pressure_mask_raster_dict: {pressure_mask_raster_dict}')
         pressure_mask_raster_path = pressure_mask_raster_dict[PATH_FIELD]
         LOGGER.info(
             f'processing mask {pressure_mask_raster_path}/{pressure_mask_raster_dict}')
