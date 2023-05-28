@@ -146,7 +146,7 @@ def logical_and_masks(raster_path_list, target_raster_path):
                 running_valid_mask |= valid_mask
             else:
                 valid_mask = slice(-1)
-            result[valid_mask] &= array[valid_mask]
+            result[valid_mask] &= array[valid_mask] > 0
         result[~running_valid_mask] = nodata_target
         return result
 
