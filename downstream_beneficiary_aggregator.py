@@ -386,12 +386,11 @@ def main():
         GLOBAL_WORKSPACE_DIR, args.n_workers, 15.0)
 
     config = load_ini_file(args.ini_file_path)
+    if args.debug:
+        return
 
     for section in config.sections():
         process_section(task_graph, config, section)
-
-    if args.debug:
-        return
 
 
 def get_tuple_hash(t):
