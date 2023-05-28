@@ -377,6 +377,8 @@ def main():
     parser.add_argument(
         '--n_workers', type=int, default=os.cpu_count(),
         help='number of taskgraph workers')
+    parser.add_argument(
+        '--debug', action='store_true')
     args = parser.parse_args()
 
     os.makedirs(GLOBAL_WORKSPACE_DIR, exist_ok=True)
@@ -387,6 +389,9 @@ def main():
 
     for section in config.sections():
         process_section(task_graph, config, section)
+
+    if args.debug:
+        return
 
 
 def get_tuple_hash(t):
