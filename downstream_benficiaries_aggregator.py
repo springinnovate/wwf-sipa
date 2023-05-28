@@ -613,7 +613,7 @@ def process_section(task_graph, config, section):
                 combine_local_benficiaries_task, downstream_coverage_task],
             task_name=f'sum coverage for mask_id {mask_id}')
 
-        result_by_id[mask_id] = sum_by_coverage_task
+        result_by_id[str(mask_id)] = sum_by_coverage_task
 
     beneficiaries_aggregated_by_subset_vector_path = os.path.join(
         GLOBAL_WORKSPACE_DIR,
