@@ -152,6 +152,7 @@ def logical_and_masks(raster_path_list, target_raster_path):
         LOGGER.debug(f'nonzero valid pixels for {target_raster_path}: {numpy.count_nonzero(running_valid_mask)}')
         LOGGER.debug(f'nonzero result pixels for {target_raster_path}: {numpy.count_nonzero(result)}')
         result[~running_valid_mask] = nodata_target
+        LOGGER.debug(f'after mask result pixels for {target_raster_path}: {numpy.count_nonzero(result)}')
         return result
 
     geoprocessing.raster_calculator(
@@ -451,7 +452,7 @@ def process_section(task_graph, config, section):
             local_config['beneficiary_path'].split(',')):
         local_beneficiary_raster_path = os.path.join(
             local_workspace_dir,
-            f'local_beneficiary_raster_{index}{section}.tif')
+            f'local_beneficiary_raster_{index}_{section}.tif')
         beneficiary_raster_list.append(local_beneficiary_raster_path)
         if geoprocessing.get_gis_type(vector_or_raster_beneficiary_path) == \
                 geoprocessing.VECTOR_TYPE:
@@ -546,7 +547,7 @@ def process_section(task_graph, config, section):
         flow_dir_raster_info = geoprocessing.get_raster_info(
             flow_dir_raster_path)
         local_upstream_mask_raster_path = os.path.join(
-            local_workspace_dir, f'upstream_mask{section}.tif')
+            local_workspace_dir, f'upstream_mask_{section}.tif')
         clip_raster_task = task_graph.add_task(
             func=geoprocessing.warp_raster,
             args=(
@@ -602,6 +603,7 @@ def process_section(task_graph, config, section):
             mask_raster_task_list):
         downstream_coverage_raster_path = os.path.join(
             local_workspace_dir, f'downstream_coverage_{mask_id}.tif')
+        LOGGER.info(f'processing downstream coverage of {downstream_coverage_raster_path}')
         downstream_coverage_task = task_graph.add_task(
             func=routing.distance_to_channel_mfd,
             args=(
@@ -627,7 +629,7 @@ def process_section(task_graph, config, section):
 
     beneficiaries_aggregated_by_subset_vector_path = os.path.join(
         GLOBAL_WORKSPACE_DIR,
-        f'beneficiaries_aggregated_by_subset{section}.gpkg')
+        f'beneficiaries_aggregated_by_subset_{section}.gpkg')
     task_graph.join()
 
     if local_config['subset_vector_path'] != '':
@@ -637,7 +639,7 @@ def process_section(task_graph, config, section):
 
     table_aggregate_path = os.path.join(
         GLOBAL_WORKSPACE_DIR,
-        f'benficiaries_aggregated_by_subset{section}.csv')
+        f'benficiaries_aggregated_by_subset_{section}.csv')
     with open(table_aggregate_path, 'w') as table_file:
         table_file.write('mask ID,sum of downstream beneficiaries\n')
         for mask_id in sorted(result_by_id):
