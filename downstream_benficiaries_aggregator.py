@@ -138,6 +138,9 @@ def logical_and_masks(raster_path_list, target_raster_path):
     nodata_target = 2
 
     LOGGER.debug(f'in (logical_and_masks): {raster_path_list}, {target_raster_path}')
+    for path in raster_path_list:
+        LOGGER.debug(f'{path} info: {geoprocessing.get_raster_info(raster_path_list)}')
+
     def _logical_and(*array_list):
         result = numpy.ones(array_list[0].shape, dtype=bool)
         running_valid_mask = numpy.zeros(result.shape, dtype=bool)
@@ -647,4 +650,10 @@ def process_section(task_graph, config, section):
 
 
 if __name__ == '__main__':
+    # p1 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\tmpm48o8ztq\\pre_masked_12_mask.tif'
+    # p2 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\upstream_mask_ph_downstream_road2019_benes.tif'
+    # p3 = 'downstream_beneficiary_workspace\ph_downstream_road2019_benes\12_mask.tif'
+
+    # logical_and_masks([p1, p2], 'test.tif')
+
     main()
