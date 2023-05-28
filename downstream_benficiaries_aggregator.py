@@ -510,7 +510,8 @@ def process_section(task_graph, config, section):
         task_name=f'sum all to {local_benficiaries_per_pixel_raster_path}')
 
     calculate_per_pixel_beneficiary_raster = (
-        local_config['calculate_per_pixel_beneficiary_raster'] == 'true')
+        local_config['calculate_per_pixel_beneficiary_raster'].lower() \
+            == 'true')
     if calculate_per_pixel_beneficiary_raster:
         num_of_downstream_beneficiaries_per_pixel_path = os.path.join(
             GLOBAL_WORKSPACE_DIR,
