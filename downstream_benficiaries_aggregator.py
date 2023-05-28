@@ -127,6 +127,7 @@ def sum_by_coverage(value_raster_path, mask_raster_path):
         valid_mask = mask_array > 0
         if value_nodata is not None:
             valid_mask &= value_array != value_nodata
+        LOGGER.debug(f'sum by coverage {valid_mask}')
         running_sum += numpy.sum(value_array[valid_mask])
     return running_sum
 
