@@ -139,23 +139,21 @@ def logical_and_masks(raster_path_list, target_raster_path):
 
     LOGGER.debug(f'in (logical_and_masks): {raster_path_list}, {target_raster_path}')
     for path in raster_path_list:
-        LOGGER.debug(f'{path} info: {geoprocessing.get_raster_info(raster_path_list)}')
+        LOGGER.debug(f'{path} info: {geoprocessing.get_raster_info(path)}')
 
     def _logical_and(*array_list):
-        result = numpy.ones(array_list[0].shape, dtype=bool)
-        running_valid_mask = numpy.zeros(result.shape, dtype=bool)
-        LOGGER.debug(f'array list: {array_list} nodata list: {nodata_list}')
+        result = numpy.ones(array_list[0].shape, dtype=numpy.int8)
+        nodata_count = numpy.zeros(result.shape, dtype=int)
         for nodata, array in zip(nodata_list, array_list):
             if nodata is not None:
                 valid_mask = (array != nodata)
-                running_valid_mask |= valid_mask
+                nodata_count += ~valid_mask
             else:
-                valid_mask = (numpy.ones(result.shape, dtype=bool))
-            result[valid_mask] &= (array[valid_mask] > 0)
-        LOGGER.debug(f'nonzero valid pixels for {target_raster_path}: {numpy.count_nonzero(running_valid_mask)}')
-        LOGGER.debug(f'nonzero result pixels for {target_raster_path}: {numpy.count_nonzero(result)}')
-        result[~running_valid_mask] = nodata_target
-        LOGGER.debug(f'after mask result pixels for {target_raster_path}: {numpy.count_nonzero(result)}')
+                valid_mask = numpy.ones(result.shape, dtype=bool)
+                nodata_count += 1
+            result &= ((array > 0) & valid_mask)
+        # only nodata where they were all nodata
+        result[nodata_count == len(raster_path_list)] = nodata_target
         return result
 
     geoprocessing.raster_calculator(
@@ -650,10 +648,8 @@ def process_section(task_graph, config, section):
 
 
 if __name__ == '__main__':
-    # p1 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\tmpm48o8ztq\\pre_masked_12_mask.tif'
+    # p1 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\tmp3pb7zll3\\pre_masked_12_mask.tif'
     # p2 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\upstream_mask_ph_downstream_road2019_benes.tif'
-    # p3 = 'downstream_beneficiary_workspace\ph_downstream_road2019_benes\12_mask.tif'
 
-    # logical_and_masks([p1, p2], 'test.tif')
-
+    # logical_and_masks([p2, p1], 'mask12back.tif')
     main()
