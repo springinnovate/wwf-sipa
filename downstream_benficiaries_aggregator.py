@@ -158,7 +158,7 @@ def logical_and_masks(raster_path_list, target_raster_path):
         result[nodata_count == n_arrays] = nodata_target
         return result
 
-    geoprocessing.single_threaded_raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in raster_path_list], _logical_and,
         target_raster_path, gdal.GDT_Byte, nodata_target)
 
@@ -248,7 +248,7 @@ def warp_and_rescale(
                 result *= scale_factor
             return result
 
-        geoprocessing.single_threaded_raster_calculator(
+        geoprocessing.single_thread_raster_calculator(
             [(warped_raster_path, 1)], _scale_by_factor, target_raster_path,
             gdal.GDT_Float32, target_nodata)
     else:
@@ -277,7 +277,7 @@ def _sum_all_op(raster_path_list, target_raster):
         result[~total_valid_mask] = local_nodata
         return result
 
-    geoprocessing.single_threaded_raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in raster_path_list], _sum_op,
         target_raster, gdal.GDT_Float32, local_nodata)
 
