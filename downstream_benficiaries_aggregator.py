@@ -152,13 +152,13 @@ def logical_and_masks(raster_path_list, target_raster_path):
             else:
                 valid_mask = numpy.ones(overlap_count.shape, dtype=bool)
                 nodata_count += 1
-            overlap_count += valid_mask
+            overlap_count += valid_mask.astype(int)
         # only nodata where they were all nodata
         result = (overlap_count == n_arrays).astype(numpy.int8)
         result[nodata_count == n_arrays] = nodata_target
-        return result
+        return overlap_count
 
-    geoprocessing.single_thread_raster_calculator(
+    geoprocessing.raster_calculator(
         [(path, 1) for path in raster_path_list], _logical_and,
         target_raster_path, gdal.GDT_Byte, nodata_target)
 
@@ -248,7 +248,7 @@ def warp_and_rescale(
                 result *= scale_factor
             return result
 
-        geoprocessing.single_thread_raster_calculator(
+        geoprocessing.raster_calculator(
             [(warped_raster_path, 1)], _scale_by_factor, target_raster_path,
             gdal.GDT_Float32, target_nodata)
     else:
@@ -277,7 +277,7 @@ def _sum_all_op(raster_path_list, target_raster):
         result[~total_valid_mask] = local_nodata
         return result
 
-    geoprocessing.single_thread_raster_calculator(
+    geoprocessing.raster_calculator(
         [(path, 1) for path in raster_path_list], _sum_op,
         target_raster, gdal.GDT_Float32, local_nodata)
 
@@ -544,7 +544,7 @@ def process_section(task_graph, config, section):
             flow_dir_raster_path)
         local_upstream_mask_raster_path = os.path.join(
             local_workspace_dir, f'upstream_mask_{section}.tif')
-        clip_raster_task = task_graph.add_task(
+        clip_upstream_mask_task = task_graph.add_task(
             func=geoprocessing.warp_raster,
             args=(
                 local_config['upstream_mask_raster_path'],
@@ -559,7 +559,7 @@ def process_section(task_graph, config, section):
         mask_rasters_to_aggregate_list.append(local_upstream_mask_raster_path)
         mask_raster_id_list.append(os.path.basename(os.path.splitext(
             local_upstream_mask_raster_path)[0]))
-        mask_raster_task_list.append(clip_raster_task)
+        mask_raster_task_list.append(clip_upstream_mask_task)
 
     if local_config['subset_vector_path'] != '':
         reprojected_subset_vector_path = os.path.join(
@@ -587,6 +587,7 @@ def process_section(task_graph, config, section):
                 task_graph, flow_dir_raster_path,
                 reprojected_subset_vector_path,
                 fid_rasterize_kwargs, fid_mask_path,
+                dependent_task_list=[clip_upstream_mask_task],
                 additional_mask_raster_path=local_upstream_mask_raster_path)
 
             mask_rasters_to_aggregate_list.append(fid_mask_path)
