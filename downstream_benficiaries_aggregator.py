@@ -652,7 +652,7 @@ def process_section(task_graph, config, section):
 if __name__ == '__main__':
     # p1 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\tmp3pb7zll3\\pre_masked_12_mask.tif'
     # p2 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\upstream_mask_ph_downstream_road2019_benes.tif'
-    p1 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\4_mask.tif"
-    p2 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\tmp3ovr__an\pre_masked_4_mask.tif"
-    logical_and_masks([p2, p1], 'road4mask.tif')
-    #main()
+    # p1 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\benficiaries_per_pixel_ph_downstream_road2019_benes.tif"
+    # p2 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\tmp3ovr__an\pre_masked_4_mask.tif"
+    # logical_and_masks([p2, p1], 'road4mask.tif')
+    main()
