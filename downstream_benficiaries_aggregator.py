@@ -205,7 +205,7 @@ def rasterize_from_base_raster(
                 target_raster_path),
             target_path_list=[target_raster_path],
             dependent_task_list=[last_task],
-            task_name=f'logical and {target_raster_path}'
+            task_name=f'logical and between {rasterized_raster_path}, {additional_mask_raster_path}'
             )
 
     return last_task
