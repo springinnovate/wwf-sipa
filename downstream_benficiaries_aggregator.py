@@ -142,18 +142,20 @@ def logical_and_masks(raster_path_list, target_raster_path):
         LOGGER.debug(f'{path} info: {geoprocessing.get_raster_info(path)}')
 
     def _logical_and(*array_list):
-        result = numpy.ones(array_list[0].shape, dtype=numpy.int8)
-        nodata_count = numpy.zeros(result.shape, dtype=int)
+        n_arrays = len(array_list)
+        overlap_count = numpy.zeros(array_list[0].shape, dtype=int)
+        nodata_count = numpy.zeros(overlap_count.shape, dtype=int)
         for nodata, array in zip(nodata_list, array_list):
             if nodata is not None:
                 valid_mask = (array != nodata)
                 nodata_count += ~valid_mask
             else:
-                valid_mask = numpy.ones(result.shape, dtype=bool)
+                valid_mask = numpy.ones(overlap_count.shape, dtype=bool)
                 nodata_count += 1
-            result &= ((array > 0) & valid_mask)
+            overlap_count += valid_mask
         # only nodata where they were all nodata
-        result[nodata_count == len(raster_path_list)] = nodata_target
+        result = (overlap_count == n_arrays).astype(numpy.int8)
+        result[nodata_count == n_arrays] = nodata_target
         return result
 
     geoprocessing.raster_calculator(
@@ -207,11 +209,11 @@ def rasterize_from_base_raster(
             task_name=f'logical and {target_raster_path}'
             )
 
-        last_task = task_graph.add_task(
-            func=shutil.rmtree,
-            args=(temp_dir,),
-            dependent_task_list=[last_task],
-            task_name=f'rm {temp_dir} when done')
+        # last_task = task_graph.add_task(
+        #     func=shutil.rmtree,
+        #     args=(temp_dir,),
+        #     dependent_task_list=[last_task],
+        #     task_name=f'rm {temp_dir} when done')
 
     return last_task
 
@@ -650,6 +652,7 @@ def process_section(task_graph, config, section):
 if __name__ == '__main__':
     # p1 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\tmp3pb7zll3\\pre_masked_12_mask.tif'
     # p2 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\upstream_mask_ph_downstream_road2019_benes.tif'
-
-    # logical_and_masks([p2, p1], 'mask12back.tif')
-    main()
+    p1 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\4_mask.tif"
+    p2 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\tmp3ovr__an\pre_masked_4_mask.tif"
+    logical_and_masks([p2, p1], 'road4mask.tif')
+    #main()
