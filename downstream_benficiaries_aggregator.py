@@ -158,7 +158,7 @@ def logical_and_masks(raster_path_list, target_raster_path):
         result[nodata_count == n_arrays] = nodata_target
         return result
 
-    geoprocessing.raster_calculator(
+    geoprocessing.single_threaded_raster_calculator(
         [(path, 1) for path in raster_path_list], _logical_and,
         target_raster_path, gdal.GDT_Byte, nodata_target)
 
@@ -171,10 +171,9 @@ def rasterize_from_base_raster(
     if additional_mask_raster_path is None:
         rasterized_raster_path = target_raster_path
     else:
-        temp_dir = tempfile.mkdtemp(
-            dir=os.path.dirname(target_raster_path))
         rasterized_raster_path = os.path.join(
-            temp_dir, f'pre_masked_{os.path.basename(target_raster_path)}')
+            os.path.dirname(target_raster_path),
+            f'pre_masked_{os.path.basename(target_raster_path)}')
 
     last_task = task_graph.add_task(
         func=geoprocessing.new_raster_from_base,
@@ -208,12 +207,6 @@ def rasterize_from_base_raster(
             dependent_task_list=[last_task],
             task_name=f'logical and {target_raster_path}'
             )
-
-        # last_task = task_graph.add_task(
-        #     func=shutil.rmtree,
-        #     args=(temp_dir,),
-        #     dependent_task_list=[last_task],
-        #     task_name=f'rm {temp_dir} when done')
 
     return last_task
 
@@ -255,7 +248,7 @@ def warp_and_rescale(
                 result *= scale_factor
             return result
 
-        geoprocessing.raster_calculator(
+        geoprocessing.single_threaded_raster_calculator(
             [(warped_raster_path, 1)], _scale_by_factor, target_raster_path,
             gdal.GDT_Float32, target_nodata)
     else:
@@ -284,7 +277,7 @@ def _sum_all_op(raster_path_list, target_raster):
         result[~total_valid_mask] = local_nodata
         return result
 
-    geoprocessing.raster_calculator(
+    geoprocessing.single_threaded_raster_calculator(
         [(path, 1) for path in raster_path_list], _sum_op,
         target_raster, gdal.GDT_Float32, local_nodata)
 
@@ -654,5 +647,16 @@ if __name__ == '__main__':
     # p2 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\upstream_mask_ph_downstream_road2019_benes.tif'
     # p1 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\benficiaries_per_pixel_ph_downstream_road2019_benes.tif"
     # p2 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\tmp3ovr__an\pre_masked_4_mask.tif"
-    # logical_and_masks([p2, p1], 'road4mask.tif')
+    # p1 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\tmp32ahx8oa\\pre_masked_1_mask.tif'
+    # p2 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\upstream_mask_ph_downstream_road2019_benes.tif'
+    # logical_and_masks([p1, p2], 'road1mask.tif')
+
+    # flow_dir_raster_path = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\dem_workspace_b46be7ea77e145786964fff94064e033\mfd_flow_dir.tif"
+    # outlet_raster_path = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\dem_workspace_b46be7ea77e145786964fff94064e033\outlet_raster.tif"
+    # downstream_coverage_raster_path = 'covered.tif'
+    # mask_path = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\1_mask.tif"
+    # routing.distance_to_channel_mfd(
+    #     (flow_dir_raster_path, 1), (outlet_raster_path, 1),
+    #     downstream_coverage_raster_path,
+    #     weight_raster_path_band=(mask_path, 1))
     main()
