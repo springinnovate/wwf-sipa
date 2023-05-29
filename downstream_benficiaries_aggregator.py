@@ -152,7 +152,7 @@ def logical_and_masks(raster_path_list, target_raster_path):
             else:
                 valid_mask = numpy.ones(overlap_count.shape, dtype=bool)
                 nodata_count += 1
-            overlap_count += valid_mask.astype(int)
+            overlap_count += (valid_mask & (array > 0)).astype(int)
         # only nodata where they were all nodata
         result = (overlap_count == n_arrays).astype(int)
         result[nodata_count == n_arrays] = nodata_target
