@@ -135,7 +135,7 @@ def logical_and_masks(raster_path_list, target_raster_path):
     nodata_list = [
         geoprocessing.get_raster_info(path)['nodata'][0]
         for path in raster_path_list]
-    nodata_target = 2
+    nodata_target = -1
 
     LOGGER.debug(f'in (logical_and_masks): {raster_path_list}, {target_raster_path}')
     for path in raster_path_list:
@@ -154,13 +154,13 @@ def logical_and_masks(raster_path_list, target_raster_path):
                 nodata_count += 1
             overlap_count += valid_mask.astype(int)
         # only nodata where they were all nodata
-        result = (overlap_count == n_arrays).astype(numpy.int8)
+        result = (overlap_count == n_arrays).astype(int)
         result[nodata_count == n_arrays] = nodata_target
-        return overlap_count
+        return result
 
     geoprocessing.raster_calculator(
         [(path, 1) for path in raster_path_list], _logical_and,
-        target_raster_path, gdal.GDT_Byte, nodata_target)
+        target_raster_path, gdal.GDT_Int32, nodata_target)
 
 
 def rasterize_from_base_raster(
@@ -190,7 +190,7 @@ def rasterize_from_base_raster(
         func=geoprocessing.rasterize,
         args=(base_vector_path, rasterized_raster_path),
         kwargs=rasterize_kwargs,
-        dependent_task_list=[last_task],
+        dependent_task_list=[last_task]+dependent_task_list,
         target_path_list=[rasterized_raster_path],
         task_name=f'rasterize {base_vector_path} to {rasterized_raster_path}')
 
@@ -204,7 +204,7 @@ def rasterize_from_base_raster(
                 [rasterized_raster_path, additional_mask_raster_path],
                 target_raster_path),
             target_path_list=[target_raster_path],
-            dependent_task_list=[last_task],
+            dependent_task_list=[last_task]+dependent_task_list,
             task_name=f'logical and between {rasterized_raster_path}, {additional_mask_raster_path}'
             )
 
