@@ -135,32 +135,32 @@ def logical_and_masks(raster_path_list, target_raster_path):
     nodata_list = [
         geoprocessing.get_raster_info(path)['nodata'][0]
         for path in raster_path_list]
-    nodata_target = 2
+    nodata_target = -1
 
     LOGGER.debug(f'in (logical_and_masks): {raster_path_list}, {target_raster_path}')
     for path in raster_path_list:
-        LOGGER.debug(f'{path} info: {geoprocessing.get_raster_info(raster_path_list)}')
+        LOGGER.debug(f'{path} info: {geoprocessing.get_raster_info(path)}')
 
     def _logical_and(*array_list):
-        result = numpy.ones(array_list[0].shape, dtype=bool)
-        running_valid_mask = numpy.zeros(result.shape, dtype=bool)
-        LOGGER.debug(f'array list: {array_list} nodata list: {nodata_list}')
+        n_arrays = len(array_list)
+        overlap_count = numpy.zeros(array_list[0].shape, dtype=int)
+        nodata_count = numpy.zeros(overlap_count.shape, dtype=int)
         for nodata, array in zip(nodata_list, array_list):
             if nodata is not None:
                 valid_mask = (array != nodata)
-                running_valid_mask |= valid_mask
+                nodata_count += ~valid_mask
             else:
-                valid_mask = (numpy.ones(result.shape, dtype=bool))
-            result[valid_mask] &= (array[valid_mask] > 0)
-        LOGGER.debug(f'nonzero valid pixels for {target_raster_path}: {numpy.count_nonzero(running_valid_mask)}')
-        LOGGER.debug(f'nonzero result pixels for {target_raster_path}: {numpy.count_nonzero(result)}')
-        result[~running_valid_mask] = nodata_target
-        LOGGER.debug(f'after mask result pixels for {target_raster_path}: {numpy.count_nonzero(result)}')
+                valid_mask = numpy.ones(overlap_count.shape, dtype=bool)
+                nodata_count += 1
+            overlap_count += (valid_mask & (array > 0)).astype(int)
+        # only nodata where they were all nodata
+        result = (overlap_count == n_arrays).astype(int)
+        result[nodata_count == n_arrays] = nodata_target
         return result
 
     geoprocessing.raster_calculator(
         [(path, 1) for path in raster_path_list], _logical_and,
-        target_raster_path, gdal.GDT_Byte, nodata_target)
+        target_raster_path, gdal.GDT_Int32, nodata_target)
 
 
 def rasterize_from_base_raster(
@@ -171,10 +171,9 @@ def rasterize_from_base_raster(
     if additional_mask_raster_path is None:
         rasterized_raster_path = target_raster_path
     else:
-        temp_dir = tempfile.mkdtemp(
-            dir=os.path.dirname(target_raster_path))
         rasterized_raster_path = os.path.join(
-            temp_dir, f'pre_masked_{os.path.basename(target_raster_path)}')
+            os.path.dirname(target_raster_path),
+            f'pre_masked_{os.path.basename(target_raster_path)}')
 
     last_task = task_graph.add_task(
         func=geoprocessing.new_raster_from_base,
@@ -191,7 +190,7 @@ def rasterize_from_base_raster(
         func=geoprocessing.rasterize,
         args=(base_vector_path, rasterized_raster_path),
         kwargs=rasterize_kwargs,
-        dependent_task_list=[last_task],
+        dependent_task_list=[last_task]+dependent_task_list,
         target_path_list=[rasterized_raster_path],
         task_name=f'rasterize {base_vector_path} to {rasterized_raster_path}')
 
@@ -205,15 +204,9 @@ def rasterize_from_base_raster(
                 [rasterized_raster_path, additional_mask_raster_path],
                 target_raster_path),
             target_path_list=[target_raster_path],
-            dependent_task_list=[last_task],
-            task_name=f'logical and {target_raster_path}'
+            dependent_task_list=[last_task]+dependent_task_list,
+            task_name=f'logical and between {rasterized_raster_path}, {additional_mask_raster_path}'
             )
-
-        # last_task = task_graph.add_task(
-        #     func=shutil.rmtree,
-        #     args=(temp_dir,),
-        #     dependent_task_list=[last_task],
-        #     task_name=f'rm {temp_dir} when done')
 
     return last_task
 
@@ -551,7 +544,7 @@ def process_section(task_graph, config, section):
             flow_dir_raster_path)
         local_upstream_mask_raster_path = os.path.join(
             local_workspace_dir, f'upstream_mask_{section}.tif')
-        clip_raster_task = task_graph.add_task(
+        clip_upstream_mask_task = task_graph.add_task(
             func=geoprocessing.warp_raster,
             args=(
                 local_config['upstream_mask_raster_path'],
@@ -566,7 +559,7 @@ def process_section(task_graph, config, section):
         mask_rasters_to_aggregate_list.append(local_upstream_mask_raster_path)
         mask_raster_id_list.append(os.path.basename(os.path.splitext(
             local_upstream_mask_raster_path)[0]))
-        mask_raster_task_list.append(clip_raster_task)
+        mask_raster_task_list.append(clip_upstream_mask_task)
 
     if local_config['subset_vector_path'] != '':
         reprojected_subset_vector_path = os.path.join(
@@ -594,6 +587,7 @@ def process_section(task_graph, config, section):
                 task_graph, flow_dir_raster_path,
                 reprojected_subset_vector_path,
                 fid_rasterize_kwargs, fid_mask_path,
+                dependent_task_list=[clip_upstream_mask_task],
                 additional_mask_raster_path=local_upstream_mask_raster_path)
 
             mask_rasters_to_aggregate_list.append(fid_mask_path)
@@ -650,10 +644,20 @@ def process_section(task_graph, config, section):
 
 
 if __name__ == '__main__':
-    # p1 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\tmpm48o8ztq\\pre_masked_12_mask.tif'
+    # p1 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\tmp3pb7zll3\\pre_masked_12_mask.tif'
     # p2 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\upstream_mask_ph_downstream_road2019_benes.tif'
-    # p3 = 'downstream_beneficiary_workspace\ph_downstream_road2019_benes\12_mask.tif'
+    # p1 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\benficiaries_per_pixel_ph_downstream_road2019_benes.tif"
+    # p2 = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\tmp3ovr__an\pre_masked_4_mask.tif"
+    # p1 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\tmp32ahx8oa\\pre_masked_1_mask.tif'
+    # p2 = 'downstream_beneficiary_workspace\\ph_downstream_road2019_benes\\upstream_mask_ph_downstream_road2019_benes.tif'
+    # logical_and_masks([p1, p2], 'road1mask.tif')
 
-    # logical_and_masks([p1, p2], 'test.tif')
-
+    # flow_dir_raster_path = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\dem_workspace_b46be7ea77e145786964fff94064e033\mfd_flow_dir.tif"
+    # outlet_raster_path = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\dem_workspace_b46be7ea77e145786964fff94064e033\outlet_raster.tif"
+    # downstream_coverage_raster_path = 'covered.tif'
+    # mask_path = r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\ph_downstream_road2019_benes\1_mask.tif"
+    # routing.distance_to_channel_mfd(
+    #     (flow_dir_raster_path, 1), (outlet_raster_path, 1),
+    #     downstream_coverage_raster_path,
+    #     weight_raster_path_band=(mask_path, 1))
     main()
