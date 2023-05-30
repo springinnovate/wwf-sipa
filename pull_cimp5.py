@@ -1,4 +1,5 @@
 """Utility to extract CIMP5 data from GEE."""
+from osgeo import gdal
 from dateutil.relativedelta import relativedelta
 import requests
 import argparse
@@ -108,24 +109,16 @@ def main():
         next_month_start = current_month_start + relativedelta(months=1)
         current_month_end = min(next_month_start - relativedelta(days=1), end_day)
         month_str = current_month_start.strftime('%Y-%m')
-        current_month_date_list = [
-            (current_month_start +
-             datetime.timedelta(days=delta_day)).strftime('%Y-%m-%d')
-            for delta_day in range(
-                (current_month_end-current_month_start).days+1)]
-
-        year_month_date_lookup[month_str] = current_month_date_list
+        year_month_date_lookup[month_str] = (
+            current_month_start.strftime('%Y-%m-%d'),
+            current_month_end.strftime('%Y-%m-%d')
+            )
 
         if current_month == 12:
             current_month = 1
             current_year += 1
         else:
             current_month += 1
-
-    all_dates = [
-        date
-        for date_list in year_month_date_lookup.values()
-        for date in date_list]
 
     if args.authenticate:
         ee.Authenticate()
@@ -136,17 +129,13 @@ def main():
         args.aoi_vector_path)[0])
     base_dataset = ee.ImageCollection(DATASET_ID).select('pr')
 
-    result_pattern_by_unique_id = dict()
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    for percentile in [10, 90]:
         for unique_id_index, unique_id_value in unique_id_set:
             # create tag that's either the vector basename, or if filtering on
             # a field is requested, the basename, field, and field value
             unique_id = (
                 vector_basename if args.aggregate_by_field is None else
                 f'{vector_basename}_{args.aggregate_by_field}_{unique_id_value}')
-            result_by_date_pattern = os.path.join(
-                CACHE_DIR, unique_id, f'_{unique_id}_*.dat')
-            result_pattern_by_unique_id[unique_id] = result_by_date_pattern
 
             # save to shapefile and load into EE vector
             if unique_id_value is not None:
@@ -160,15 +149,17 @@ def main():
             ee_poly = geemap.geojson_to_ee(local_shapefile_path)
             os.remove(local_shapefile_path)
 
-            for date in all_dates:
-                date_dataset = base_dataset.filter(ee.Filter.date(date))
+            for year_month_str, (start_date, end_date) in \
+                    year_month_date_lookup.items():
+                date_dataset = base_dataset.filter(ee.Filter.date(
+                    start_date, end_date))
                 scenario_dataset = date_dataset.filter(
                         ee.Filter.eq('scenario', SCENARIO_ID))
                 clipped_dataset = scenario_dataset.filterBounds(
                     ee_poly)
 
-                models = ee.List(clipped_dataset.aggregate_array('model')).distinct();
-                #print(f'models: {models.getInfo()}')
+                models = ee.List(
+                    clipped_dataset.aggregate_array('model')).distinct()
 
                 def reduce_by_model(model):
                     model_images = clipped_dataset.filterMetadata(
@@ -180,21 +171,22 @@ def main():
                 monthly_images = ee.ImageCollection(
                     models.map(reduce_by_model))
                 percentile_image = monthly_images.reduce(
-                    ee.Reducer.percentile([90]))
+                    ee.Reducer.percentile([percentile]))
                 mm_image = percentile_image.multiply(86400)
 
-                # Reduce the ImageCollection to the desired percentile
-                #print(ee_poly.geometry().bounds())
-
-                # Generate the download URL
-
-                download_image(mm_image, ee_poly.geometry().bounds(), 'output.tif')
-                break
+                target_path = os.path.join(
+                    f'precip_{2050}_{SCENARIO_ID}_{percentile}',
+                    f'{SCENARIO_ID}_{percentile}_{year_month_str}.tif')
+                print(f'fetching {target_path}')
+                download_image(
+                    mm_image, ee_poly.geometry().bounds(),
+                    target_path)
 
         LOGGER.info('done!')
 
 
 def download_image(image, bounds, target_path):
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
     if not os.path.exists(target_path):
         url = image.getDownloadUrl({
             'scale': 27830,
@@ -205,6 +197,14 @@ def download_image(image, bounds, target_path):
         response = requests.get(url)
         with open(target_path, 'wb') as fd:
             fd.write(response.content)
+        r = gdal.OpenEx(target_path, gdal.OF_RASTER | gdal.GA_Update)
+        b = r.GetRasterBand(1)
+        nodata = b.GetNoDataValue()
+        if nodata is not None:
+            # make ndoata 0
+            array = b.ReadAsArray()
+            array[array == nodata] = 0
+            b.WriteArray(array)
     else:
         LOGGER.info(f'{target_path} already exists, not overwriting')
 
