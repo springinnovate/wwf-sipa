@@ -1,5 +1,6 @@
 """Utility to extract CIMP5 data from GEE."""
 from osgeo import gdal
+from shapely.geometry import Polygon
 from dateutil.relativedelta import relativedelta
 import requests
 import argparse
@@ -30,7 +31,7 @@ LOGGER.setLevel(logging.DEBUG)
 CACHE_DIR = '_cimp5_cache_dir'
 DATASET_ID = 'NASA/NEX-GDDP'
 DATASET_CRS = 'EPSG:4326'
-SCENARIO_ID = 'rcp45'
+SCENARIO_ID = 'rcp85'
 PERCENTILE_TO_QUERY = 90
 DATASET_SCALE = 27830
 SCENARIO_LIST = ['historical', 'rcp45', 'rcp85']
@@ -94,6 +95,8 @@ def main():
         unique_id_set = [
             (aoi_vector[args.aggregate_by_field] == unique_id, unique_id)
             for unique_id in set(aoi_vector[args.aggregate_by_field])]
+    else:
+        unique_id = os.path.basename(os.path.splitext(args.aoi_vector_path)[0])
 
     start_day = datetime.datetime.strptime(args.start_date, '%Y-%m-%d')
     end_day = datetime.datetime.strptime(args.end_date, '%Y-%m-%d')
@@ -144,8 +147,22 @@ def main():
                 filtered_aoi = aoi_vector
             local_shapefile_path = f'_local_ok_to_delete_{unique_id}.json'
             filtered_aoi = filtered_aoi.to_crs('EPSG:4326')
-            filtered_aoi.to_file(local_shapefile_path)
-            filtered_aoi = None
+
+            # Calculate bounding box
+            bbox = filtered_aoi.total_bounds
+
+            # Create a Polygon from the bounding box
+            bbox_poly = Polygon([(bbox[0], bbox[1]),
+                                 (bbox[2], bbox[1]),
+                                 (bbox[2], bbox[3]),
+                                 (bbox[0], bbox[3])])
+
+            # Create a new GeoDataFrame for the bounding box
+            bbox_gdf = geopandas.GeoDataFrame(
+                {'geometry': [bbox_poly]}, crs=filtered_aoi.crs)
+
+            bbox_gdf.to_file(local_shapefile_path)
+            bbox_gdf = None
             ee_poly = geemap.geojson_to_ee(local_shapefile_path)
             os.remove(local_shapefile_path)
 
@@ -161,52 +178,106 @@ def main():
                 models = ee.List(
                     clipped_dataset.aggregate_array('model')).distinct()
 
-                def reduce_by_model(model):
+
+                def createMask(precip_image):
+                    precip_image = precip_image.multiply(86400)
+                    mask = precip_image.gt(1)
+                    return mask
+
+                def reduce_by_sum_per_model(model):
                     model_images = clipped_dataset.filterMetadata(
                         'model', 'equals', model)
                     summed_image = model_images.reduce(ee.Reducer.sum())
                     summed_image = summed_image.set('model', model)
-
                     return summed_image
-                monthly_images = ee.ImageCollection(
-                    models.map(reduce_by_model))
-                percentile_image = monthly_images.reduce(
+
+                def reduce_by_count_gt_per_model(model):
+                    model_images = clipped_dataset.filterMetadata(
+                        'model', 'equals', model)
+                    mask_images = model_images.map(createMask)
+                    summed_image = mask_images.reduce(ee.Reducer.sum())
+                    summed_image = summed_image.set('model', model)
+                    return summed_image
+
+                monthly_precip_images = ee.ImageCollection(
+                    models.map(reduce_by_sum_per_model))
+                percentile_image = monthly_precip_images.reduce(
                     ee.Reducer.percentile([percentile]))
                 mm_image = percentile_image.multiply(86400)
-
                 target_path = os.path.join(
-                    f'precip_{2050}_{SCENARIO_ID}_{percentile}',
-                    f'{SCENARIO_ID}_{percentile}_{year_month_str}.tif')
+                    f'precip_{unique_id}_{2050}_{SCENARIO_ID}_{percentile}',
+                    f'precip_{SCENARIO_ID}_{percentile}_{year_month_str.replace("-", "_")}.tif')
                 print(f'fetching {target_path}')
                 download_image(
                     mm_image, ee_poly.geometry().bounds(),
+                    target_path)
+
+
+                monthly_event_images = ee.ImageCollection(
+                    models.map(reduce_by_count_gt_per_model))
+                percentile_image = monthly_event_images.reduce(
+                    ee.Reducer.percentile([percentile]))
+                target_path = os.path.join(
+                    f'n_events_{unique_id}_{2050}_{SCENARIO_ID}_{percentile}',
+                    f'n_events_{SCENARIO_ID}_{percentile}_{year_month_str.replace("-", "_")}.tif')
+                print(f'fetching {target_path}')
+                download_image(
+                    percentile_image, ee_poly.geometry().bounds(),
                     target_path)
 
         LOGGER.info('done!')
 
 
 def download_image(image, bounds, target_path):
-    os.makedirs(os.path.dirname(target_path), exist_ok=True)
-    if not os.path.exists(target_path):
-        url = image.getDownloadUrl({
+    try:
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        if not os.path.exists(target_path):
+            url = image.getDownloadUrl({
+                'scale': 27830,
+                'region': bounds,
+                'format': 'GEO_TIFF'
+            })
+            LOGGER.debug(f'saving {target_path}')
+            response = requests.get(url)
+            with open(target_path, 'wb') as fd:
+                fd.write(response.content)
+            r = gdal.OpenEx(target_path, gdal.OF_RASTER | gdal.GA_Update)
+            b = r.GetRasterBand(1)
+            nodata = b.GetNoDataValue()
+            if nodata is not None:
+                # make ndoata 0
+                array = b.ReadAsArray()
+                array[array == nodata] = 0
+                b.WriteArray(array)
+                b.SetNoDataValue(-1)
+        else:
+            LOGGER.info(f'{target_path} already exists, not overwriting')
+
+    except ee.ee_exception.EEException:
+        LOGGER.exception('cannot download with url, downloading to drive')
+        export_params = {
+            'image': image,
             'scale': 27830,
             'region': bounds,
-            'format': 'GEO_TIFF'
-        })
-        LOGGER.debug(f'saving {target_path}')
-        response = requests.get(url)
-        with open(target_path, 'wb') as fd:
-            fd.write(response.content)
-        r = gdal.OpenEx(target_path, gdal.OF_RASTER | gdal.GA_Update)
-        b = r.GetRasterBand(1)
-        nodata = b.GetNoDataValue()
-        if nodata is not None:
-            # make ndoata 0
-            array = b.ReadAsArray()
-            array[array == nodata] = 0
-            b.WriteArray(array)
-    else:
-        LOGGER.info(f'{target_path} already exists, not overwriting')
+            'folder': 'pull_cmip5',
+            'fileFormat': 'GeoTIFF',
+            'maxPixels': 1e12  # this is to avoid the 'computed value too large' error
+        }
+        task = ee.batch.Export.image.toDrive(**export_params)
+        task.start()
+
 
 if __name__ == '__main__':
     main()
+
+# E = sum(e_r * P_r, r in 365?)
+# e_r = 0.29*(1-0.72*exp(-0.082 * i_r))
+
+# P_r rainfall amount
+# i_r rainfall intensity
+
+# e_{r} = 0.29\left[ {1 - 0.72exp\left( { - 0.082i_{r} } \right)} \right]
+# E = \left( {\mathop \sum \limits_{r = 1}^{n} \left( {e_{r} \cdot P_{r} } \right)} \right)
+
+
+# E = \left( {\mathop \sum \limits_{r = 1}^{n} \left( {e_{r} \cdot P_{r} } \right)} \right)
