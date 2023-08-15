@@ -131,6 +131,19 @@ def sum_by_coverage(value_raster_path, mask_raster_path):
     return running_sum
 
 
+def mask_raster(base_raster_path, mask_raster_path, target_raster_path):
+    nodata = geoprocessing.get_raster_info(base_raster_path)
+
+    def _mask_op(base_array, mask_array):
+        result = base_array
+        result[mask_array != 0] = nodata
+        return result
+
+    geoprocessing.raster_calculator(
+        [(base_raster_path, 1), (mask_raster_path, 1)], _mask_op,
+        target_raster_path, gdal.GDT_Float32, nodata)
+
+
 def logical_and_masks(raster_path_list, target_raster_path):
     nodata_list = [
         geoprocessing.get_raster_info(path)['nodata'][0]
@@ -513,6 +526,39 @@ def process_section(task_graph, config, section):
         target_path_list=[local_benficiaries_per_pixel_raster_path],
         dependent_task_list=beneficiary_task_list,
         task_name=f'sum all to {local_benficiaries_per_pixel_raster_path}')
+
+    if 'beneficiary_mask_raster_path' in local_config:
+        # align the mask raster to local_benficiaries_per_pixel_raster_path
+        local_beneficiary_mask_raster_path = os.path.join(
+            local_workspace_dir,
+            f'beneficiary_mask_raster_{index}_{section}.tif')
+        warp_benficiary_task = task_graph.add_task(
+            func=warp_and_rescale,
+            args=(
+                local_config['beneficiary_mask_raster_path'],
+                (pixel_size, -pixel_size),
+                aoi_info['bounding_box'],
+                aoi_info['projection_wkt'],
+                local_beneficiary_mask_raster_path),
+            target_path_list=[local_beneficiary_mask_raster_path],
+            task_name=f'align benficiary mask {local_beneficiary_mask_raster_path}')
+
+        # mask local_benficiaries_per_pixel_raster_path to the mask
+        masked_local_benficiaries_per_pixel_raster_path = os.path.join(
+            local_workspace_dir,
+            f'masked_benficiaries_per_pixel_{section}.tif')
+        combine_local_benficiaries_task = task_graph.add_task(
+            func=mask_raster,
+            args=(
+                local_benficiaries_per_pixel_raster_path,
+                local_beneficiary_mask_raster_path,
+                masked_local_benficiaries_per_pixel_raster_path),
+            target_path_list=[masked_local_benficiaries_per_pixel_raster_path],
+            dependent_task_list=[
+                warp_benficiary_task, combine_local_benficiaries_task],
+            task_name=f'mask out the benefiaries with {local_beneficiary_mask_raster_path}')
+        # rename local_benficiaries_per_pixel_raster_path to the masked version
+        local_beneficiary_mask_raster_path = masked_local_benficiaries_per_pixel_raster_path
 
     # this seems okay and shouldn't be used in other inputs
     calculate_per_pixel_beneficiary_raster = (
