@@ -132,7 +132,7 @@ def sum_by_coverage(value_raster_path, mask_raster_path):
 
 
 def mask_raster(base_raster_path, mask_raster_path, target_raster_path):
-    nodata = geoprocessing.get_raster_info(base_raster_path)
+    nodata = geoprocessing.get_raster_info(base_raster_path)['nodata'][0]
 
     def _mask_op(base_array, mask_array):
         result = base_array
