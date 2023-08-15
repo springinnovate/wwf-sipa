@@ -607,6 +607,7 @@ def process_section(task_graph, config, section):
             local_upstream_mask_raster_path)[0]))
         mask_raster_task_list.append(clip_upstream_mask_task)
 
+    result_by_id = {}
     if local_config['subset_vector_path'] != '':
         reprojected_subset_vector_path = os.path.join(
             local_workspace_dir,
@@ -622,7 +623,6 @@ def process_section(task_graph, config, section):
             task_name=f'reproject {reprojected_subset_vector_path}')
         reproject_task.join()
         fid_list = get_fid_list(reprojected_subset_vector_path)
-        result_by_id = {}
         for fid in fid_list:
             fid_mask_path = os.path.join(local_workspace_dir, f'{fid}_mask.tif')
             fid_rasterize_kwargs = {
@@ -679,14 +679,16 @@ def process_section(task_graph, config, section):
         copy_vector_to_downstream_value(
             reprojected_subset_vector_path, result_by_id,
             beneficiaries_aggregated_by_subset_vector_path)
+        LOGGER.info(f'result written to {beneficiaries_aggregated_by_subset_vector_path}')
 
-    table_aggregate_path = os.path.join(
-        GLOBAL_WORKSPACE_DIR,
-        f'benficiaries_aggregated_by_subset_{section}.csv')
-    with open(table_aggregate_path, 'w') as table_file:
-        table_file.write('mask ID,sum of downstream beneficiaries\n')
-        for mask_id in sorted(result_by_id):
-            table_file.write(f'{mask_id},{result_by_id[mask_id].get()}\n')
+    if result_by_id:
+        table_aggregate_path = os.path.join(
+            GLOBAL_WORKSPACE_DIR,
+            f'benficiaries_aggregated_by_subset_{section}.csv')
+        with open(table_aggregate_path, 'w') as table_file:
+            table_file.write('mask ID,sum of downstream beneficiaries\n')
+            for mask_id in sorted(result_by_id):
+                table_file.write(f'{mask_id},{result_by_id[mask_id].get()}\n')
 
 
 if __name__ == '__main__':
