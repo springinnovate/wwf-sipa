@@ -29,6 +29,11 @@ LOGGER.setLevel(logging.DEBUG)
 logging.getLogger('ecoshard.fetch_data').setLevel(logging.INFO)
 
 
+def rm_files(file_list):
+    for path in file_list:
+        os.remove(path)
+
+
 def load_ini_file(ini_path):
     config = configparser.ConfigParser(allow_no_value=True)
     config.read(ini_path)
@@ -136,7 +141,7 @@ def mask_raster(base_raster_path, mask_raster_path, target_raster_path):
 
     def _mask_op(base_array, mask_array):
         result = base_array
-        result[mask_array != 0] = nodata
+        result[mask_array == 0] = nodata
         return result
 
     geoprocessing.raster_calculator(
@@ -518,7 +523,7 @@ def process_section(task_graph, config, section):
     # this is okay and should be untouched except for analysis
     local_benficiaries_per_pixel_raster_path = os.path.join(
         local_workspace_dir,
-        f'benficiaries_per_pixel_{section}.tif')
+        f'local_benficiaries_per_pixel_{section}.tif')
     combine_local_benficiaries_task = task_graph.add_task(
         func=_sum_all_op,
         args=(beneficiary_raster_list,
@@ -527,19 +532,29 @@ def process_section(task_graph, config, section):
         dependent_task_list=beneficiary_task_list,
         task_name=f'sum all to {local_benficiaries_per_pixel_raster_path}')
 
+    _ = task_graph.add_task(
+        func=rm_files,
+        args=(beneficiary_raster_list,),
+        dependent_task_list=[combine_local_benficiaries_task],
+        task_name=f'removing {beneficiary_raster_list}')
+
     if 'beneficiary_mask_raster_path' in local_config:
         # align the mask raster to local_benficiaries_per_pixel_raster_path
         local_beneficiary_mask_raster_path = os.path.join(
             local_workspace_dir,
-            f'beneficiary_mask_raster_{index}_{section}.tif')
+            f'beneficiary_mask_raster_{section}.tif')
+
         warp_benficiary_task = task_graph.add_task(
-            func=warp_and_rescale,
+            func=geoprocessing.warp_raster,
             args=(
                 local_config['beneficiary_mask_raster_path'],
                 (pixel_size, -pixel_size),
-                aoi_info['bounding_box'],
-                aoi_info['projection_wkt'],
-                local_beneficiary_mask_raster_path),
+                local_beneficiary_mask_raster_path,
+                'nearest'),
+            kwargs={
+                'target_bb': aoi_info['bounding_box'],
+                'target_projection_wkt': aoi_info['projection_wkt'],
+            },
             target_path_list=[local_beneficiary_mask_raster_path],
             task_name=f'align benficiary mask {local_beneficiary_mask_raster_path}')
 
@@ -558,6 +573,12 @@ def process_section(task_graph, config, section):
                 warp_benficiary_task, combine_local_benficiaries_task],
             task_name=f'mask out the benefiaries with {local_beneficiary_mask_raster_path}')
         # rename local_benficiaries_per_pixel_raster_path to the masked version
+        _ = task_graph.add_task(
+            func=rm_files,
+            args=([local_beneficiary_mask_raster_path],),
+            dependent_task_list=[combine_local_benficiaries_task],
+            task_name=f'removing {local_beneficiary_mask_raster_path}')
+
         local_beneficiary_mask_raster_path = masked_local_benficiaries_per_pixel_raster_path
 
     # this seems okay and shouldn't be used in other inputs
