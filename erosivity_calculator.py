@@ -158,7 +158,7 @@ def authenticate():
         pass
 
     ee.Authenticate()
-    ee.Initialize(credentials)
+    ee.Initialize()
 
 
 def main():
