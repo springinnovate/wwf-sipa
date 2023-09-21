@@ -94,11 +94,12 @@ def check_dataset_collection(model, dataset_id, band_id, start_year, end_year):
 def download_geotiff(
         image, description, scale, ee_poly, clip_poly_path,
         target_raster_path):
-    url = image.getDownloadURL({
+    url = image.toDrive({
         'scale': scale,
         'crs': 'EPSG:4326',
-        'region': ee_poly.geometry(),
+        'region': ee_poly.geometry().bounds(),
         'fileFormat': 'GeoTIFF',
+        'folder': 'gee_output',
         'description': description,
     })
 
@@ -146,7 +147,9 @@ def download_geotiff(
 def authenticate():
     try:
         ee.Initialize()
-    except Exception:
+        return
+    except Exception as e:
+        print(e)
         pass
 
     try:
@@ -154,7 +157,8 @@ def authenticate():
         credentials = ee.ServiceAccountCredentials(None, gee_key_path)
         ee.Initialize(credentials)
         return
-    except Exception:
+    except Exception as e:
+        print(e)
         pass
 
     ee.Authenticate()
@@ -200,57 +204,32 @@ def main():
         return model if check_dataset_collection(
             model, DATASET_ID, 'pr', start_year, end_year) else None
 
-    with ThreadPoolExecutor(len(VALID_MODEL_LIST)) as executor:
-        filtered_models = list(
-            filter(None, executor.map(filter_model, VALID_MODEL_LIST)))
-
     cmip6_dataset = ee.ImageCollection(DATASET_ID).filter(
         ee.Filter.And(
-            ee.Filter.inList('model', filtered_models),
-            ee.Filter.eq('scenario', args.scenario_id))).select(args.band_id)
+            ee.Filter.inList('model', VALID_MODEL_LIST),
+            ee.Filter.eq('scenario', args.scenario_id))).select('pr')
 
-    raster_path_map = {}
+    region_basename = os.path.splitext(
+        os.path.basename(args.aoi_vector_path))[0]
     description = (
-        f'pr_{args.scenario_id}_yearly_'
+        f'erosivity_{region_basename}_{args.scenario_id}_'
         f'{start_year}_{end_year}')
     target_raster_path = f'{description}.tif'
-    raster_path_map[
-        ('pr', args.scenario_id, args.aggregate_type,
-         f'{start_year}-{end_year}')] = target_raster_path
 
     yearly_collection = cmip6_dataset.filter(
         ee.Filter.calendarRange(start_year, end_year, 'year'))
-    # Group by model (replace 'model' with the actual property name)
-    unique_models = yearly_collection.aggregate_array(
-        'model').distinct()
 
-    def reduce_by_model(model):
-        model_collection = yearly_collection.filter(
-            ee.Filter.eq('model', model))
-        return model_collection.reduce(ee.Reducer.sum())
+    erosivity_image = yearly_collection.reduce(
+        ee.Reducer.sum()).multiply(86400/((end_year-start_year+1)*len(
+            VALID_MODEL_LIST))).pow(1.1801).multiply(1.2718)
 
-    # Reduce each model's images to a single image representing the
-    # sum over the time range
-    model_sums = unique_models.map(reduce_by_model)
-
-    # Convert to an ImageCollection and then reduce to a single image
-    # by taking the mean
-    model_sums_collection = ee.ImageCollection(model_sums)
-    yearly_aggregate = model_sums_collection.reduce(
-        ee.Reducer.mean()).divide((end_year-start_year+1)).multiply(
-        86400)
-
-    # multiply by 86400 to convert to mm
-    yearly_aggregate = yearly_collection.reduce(
-        ee.Reducer.sum()).divide(
-        (end_year-start_year+1)*30).multiply(86400)
-
-    yearly_aggregate_clipped = yearly_aggregate.clip(ee_poly)
-    LOGGER.debug(yearly_aggregate_clipped.getInfo())
+    erosivity_image_clipped = erosivity_image.clip(ee_poly)
     download_geotiff(
-        yearly_aggregate_clipped,
+        erosivity_image_clipped,
         description, DATASET_SCALE, ee_poly,
         local_shapefile_path, target_raster_path)
+
+    print(f'downloaded erosivity raster to google drive: gee_output/{target_raster_path}')
 
 
 if __name__ == '__main__':
