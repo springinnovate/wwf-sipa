@@ -61,6 +61,7 @@ VALID_MODEL_LIST = [
 ]
 DATASET_ID = 'NASA/GDDP-CMIP6'
 DATASET_CRS = 'EPSG:4326'
+DATASET_SCALE = 27830
 
 
 def check_dataset_collection(model, dataset_id, band_id, start_year, end_year):
@@ -142,13 +143,28 @@ def download_geotiff(
         print(f"Failed to download {description} from {url}")
 
 
+def authenticate():
+    try:
+        ee.Initialize()
+    except Exception:
+        pass
+
+    try:
+        gee_key_path = os.environ['GEE_KEY_PATH']
+        credentials = ee.ServiceAccountCredentials(None, gee_key_path)
+        ee.Initialize(credentials)
+        return
+    except Exception:
+        pass
+
+    ee.Authenticate()
+    ee.Initialize(credentials)
+
+
 def main():
     parser = argparse.ArgumentParser(description=(
         'Fetch CMIP6 temperature and precipitation monthly normals given a '
         'year date range.'))
-    parser.add_argument(
-        '--authenticate', action='store_true',
-        help='Pass this flag if you need to reauthenticate with GEE')
     parser.add_argument(
         'aoi_vector_path', help='Path to vector/shapefile of area of interest')
     parser.add_argument('--where_statement', help=(
@@ -158,13 +174,9 @@ def main():
         '--scenario_id', help="Scenario ID ssp245, ssp585, historical")
     parser.add_argument('--date_range', nargs=2, type=str, help=(
         'Two date ranges in YYYY format to download between.'))
-    parser.add_argument(
-        '--dataset_scale', type=float, help='Dataset scale', default=27830)
     args = parser.parse_args()
 
-    gee_key_path = os.environ['GEE_KEY_PATH']
-    credentials = ee.ServiceAccountCredentials(None, gee_key_path)
-    ee.Initialize(credentials)
+    authenticate()
 
     aoi_vector = geopandas.read_file(args.aoi_vector_path)
     if args.where_statement:
@@ -237,7 +249,7 @@ def main():
     LOGGER.debug(yearly_aggregate_clipped.getInfo())
     download_geotiff(
         yearly_aggregate_clipped,
-        description, args.dataset_scale, ee_poly,
+        description, DATASET_SCALE, ee_poly,
         local_shapefile_path, target_raster_path)
 
 
