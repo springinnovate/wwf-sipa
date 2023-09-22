@@ -91,57 +91,66 @@ def check_dataset_collection(model, dataset_id, band_id, start_year, end_year):
         return False
 
 
-def download_geotiff(
-        image, description, scale, ee_poly, clip_poly_path,
+def save_to_drive(
+        image, folder, description, scale, ee_poly, clip_poly_path,
         target_raster_path):
-    url = image.toDrive({
+    ee.batch.Export.image.toDrive({
+        'image': image,
+        'description': description,
+        'folder': folder,
         'scale': scale,
         'crs': 'EPSG:4326',
         'region': ee_poly.geometry().bounds(),
         'fileFormat': 'GeoTIFF',
-        'folder': 'gee_output',
-        'description': description,
-    })
+        })
+    # url = image.toDrive({
+    #     'scale': scale,
+    #     'crs': 'EPSG:4326',
+    #     'region': ee_poly.geometry().bounds(),
+    #     'fileFormat': 'GeoTIFF',
+    #     'folder': 'gee_output',
+    #     'description': description,
+    # })
 
-    response = requests.get(url)
-    if response.status_code == 200:
-        content_type = response.headers.get('content-type')
-        if 'application/zip' in content_type or 'application/octet-stream' in content_type:
-            zip_buffer = io.BytesIO(response.content)
-            target_preclip = f"pre_clip_{description}.tif"
+    # response = requests.get(url)
+    # if response.status_code == 200:
+    #     content_type = response.headers.get('content-type')
+    #     if 'application/zip' in content_type or 'application/octet-stream' in content_type:
+    #         zip_buffer = io.BytesIO(response.content)
+    #         target_preclip = f"pre_clip_{description}.tif"
 
-            with zipfile.ZipFile(zip_buffer) as zip_ref:
-                zip_ref.extractall(f"{description}")
-                # Assuming there is only one tif file in the zip
-                for filename in zip_ref.namelist():
-                    if filename.endswith('.tif'):
-                        # Optionally rename the file
-                        if os.path.exists(target_preclip):
-                            os.remove(target_preclip)
-                        os.rename(f"{description}/{filename}", target_preclip)
-                        print(f"Successfully downloaded and unzipped {filename}")
-            r = gdal.OpenEx(target_preclip, gdal.OF_RASTER)
-            b = r.GetRasterBand(1)
-            b.SetNoDataValue(-9999)
-            b = None
-            r = None
-            raster_info = geoprocessing.get_raster_info(target_preclip)
+    #         with zipfile.ZipFile(zip_buffer) as zip_ref:
+    #             zip_ref.extractall(f"{description}")
+    #             # Assuming there is only one tif file in the zip
+    #             for filename in zip_ref.namelist():
+    #                 if filename.endswith('.tif'):
+    #                     # Optionally rename the file
+    #                     if os.path.exists(target_preclip):
+    #                         os.remove(target_preclip)
+    #                     os.rename(f"{description}/{filename}", target_preclip)
+    #                     print(f"Successfully downloaded and unzipped {filename}")
+    #         r = gdal.OpenEx(target_preclip, gdal.OF_RASTER)
+    #         b = r.GetRasterBand(1)
+    #         b.SetNoDataValue(-9999)
+    #         b = None
+    #         r = None
+    #         raster_info = geoprocessing.get_raster_info(target_preclip)
 
-            geoprocessing.warp_raster(
-                target_preclip, raster_info['pixel_size'],
-                target_raster_path,
-                'near',
-                vector_mask_options={
-                    'mask_vector_path': clip_poly_path,
-                    'all_touched': True,
-                    })
-            os.remove(target_preclip)
-            LOGGER.info(f'saved {target_raster_path}')
-        else:
-            print(f"Unexpected content type: {content_type}")
-            print(response.content.decode('utf-8'))
-    else:
-        print(f"Failed to download {description} from {url}")
+    #         geoprocessing.warp_raster(
+    #             target_preclip, raster_info['pixel_size'],
+    #             target_raster_path,
+    #             'near',
+    #             vector_mask_options={
+    #                 'mask_vector_path': clip_poly_path,
+    #                 'all_touched': True,
+    #                 })
+    #         os.remove(target_preclip)
+    #         LOGGER.info(f'saved {target_raster_path}')
+    #     else:
+    #         print(f"Unexpected content type: {content_type}")
+    #         print(response.content.decode('utf-8'))
+    # else:
+    #     print(f"Failed to download {description} from {url}")
 
 
 def authenticate():
@@ -170,7 +179,7 @@ def main():
         'Fetch CMIP6 temperature and precipitation monthly normals given a '
         'year date range.'))
     parser.add_argument(
-        'aoi_vector_path', help='Path to vector/shapefile of area of interest')
+        '--aoi_vector_path', help='Path to vector/shapefile of area of interest')
     parser.add_argument('--where_statement', help=(
         'If provided, allows filtering by a field id and value of the form '
         'field_id=field_value'))
@@ -178,9 +187,17 @@ def main():
         '--scenario_id', help="Scenario ID ssp245, ssp585, historical")
     parser.add_argument('--date_range', nargs=2, type=str, help=(
         'Two date ranges in YYYY format to download between.'))
+    parser.add_argument(
+        '--status', action='store_true', help='To check task status')
     args = parser.parse_args()
-
     authenticate()
+
+    if args.status:
+        # Loop through each task to print its status
+        for task in ee.batch.Task.list():
+            print(task)
+            print("-----")
+        return
 
     aoi_vector = geopandas.read_file(args.aoi_vector_path)
     if args.where_statement:
@@ -224,12 +241,16 @@ def main():
             VALID_MODEL_LIST))).pow(1.1801).multiply(1.2718)
 
     erosivity_image_clipped = erosivity_image.clip(ee_poly)
-    download_geotiff(
+    folder_id = 'gee_output'
+    save_to_drive(
         erosivity_image_clipped,
+        folder_id,
         description, DATASET_SCALE, ee_poly,
         local_shapefile_path, target_raster_path)
 
-    print(f'downloaded erosivity raster to google drive: gee_output/{target_raster_path}')
+    print(
+        f'downloaded erosivity raster to google drive: '
+        f'{folder_id}/{target_raster_path}')
 
 
 if __name__ == '__main__':
