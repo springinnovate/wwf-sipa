@@ -326,9 +326,10 @@ def main():
             task_name=f'warp {local_base_raster_path} to square blocksize')
         task_graph.join()
 
-    local_convert_mask_path = os.path.join(
-        local_workspace, os.path.basename(args.convert_mask_path))
+    local_convert_mask_path = None
     if args.convert_mask_path is not None:
+        local_convert_mask_path = os.path.join(
+            local_workspace, os.path.basename(args.convert_mask_path))
         task_graph.add_task(
             func=geoprocessing.warp_raster,
             args=(
