@@ -142,10 +142,6 @@ def main():
         'by\n'
         f'\t`{ATTRIBUTE_VALUE_FIELD}` (optional): if field is defined, what '
         'value to match')
-    parser.add_argument(
-        'probability_of_conversion',
-        help='Value in 0..1 for when to flip a landcover effect',
-        type=float)
     parser.add_argument('--do_not_convert', nargs='+', type=int, help=(
         'Pass landcover codes to NOT convert in the `base_raster_path`.'))
     parser.add_argument('--conversion_code_override', type=int, help=(
@@ -248,8 +244,7 @@ def main():
         s_val = numpy.log(0.5)/(-(
             effective_extent_in_pixel_units/max_extent_in_pixel_units)**2)
         decay_kernel[valid_mask] = (
-            numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**(
-                s_val/args.probability_of_conversion))
+            numpy.exp(-(decay_kernel[valid_mask]/max_extent_in_pixel_units)**2)**s_val)
         decay_kernel /= numpy.sum(decay_kernel)
 
         # determine the threshold for the transform of the main pressure
@@ -258,7 +253,7 @@ def main():
             center_val = decay_kernel[
                 decay_kernel.shape[0]//2+int(effective_extent_in_pixel_units),
                 decay_kernel.shape[1]//2]
-            threshold_val = numpy.sqrt(center_val/numpy.sum(decay_kernel))*numpy.sqrt(0.1*args.probability_of_conversion)
+            threshold_val = numpy.sqrt(center_val/numpy.sum(decay_kernel))*numpy.sqrt(0.1)
             LOGGER.info(f'************* threshold_val: {threshold_val}')
             decay_kernel /= threshold_val
 
@@ -269,11 +264,11 @@ def main():
 
         decay_kernel_path = os.path.join(
             local_workspace,
-            f"{raw_basename(mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}_{args.probability_of_conversion}.tif")
+            f"{raw_basename(mask_raster_path)}_decay_{effective_extent_in_pixel_units}_{max_extent_in_pixel_units}.tif")
         geoprocessing.numpy_array_to_raster(
             decay_kernel*pressure**2, None, [1, -1], [0, 0], None, decay_kernel_path)
         effect_path = (
-            f'{os.path.splitext(mask_raster_path)[0]}_effect_{args.probability_of_conversion}.tif')
+            f'{os.path.splitext(mask_raster_path)[0]}_effect.tif')
         LOGGER.debug(f'calculate effect for {effect_path}')
         geoprocessing.convolve_2d(
             (mask_raster_path, 1), (decay_kernel_path, 1), effect_path,
@@ -325,8 +320,7 @@ def main():
 
     converted_raster_path = (
         f'{raw_basename(working_base_raster_path)}_'
-        f'{raw_basename(args.infrastructure_scenario_path)}_'
-        f'{args.probability_of_conversion}_.tif')
+        f'{raw_basename(args.infrastructure_scenario_path)}.tif')
     geoprocessing.single_thread_raster_calculator(
         [(working_base_raster_path, 1), (decayed_effect_path, 1)],
         conversion_op, converted_raster_path,
