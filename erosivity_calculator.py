@@ -202,7 +202,8 @@ def main():
                 ee.Filter.calendarRange(start_year, end_year, 'year'))
             annual_precip = yearly_collection.reduce(ee.Reducer.sum())
             annual_erosivity = annual_precip.multiply(
-                86400/((end_year-start_year+1))).pow(1.1801).multiply(1.2718)
+                86400/((end_year-start_year+1))).pow(
+                    1.1801).multiply(1.2718)
             return annual_erosivity.rename(model_name)
 
         # Calculate metrics for all models
@@ -212,13 +213,13 @@ def main():
         erosivity_by_model = erosivity_by_model.addBands(
             erosivity_by_model_list[1:])
         erosivity_image_clipped = erosivity_by_model.clip(ee_poly)
-
         folder_id = 'gee_output'
 
         for percentile in args.percentile:
             local_description = f'{description}_p{percentile}'
             ee.batch.Export.image.toDrive(
-                image=erosivity_image_clipped.percentile(float(percentile)),
+                image=erosivity_image_clipped.reduce(
+                    ee.Reducer.percentile([float(percentile)])),
                 description=local_description,
                 folder=folder_id,
                 scale=args.dataset_scale,
