@@ -179,20 +179,20 @@ def main():
     start_year = int(args.date_range[0])
     end_year = int(args.date_range[1])
 
-    for scenario_id in args.scenario_id_list:
+    for scenario_id in args.scenario_id:
         model_list = get_valid_model_list(
-            VALID_MODEL_LIST, start_year, end_year, args.scenario_id)
+            VALID_MODEL_LIST, start_year, end_year, scenario_id)
 
         cmip6_dataset = ee.ImageCollection(DATASET_ID).select('pr').filter(
             ee.Filter.And(
                 ee.Filter.inList('model', model_list),
-                ee.Filter.eq('scenario', args.scenario_id),
+                ee.Filter.eq('scenario', scenario_id),
                 ee.Filter.calendarRange(start_year, end_year, 'year')))
 
         region_basename = os.path.splitext(
             os.path.basename(args.aoi_vector_path))[0]
         description = (
-            f'erosivity_{region_basename}_{args.scenario_id}_'
+            f'erosivity_{region_basename}_{scenario_id}_'
             f'{start_year}_{end_year}')
 
         def calculate_annual_erosivity(model_name):
