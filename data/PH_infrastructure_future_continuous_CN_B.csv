@@ -1,6 +1,6 @@
 path,type,raster value,vector key,vector value,max impact dist,decay type,effect_distance_type,value of parameter at min distance
-data\infrastructure_polygons\PH_All_Roads_Merged.gpkg,vector,,ROAD_SEC_C,Primary,10000,exponential,nearest,98
-data\infrastructure_polygons\PH_All_Roads_Merged.gpkg,vector,,ROAD_SEC_C,Secondary,5000,exponential,nearest,98
-data\infrastructure_polygons\PH_All_Roads_Merged.gpkg,vector,,ROAD_SEC_C,Tertiary,5000,exponential,nearest,98
+data\infrastructure_polygons\PH_All_Roads_Merged.gpkg,vector,,ROAD_SEC_C,Primary,15000,exponential,nearest,98
+data\infrastructure_polygons\PH_All_Roads_Merged.gpkg,vector,,ROAD_SEC_C,Secondary,15000,exponential,nearest,98
+data\infrastructure_polygons\PH_All_Roads_Merged.gpkg,vector,,ROAD_SEC_C,Tertiary,15000,exponential,nearest,98
 data\infrastructure_polygons\PH_All_Roads_Merged.gpkg,vector,,ROAD_SEC_C,Primary_N,20000,exponential,nearest,98
 data\landcover_rasters\ph_baseline_lulc_md5_7f29da.tif,raster,3,,,25000,exponential,convolution,86
