@@ -1,3 +1,0 @@
-path,type,raster value,attribute key,attribute code,effective impact dist,max impact dist,conversion code,internal threshold,pressure
-data\infrastructure_polygons\PH_NationalRoad_DPWH.gpkg,vector,,,,1000,5000,99,0.002,1
-data\landcover_rasters\ph_baseline_lulc_md5_7f29da.tif,raster,3,,,5000,20000,,,5

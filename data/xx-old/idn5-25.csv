@@ -1,4 +1,0 @@
-path,type,raster value,attribute key,attribute code,effective impact dist,max impact dist,conversion code,internal threshold,pressure
-data\infrastructure_polygons\IDN_Bina_marga_road_nas_prov.gpkg,vector,,,,5000,25000,98,0.002,1
-data\landcover_rasters\idn_baseline_LULC_all_lulc_nodata_to_22_compressed_md5_bd2bff.tif,raster,18,,,25000,35000,,,1
-data\landcover_rasters\idn_baseline_LULC_all_lulc_nodata_to_22_compressed_md5_bd2bff.tif,raster,21,,,25000,35000,,,1
