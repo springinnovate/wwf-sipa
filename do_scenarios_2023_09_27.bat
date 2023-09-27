@@ -12,12 +12,10 @@
 ::
 :: And reminder (to myself as much as to you because I had already forgotten!), when we remake the scenarios and rerun the models USE THE NEW INDONESIA LULC!!! "D:\repositories\wwf-sipa\data\landcover_rasters\ID_LULC_restoration_all_islands_corr_md5_a66e06.tif" -- I guess that's a step 2.5 is create new parameter rasters using "D:\repositories\raster_calculations\reclassify_by_table.py" with that new IDN lulc
 
-:: create new parameter rasters using reclassify_by_table for IDN
-CALL python ../spring/raster_calculations/reclassify_by_table.py "D:\repositories\wwf-sipa\data\landcover_rasters\PH_restoration_compressed_md5_41d7ea.tif" "D:\repositories\wwf-sipa\data\biophysical_template_PH_revised.csv" affected_by_infra,int lulc_id usle_c,float CN_A,float CN_B,float CN_C,float CN_D,float --output_dir data/scenarios/ph_revised
+:: create new parameter rasters using reclassify_by_table ->
+::CALL python ../spring/raster_calculations/reclassify_by_table.py "D:\repositories\wwf-sipa\data\landcover_rasters\PH_restoration_compressed_md5_41d7ea.tif" "D:\repositories\wwf-sipa\data\biophysical_template_PH_revised.csv" lulc_id affected_by_infra,int usle_c,float CN_A,float CN_B,float CN_C,float CN_D,float --output_dir data/scenarios/ph_revised
+::CALL python ../spring/raster_calculations/reclassify_by_table.py "D:\repositories\wwf-sipa\data\landcover_rasters\ID_LULC_restoration_all_islands_corr_md5_a66e06.tif" "D:\repositories\wwf-sipa\data\biophysical_template_IDN_revised.csv" lulc_id affected_by_infra,int usle_c,float CN_A,float CN_B,float CN_C,float CN_D,float --output_dir data/scenarios/idn_revised
 
-CALL python ../spring/raster_calculations/reclassify_by_table.py "D:\repositories\wwf-sipa\data\landcover_rasters\ID_LULC_restoration_all_islands_corr_md5_a66e06.tif" "D:\repositories\wwf-sipa\data\biophysical_template_IDN_revised.csv" lulc_id affected_by_infra,int usle_c,float CN_A,float CN_B,float CN_C,float CN_D,float --output_dir data/scenarios/idn_revised
-
-:: create base mask 
 :: PH future
 :: PH scenario
 :: IDN future
