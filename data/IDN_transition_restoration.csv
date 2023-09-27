@@ -1,0 +1,23 @@
+lulc_id,lulc_description,affected_by_infra,change_to_class
+1,Airport/,0,1
+2,Dryland Agriculture,1,15
+3,Dryland Agriculture Mix Shrubs,1,15
+4,Forest Plantations,1,15
+5,Marsh Shrubs,1,16
+6,Mining,0,15
+7,Open Land,0,15
+8,Paddy Field,1,15
+9,Plantations,1,15
+10,Pond,0,10
+11,Primary DryLand Forest,1,11
+12,Primary Mangrove Forest,1,12
+13,Primary Swamp Forest,1,13
+14,Savannah/Meadows,1,14
+15,Secondary DryLand Forest,1,15
+16,Secondary Mangrove Forest,1,16
+17,Secondary Swamp Forest,1,17
+18,Settlements,0,18
+19,Shrubs,1,19
+20,Swamp,1,20
+21,Transmigration,0,21
+22,Water Body,0,22
