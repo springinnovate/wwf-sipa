@@ -523,12 +523,14 @@ def main():
     if dirname:
         os.makedirs(dirname, exist_ok=True)
 
-    geoprocessing.single_thread_raster_calculator(
+    geoprocessing.raster_calculator(
         [(local_base_raster_path, 1), (base_raster_info['nodata'][0], 'raw')] +
         ([(local_convert_mask_path, 1)] if local_convert_mask_path is not None else [(None, 'raw')]) +
         effect_path_list,
         conversion_op, converted_raster_path,
         gdal.GDT_Float32, base_raster_info['nodata'][0])
+
+    LOGGER.info(f'all done, converted raster at {converted_raster_path}')
 
     # TODO: I think there's a 'min/max' conversion level and stuff that needs to
     #   go in there'

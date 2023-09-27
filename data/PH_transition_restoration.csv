@@ -1,0 +1,13 @@
+lulc_id,lulc_description,affected_by_infra,change_to_class
+1,Annual Crop,1,10
+2,Brush/Shrubs,1,2
+3,Built-up,0,3
+4,Closed Forest,1,4
+5,Fishpond,0,5
+6,Grassland,1,6
+7,Inland Water,0,7
+8,Mangrove Forest,1,8
+9,Marshland/Swamp,1,9
+10,Open Forest,1,10
+11,Open/Barren,0,10
+12,Perennial Crop,1,10

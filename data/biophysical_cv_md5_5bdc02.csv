@@ -1,0 +1,13 @@
+lulc_id,lulc_description,Rk,protective_distance
+1,Annual Crop,5,
+2,Brush/Shrubs,2,2000
+3,Built-up,5,
+4,Closed Forest,1,2000
+5,Fishpond,5,
+6,Grassland,2,1000
+7,Inland Water,5,
+8,Mangrove Forest,1,2000
+9,Marshland/Swamp,2,1000
+10,Open Forest,2,2000
+11,Open/Barren,5,
+12,Perennial Crop,4,500
