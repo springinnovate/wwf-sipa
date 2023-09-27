@@ -150,7 +150,7 @@ def main():
             VALID_MODEL_LIST))).pow(1.1801).multiply(1.2718)
     erosivity_image_clipped = erosivity_image.clip(ee_poly)
 
-    folder_id = 'gee_output'
+    folder_id = 'gee_export'
     ee.batch.Export.image.toDrive(
         image=erosivity_image_clipped.resample('bilinear'),
         description=description,
@@ -159,6 +159,7 @@ def main():
         crs=DATASET_CRS,
         region=ee_poly.geometry().bounds(),
         fileFormat='GeoTIFF',
+        maxPixels=1e10,
         ).start()
 
     print(
