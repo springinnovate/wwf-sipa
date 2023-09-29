@@ -1,8 +1,0 @@
-path,type,raster value,vector key,vector value,max impact dist,decay type,effect_distance_type,value of parameter at min distance
-data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg,vector,,FUNGSI,Arteri,15000,exponential,nearest,98
-data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg,vector,,FUNGSI,Kolektor 1,15000,exponential,nearest,98
-data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg,vector,,FUNGSI,Kolektor 2,15000,exponential,nearest,98
-data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg,vector,,FUNGSI,Kolektor 3,15000,exponential,nearest,98
-data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg,vector,,FUNGSI,Primary_New,20000,exponential,nearest,98
-data\landcover_rasters\idn_baseline_LULC_all_lulc_nodata_to_22_compressed_md5_bd2bff.tif,raster,18,,,25000,exponential,convolution,86
-data\landcover_rasters\idn_baseline_LULC_all_lulc_nodata_to_22_compressed_md5_bd2bff.tif,raster,21,,,25000,exponential,convolution,86
