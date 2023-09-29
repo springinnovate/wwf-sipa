@@ -456,9 +456,14 @@ def main():
         pressure_mask_raster_path = pressure_mask_raster_dict[PATH_FIELD]
         LOGGER.info(
             f'processing mask {pressure_mask_raster_path}/{pressure_mask_raster_dict}')
-        max_extent_in_pixel_units = convert_meters_to_pixel_units(
-            pressure_mask_raster_path,
-            pressure_mask_raster_dict[MAX_IMPACT_DIST_FIELD])[0]
+        max_extent_in_pixel_units = task_graph.add_task(
+            func=convert_meters_to_pixel_units,
+            args=(
+                pressure_mask_raster_path,
+                pressure_mask_raster_dict[MAX_IMPACT_DIST_FIELD]),
+            dependent_task_list=[pressure_mask_task],
+            store_result=True,
+            task_name=f'extent in meters for {pressure_mask_raster_path}')
 
         effect_path = (
             f'{os.path.splitext(pressure_mask_raster_path)[0]}_'
@@ -486,14 +491,14 @@ def main():
                 args=(
                     nearest_dist_raster_path,
                     pressure_mask_raster_dict[DECAY_TYPE_FIELD],
-                    max_extent_in_pixel_units,
+                    max_extent_in_pixel_units.get()[0],
                     effect_path),
                 target_path_list=[effect_path],
                 dependent_task_list=[dist_trans_task],
                 task_name=f'decay distance transform for {dist_trans_task}')
 
         elif pressure_mask_raster_dict[EFFECT_DISTANCE_TYPE_FIELD] == CONVOLUTION_DISTANCE_TYPE:
-            base_array = numpy.ones((2*int(max_extent_in_pixel_units)+1,)*2)
+            base_array = numpy.ones((2*int(max_extent_in_pixel_units.get()[0])+1,)*2)
             base_array[base_array.shape[0]//2, base_array.shape[1]//2] = 0
             decay_kernel = scipy.ndimage.distance_transform_edt(base_array)
             # only valid where it's <= than the maximum distance defined
@@ -502,13 +507,13 @@ def main():
             decay_kernel[~valid_mask] = 0
 
             decay_kernel[valid_mask] = decay_op(
-                pressure_mask_raster_dict[DECAY_TYPE_FIELD], max_extent_in_pixel_units)(
+                pressure_mask_raster_dict[DECAY_TYPE_FIELD], max_extent_in_pixel_units.get()[0])(
                 decay_kernel[valid_mask])
             decay_kernel /= numpy.sum(decay_kernel)
 
             decay_kernel_path = os.path.join(
                 local_workspace,
-                f"{raw_basename(pressure_mask_raster_path)}_decay_{max_extent_in_pixel_units}.tif")
+                f"{raw_basename(pressure_mask_raster_path)}_decay_{max_extent_in_pixel_units.get()[0]}.tif")
             geoprocessing.numpy_array_to_raster(
                 decay_kernel, None, [1, -1], [0, 0], None, decay_kernel_path)
             LOGGER.debug(f'calculate effect for {effect_path}')
