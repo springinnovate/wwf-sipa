@@ -522,7 +522,6 @@ def main():
     if dirname:
         os.makedirs(dirname, exist_ok=True)
 
-    LOGGER.debug(f'******* effect path list {effect_path_list}')
     geoprocessing.raster_calculator(
         [(local_base_raster_path, 1), (base_raster_info['nodata'][0], 'raw')] +
         ([(local_convert_mask_path, 1)] if local_convert_mask_path is not None else [(None, 'raw')]) +
