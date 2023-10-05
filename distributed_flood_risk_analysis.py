@@ -336,8 +336,7 @@ def main():
     args = parser.parse_args()
 
     os.makedirs(GLOBAL_WORKSPACE_DIR, exist_ok=True)
-    task_graph = taskgraph.TaskGraph(
-        GLOBAL_WORKSPACE_DIR, args.n_workers, 15.0)
+    task_graph = taskgraph.TaskGraph(GLOBAL_WORKSPACE_DIR, -1)
 
     flow_dir_hash = 'dem_workspace_'+get_tuple_hash((
         args.dem_path, args.aoi_path, args.pixel_size))

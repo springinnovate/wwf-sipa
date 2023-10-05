@@ -1,3 +1,3 @@
 REM call python yearly_flood_risk_to_yearly_risk.py "D:\ph_idn_flood_risk_maps\ph_flood_hazard_100yr.tif"=100 "D:\ph_idn_flood_risk_maps\ph_flood_hazard_5yr.tif"=5 "D:\ph_idn_flood_risk_maps\ph_flood_hazard_25yr.tif"=25 --target_raster_path "D:\ph_idn_flood_risk_maps\ph_annual_flood_prob.tif" --file_prefix ph_flood_
 
-call python distributed_flood_risk_analysis.py ./data/aster_dem/aster_dem.vrt "D:\ph_idn_flood_risk_maps\ph_annual_flood_prob.tif" --aoi_path ./data/admin_boundaries/PH_outline.gpkg --pixel_size 0.000277777777778 --target_raster_path ph_downstream_flood_risk.tif --file_prefix ph_flood_risk_
+call python distributed_flood_risk_analysis.py ./data/aster_dem/aster_dem.vrt "D:\ph_idn_flood_risk_maps\ph_annual_flood_prob.tif"  ./data/admin_boundaries/PH_outline.gpkg --pixel_size 0.000277777777778 --target_raster_path ph_downstream_flood_risk.tif --file_prefix ph_flood_risk_
