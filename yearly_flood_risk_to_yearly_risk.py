@@ -53,7 +53,7 @@ def main():
 
     os.makedirs(GLOBAL_WORKSPACE_DIR, exist_ok=True)
     task_graph = taskgraph.TaskGraph(
-        GLOBAL_WORKSPACE_DIR, args.n_workers, 15.0)
+        GLOBAL_WORKSPACE_DIR, len(args.flood_risk_year_path_list)//2, 15.0)
 
     # align flood risk maps
     flood_risk_year_path_list = [
