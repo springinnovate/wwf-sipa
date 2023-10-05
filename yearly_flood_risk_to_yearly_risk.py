@@ -40,7 +40,7 @@ def main():
         description='Distributed flood risk analysis.')
     parser.add_argument('dem_path', help='Path to DEM')
     parser.add_argument(
-        'flood_risk_year_path_list', help=(
+        'flood_risk_year_path_list', nargs='+', help=(
             'Path to flood risk followed by a = and an integer indicating '
             'what flood year risk level it is i.e. path1=1 path2=5 '
             'path3=100'))
