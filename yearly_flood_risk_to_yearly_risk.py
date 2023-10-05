@@ -30,7 +30,7 @@ def year_flood_to_prob(*args):
     flood_risk = numpy.zeros(args[0].shape, dtype=float)
     for flood_mask, year in sorted(
             flood_mask_year_tuples, key=lambda x: x[1], reverse=True):
-        flood_risk[flood_mask] = 1/year
+        flood_risk[flood_mask.astype(bool)] = 1/year
     return flood_risk
 
 
@@ -38,7 +38,6 @@ def main():
     """Entrypoint."""
     parser = argparse.ArgumentParser(
         description='Distributed flood risk analysis.')
-    parser.add_argument('dem_path', help='Path to DEM')
     parser.add_argument(
         'flood_risk_year_path_list', nargs='+', help=(
             'Path to flood risk followed by a = and an integer indicating '
@@ -53,7 +52,7 @@ def main():
 
     os.makedirs(GLOBAL_WORKSPACE_DIR, exist_ok=True)
     task_graph = taskgraph.TaskGraph(
-        GLOBAL_WORKSPACE_DIR, len(args.flood_risk_year_path_list)//2, 15.0)
+        GLOBAL_WORKSPACE_DIR, len(args.flood_risk_year_path_list), 15.0)
 
     # align flood risk maps
     flood_risk_year_path_list = [
@@ -81,8 +80,9 @@ def main():
             target_path_list=[aligned_raster_path],
             task_name=f'align {aligned_raster_path}')
         aligned_flood_risk_path_list.append((aligned_raster_path, 1))
-        aligned_flood_risk_path_list.append((year, 'raw'))
+        aligned_flood_risk_path_list.append((int(year), 'raw'))
     task_graph.join()
+    LOGGER.debug(f'********* processing {aligned_flood_risk_path_list}')
     # calc year flood to prob on them
     task_graph.add_task(
         func=geoprocessing.raster_calculator,
@@ -90,9 +90,11 @@ def main():
             aligned_flood_risk_path_list, year_flood_to_prob,
             args.target_raster_path, gdal.GDT_Float32, None),
         target_path_list=[args.target_raster_path],
+        transient_run=True,
         task_name=f'calc flood risk raster {args.target_raster_path}')
 
     task_graph.join()
+    task_graph.close()
 
 
 if __name__ == '__main__':
