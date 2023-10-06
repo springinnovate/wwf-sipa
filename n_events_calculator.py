@@ -1,4 +1,4 @@
-"""Precip calculator based on CMIP6 NEXX dataset."""
+"""N-precip events calculator based on CMIP6 NEXX dataset."""
 import argparse
 import functools
 import logging
@@ -136,6 +136,8 @@ def main():
     parser.add_argument(
         '--status', action='store_true', help='To check task status')
     parser.add_argument(
+        '--threshold', type=float, action="Precip threshold for an event in mm.")
+    parser.add_argument(
         '--dataset_scale', type=float, default=DATASET_SCALE, help=(
             f'Override the base scale of {DATASET_SCALE}m to '
             f'whatever you desire.'))
@@ -186,28 +188,32 @@ def main():
         else:
             timeframe_str = f'{target_month:02d}'
         description = (
-            f'precip_{region_basename}_{args.scenario_id}_'
+            f'n_precip_events_{region_basename}_{args.scenario_id}_'
             f'{start_year}_{end_year}_{timeframe_str}')
 
-        def calculate_precip(model_name):
+        def calculate_precip_events(model_name):
             model_data = cmip6_dataset.filter(
                 ee.Filter.eq('model', model_name))
             yearly_collection = model_data.filter(
                 ee.Filter.calendarRange(start_year, end_year, 'year'))
             yearly_collection = model_data.filter(
                 ee.Filter.calendarRange(target_month, target_month, 'month'))
-            total_precip = yearly_collection.reduce(ee.Reducer.sum())
-            annual_precip = total_precip.multiply(
-                86400/(end_year-start_year+1))
-            return annual_precip.rename(model_name)
+            yearly_collection = yearly_collection.multiply(86400)
+            def threshold_to_binary(image):
+                return image.gt(args.threshold).toByte()
+
+            yearly_event_collection = yearly_collection.map(threshold_to_binary)
+            total_precip_events = yearly_event_collection.reduce(ee.Reducer.sum())
+            annual_precip_events = total_precip_events.divide(end_year-start_year+1)
+            return annual_precip_events.rename(model_name)
 
         # Calculate metrics for all models
-        precip_by_model_list = [
-            calculate_precip(model) for model in model_list]
-        precip_by_model = precip_by_model_list[0]
-        precip_by_model = precip_by_model.addBands(
-            precip_by_model_list[1:])
-        precip_image_clipped = precip_by_model.clip(ee_poly)
+        n_precip_events_by_model_list = [
+            calculate_precip_events(model) for model in model_list]
+        n_precip_events_by_model = n_precip_events_by_model_list[0]
+        n_precip_events_by_model = n_precip_events_by_model.addBands(
+            n_precip_events_by_model_list[1:])
+        precip_image_clipped = n_precip_events_by_model.clip(ee_poly)
         folder_id = 'gee_output'
 
         for percentile in args.percentile:
@@ -224,7 +230,7 @@ def main():
                 ).start()
 
             print(
-                f'downloading precip raster to google drive: '
+                f'downloading n precip event raster to google drive: '
                 f'{folder_id}/{local_description}')
 
 
