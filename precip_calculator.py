@@ -1,12 +1,4 @@
-"""
-Erosivity calculator based on
-Hydrol. Earth Syst. Sci., 19, 4113–4126, 2015
-www.hydrol-earth-syst-sci.net/19/4113/2015/
-doi:10.5194/hess-19-4113-2015
-© Author(s) 2015. CC Attribution 3.0 License.
-
-Using annual rainfall erosivity calculation fo R = 1.2718*P**1.1801
-"""
+"""Precip calculator based on CMIP6 NEXX dataset."""
 import argparse
 import functools
 import logging
@@ -138,8 +130,7 @@ def main():
         'If provided, allows filtering by a field id and value of the form '
         'field_id=field_value'))
     parser.add_argument(
-        '--scenario_id', nargs='+',
-        help="Scenario ID ssp245, ssp585, historical")
+        '--scenario_id', help="Scenario ID ssp245, ssp585, historical")
     parser.add_argument('--date_range', nargs=2, type=str, help=(
         'Two date ranges in YYYY format to download between.'))
     parser.add_argument(
@@ -178,46 +169,50 @@ def main():
     start_year = int(args.date_range[0])
     end_year = int(args.date_range[1])
 
-    for scenario_id in args.scenario_id:
+    for target_month in range(1, 13) + ['annual']:
         model_list = get_valid_model_list(
-            VALID_MODEL_LIST, start_year, end_year, scenario_id)
+            VALID_MODEL_LIST, start_year, end_year, args.scenario_id)
 
         cmip6_dataset = ee.ImageCollection(DATASET_ID).select('pr').filter(
             ee.Filter.And(
                 ee.Filter.inList('model', model_list),
-                ee.Filter.eq('scenario', scenario_id),
+                ee.Filter.eq('scenario', args.scenario_id),
                 ee.Filter.calendarRange(start_year, end_year, 'year')))
 
         region_basename = os.path.splitext(
             os.path.basename(args.aoi_vector_path))[0]
+        if target_month == 'annual':
+            timeframe_str = target_month
+        else:
+            timeframe_str = f'{target_month:02d}'
         description = (
-            f'erosivity_{region_basename}_{scenario_id}_'
-            f'{start_year}_{end_year}')
+            f'precip_{region_basename}_{args.scenario_id}_'
+            f'{start_year}_{end_year}_{timeframe_str}')
 
-        def calculate_annual_erosivity(model_name):
+        def calculate_precip(model_name):
             model_data = cmip6_dataset.filter(
                 ee.Filter.eq('model', model_name))
             yearly_collection = model_data.filter(
                 ee.Filter.calendarRange(start_year, end_year, 'year'))
-            annual_precip = yearly_collection.reduce(ee.Reducer.sum())
-            annual_erosivity = annual_precip.multiply(
-                86400/((end_year-start_year+1))).pow(
-                    1.1801).multiply(1.2718)
-            return annual_erosivity.rename(model_name)
+            yearly_collection = model_data.filter(
+                ee.Filter.calendarRange(target_month, target_month, 'month'))
+            total_precip = yearly_collection.reduce(ee.Reducer.sum())
+            annual_precip = total_precip.divide(end_year-start_year+1)
+            return annual_precip.rename(model_name)
 
         # Calculate metrics for all models
-        erosivity_by_model_list = [
-            calculate_annual_erosivity(model) for model in model_list]
-        erosivity_by_model = erosivity_by_model_list[0]
-        erosivity_by_model = erosivity_by_model.addBands(
-            erosivity_by_model_list[1:])
-        erosivity_image_clipped = erosivity_by_model.clip(ee_poly)
+        precip_by_model_list = [
+            calculate_precip(model) for model in model_list]
+        precip_by_model = precip_by_model_list[0]
+        precip_by_model = precip_by_model.addBands(
+            precip_by_model_list[1:])
+        precip_image_clipped = precip_by_model.clip(ee_poly)
         folder_id = 'gee_output'
 
         for percentile in args.percentile:
             local_description = f'{description}_p{percentile}'
             ee.batch.Export.image.toDrive(
-                image=erosivity_image_clipped.reduce(
+                image=precip_image_clipped.reduce(
                     ee.Reducer.percentile([float(percentile)])),
                 description=local_description,
                 folder=folder_id,
@@ -228,7 +223,7 @@ def main():
                 ).start()
 
             print(
-                f'downloading erosivity raster to google drive: '
+                f'downloading precip raster to google drive: '
                 f'{folder_id}/{local_description}')
 
 
