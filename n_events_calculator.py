@@ -198,12 +198,13 @@ def main():
                 ee.Filter.calendarRange(start_year, end_year, 'year'))
             yearly_collection = model_data.filter(
                 ee.Filter.calendarRange(target_month, target_month, 'month'))
-            # convert to mm
-            yearly_collection = yearly_collection.multiply(86400)
-            def threshold_to_binary(image):
+
+            def precip_to_events(image):
+                # convert to mm
+                image = image.mult(86400)
                 return image.gt(args.threshold).toByte()
 
-            yearly_event_collection = yearly_collection.map(threshold_to_binary)
+            yearly_event_collection = yearly_collection.map(precip_to_events)
             total_precip_events = yearly_event_collection.reduce(ee.Reducer.sum())
             annual_precip_events = total_precip_events.divide(end_year-start_year+1)
             return annual_precip_events.rename(model_name)
