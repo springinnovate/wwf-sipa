@@ -196,8 +196,10 @@ def main():
                 ee.Filter.eq('model', model_name))
             yearly_collection = model_data.filter(
                 ee.Filter.calendarRange(start_year, end_year, 'year'))
-            yearly_collection = model_data.filter(
-                ee.Filter.calendarRange(target_month, target_month, 'month'))
+            if target_month != 'annual':
+                yearly_collection = model_data.filter(
+                    ee.Filter.calendarRange(
+                        target_month, target_month, 'month'))
 
             def precip_to_events(image):
                 # convert to mm
