@@ -197,6 +197,7 @@ def main():
             yearly_collection = model_data.filter(
                 ee.Filter.calendarRange(target_month, target_month, 'month'))
             total_precip = yearly_collection.reduce(ee.Reducer.sum())
+            # convert to mm
             annual_precip = total_precip.multiply(
                 86400/(end_year-start_year+1))
             return annual_precip.rename(model_name)

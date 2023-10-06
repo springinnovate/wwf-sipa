@@ -198,6 +198,7 @@ def main():
                 ee.Filter.calendarRange(start_year, end_year, 'year'))
             yearly_collection = model_data.filter(
                 ee.Filter.calendarRange(target_month, target_month, 'month'))
+            # convert to mm
             yearly_collection = yearly_collection.multiply(86400)
             def threshold_to_binary(image):
                 return image.gt(args.threshold).toByte()
