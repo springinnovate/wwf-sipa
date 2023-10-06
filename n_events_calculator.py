@@ -201,7 +201,7 @@ def main():
 
             def precip_to_events(image):
                 # convert to mm
-                image = image.mult(86400)
+                image = image.multiply(86400)
                 return image.gt(args.threshold).toByte()
 
             yearly_event_collection = yearly_collection.map(precip_to_events)
