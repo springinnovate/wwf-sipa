@@ -394,7 +394,7 @@ def main():
             gdal.GDT_Float32, NODATA),
         dependent_task_list=[
             flow_accum_task, warp_and_rescale_flood_risk_task],
-        target_raster_path=[weighted_flood_risk_raster_path],
+        target_path_list=[weighted_flood_risk_raster_path],
         task_name=(
             f'calc weighted flood risk {weighted_flood_risk_raster_path}'))
 
