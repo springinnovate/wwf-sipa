@@ -1,6 +1,6 @@
 set delayedexpansion true
 
-FOR A (PH_outline.gpkg IDN_outline.gpkg) DO (
+FOR %%A IN (PH_outline.gpkg IDN_outline.gpkg) DO (
     set startYear=2040
     set endYear=2060
     set scenario=ssp245
