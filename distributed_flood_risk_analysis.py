@@ -28,7 +28,7 @@ logging.getLogger('ecoshard.fetch_data').setLevel(logging.INFO)
 
 
 def div_op(num_array, den_array):
-    result = numpy.fill(num_array.shape, NODATA, dtype=float)
+    result = numpy.full(num_array.shape, NODATA, dtype=float)
     valid_mask = (num_array > 0) & (den_array > 0)
     result[valid_mask] = num_array[valid_mask] / den_array[valid_mask]
     return result
@@ -388,8 +388,8 @@ def main():
     weighted_flood_risk_task = task_graph.add_task(
         func=geoprocessing.raster_calculator,
         args=(
-            [(flow_accumulation_raster_path, 1),
-             (local_flood_risk_raster_path, 1)], div_op,
+            [(local_flood_risk_raster_path, 1),
+             (flow_accumulation_raster_path, 1)], div_op,
             weighted_flood_risk_raster_path,
             gdal.GDT_Float32, NODATA),
         dependent_task_list=[
@@ -398,7 +398,19 @@ def main():
         task_name=(
             f'calc weighted flood risk {weighted_flood_risk_raster_path}'))
 
+    _ = task_graph.add_task(
+        func=routing.distance_to_channel_mfd,
+        args=(
+            (flow_dir_mfd_raster_path, 1), (outlet_raster_path, 1),
+            args.target_raster_path),
+        kwargs={
+            'weight_raster_path_band': (weighted_flood_risk_raster_path, 1)
+            },
+        dependent_task_list=[weighted_flood_risk_task, flow_dir_task],
+        task_name=f'create downstream flood risk at {args.target_raster_path}')
+
     task_graph.join()
+    task_graph.close()
 
 
 if __name__ == '__main__':
