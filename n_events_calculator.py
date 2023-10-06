@@ -136,7 +136,7 @@ def main():
     parser.add_argument(
         '--status', action='store_true', help='To check task status')
     parser.add_argument(
-        '--threshold', type=float, action="Precip threshold for an event in mm.")
+        '--threshold', type=float, help="Precip threshold for an event in mm.")
     parser.add_argument(
         '--dataset_scale', type=float, default=DATASET_SCALE, help=(
             f'Override the base scale of {DATASET_SCALE}m to '
@@ -171,7 +171,7 @@ def main():
     start_year = int(args.date_range[0])
     end_year = int(args.date_range[1])
 
-    for target_month in range(1, 13) + ['annual']:
+    for target_month in list(range(1, 13)) + ['annual']:
         model_list = get_valid_model_list(
             VALID_MODEL_LIST, start_year, end_year, args.scenario_id)
 
