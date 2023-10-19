@@ -1,7 +1,7 @@
 var default_vector_style = {
     color: 'FF0000',
     strokeWidth: 1,
-    fillColor: '',
+    fillColor: null,
 }
 var aggregate_polygons = {
     '(*clear*)': '',
@@ -278,6 +278,8 @@ var panel_list = [];
       'map': mapside[0],
       'legend_panel': null,
       'visParams': null,
+      'raster_key': null,
+      'polygon_key': null,
     };
 
     active_context.map.style().set('cursor', 'crosshair');
@@ -376,9 +378,20 @@ var panel_list = [];
           active_context.aoi_polygon = ee.FeatureCollection(aggregate_polygons[polygon_key]);
           updateRasterLayer(active_context.raster_key, active_context);
 
+          // Function to convert each polygon to a line string
+          var toLineString = function(feature) {
+            var geom = feature.geometry();
+            var lineString = ee.Geometry.LineString(geom.coordinates().get(0));
+            return ee.Feature(lineString);
+          };
+
+          // Convert the FeatureCollection of polygons to a FeatureCollection of line strings
+          var lineStringCollection = active_context.aoi_polygon.map(toLineString);
+
+          // Add the feature to the map with styling
           active_context.last_aoi = active_context.map.addLayer(
-            ee.FeatureCollection(aggregate_polygons[polygon_key]),
-            default_vector_style);
+            lineStringCollection, default_vector_style);
+
           self.setValue(original_value, false);
           self.setDisabled(false);
       }
