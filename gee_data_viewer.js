@@ -1,7 +1,7 @@
 var default_vector_style = {
-    color: 'FF0000',
-    strokeWidth: 1,
-    fillColor: null,
+    color: '000000',
+    width: 0.1,
+    fillColor: '00000000',
 }
 var aggregate_polygons = {
     '(*clear*)': '',
@@ -9,7 +9,7 @@ var aggregate_polygons = {
     'Indonesia Administrative Level 3': 'projects/ecoshard-202922/assets/gadm41_IDN_3',
     'Indonesia Administrative Level 4': 'projects/ecoshard-202922/assets/gadm41_IDN_4',
 }
-  
+
 var datasets = {
     '(*clear*)': '',
     '10_IDN_conservation_inf_dspop__service_overlap_count': 'gs://ecoshard-root/wwf_sipa_final_viewer_cogs/10_IDN_conservation_inf_dspop__service_overlap_count.tif',
@@ -322,7 +322,7 @@ var panel_list = [];
             self.setDisabled(false);
             return
           }
-          
+
           updateRasterLayer(raster_key, active_context);
           var mean_reducer = ee.Reducer.percentile([10, 90], ['p10', 'p90']);
           var meanDictionary = active_context.raster.reduceRegion({
@@ -378,19 +378,9 @@ var panel_list = [];
           active_context.aoi_polygon = ee.FeatureCollection(aggregate_polygons[polygon_key]);
           updateRasterLayer(active_context.raster_key, active_context);
 
-          // Function to convert each polygon to a line string
-          var toLineString = function(feature) {
-            var geom = feature.geometry();
-            var lineString = ee.Geometry.LineString(geom.coordinates().get(0));
-            return ee.Feature(lineString);
-          };
-
-          // Convert the FeatureCollection of polygons to a FeatureCollection of line strings
-          var lineStringCollection = active_context.aoi_polygon.map(toLineString);
-
           // Add the feature to the map with styling
           active_context.last_aoi = active_context.map.addLayer(
-            lineStringCollection, default_vector_style);
+            active_context.aoi_polygon.style(default_vector_style));
 
           self.setValue(original_value, false);
           self.setDisabled(false);
