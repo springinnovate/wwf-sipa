@@ -169,7 +169,7 @@ def main():
     start_year = int(args.date_range[0])
     end_year = int(args.date_range[1])
 
-    for target_month in range(1, 13) + ['annual']:
+    for target_month in list(range(1, 13)) + ['annual']:
         model_list = get_valid_model_list(
             VALID_MODEL_LIST, start_year, end_year, args.scenario_id)
 
@@ -194,8 +194,10 @@ def main():
                 ee.Filter.eq('model', model_name))
             yearly_collection = model_data.filter(
                 ee.Filter.calendarRange(start_year, end_year, 'year'))
-            yearly_collection = model_data.filter(
-                ee.Filter.calendarRange(target_month, target_month, 'month'))
+            if target_month != 'annual':
+                yearly_collection = model_data.filter(
+                    ee.Filter.calendarRange(
+                        target_month, target_month, 'month'))
             total_precip = yearly_collection.reduce(ee.Reducer.sum())
             # convert to mm
             annual_precip = total_precip.multiply(

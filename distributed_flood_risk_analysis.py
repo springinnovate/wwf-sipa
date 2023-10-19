@@ -128,6 +128,7 @@ def rasterize_from_base_raster(
         kwargs=rasterize_kwargs,
         dependent_task_list=[last_task]+dependent_task_list,
         target_path_list=[rasterized_raster_path],
+        ignore_path_list=[base_vector_path],
         task_name=f'rasterize {base_vector_path} to {rasterized_raster_path}')
 
     if additional_mask_raster_path:
