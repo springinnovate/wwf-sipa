@@ -1,13 +1,14 @@
 var default_vector_style = {
-    color: '000000',
-    width: 0.1,
+    color: 'FFFFFF',
+    width: 2,
     fillColor: '00000000',
 }
 var aggregate_polygons = {
     '(*clear*)': '',
-    'Philippines Administrative Level 3': 'projects/ecoshard-202922/assets/gadm41_PHL_3',
-    'Indonesia Administrative Level 3': 'projects/ecoshard-202922/assets/gadm41_IDN_3',
-    'Indonesia Administrative Level 4': 'projects/ecoshard-202922/assets/gadm41_IDN_4',
+    'Philippines Administrative Level 1': ['projects/ecoshard-202922/assets/gdam_PH_1', 'NAME_1'],
+    'Philippines Administrative Level 2': ['projects/ecoshard-202922/assets/gdam_PH_2', 'NAME_2'],
+    'Indonesia Administrative Level 1': ['projects/ecoshard-202922/assets/gdam_IDN_1', 'NAME_1'],
+    'Indonesia Administrative Level 2': ['projects/ecoshard-202922/assets/gdam_IDN_2', 'NAME_2'],
 }
 
 var datasets = {
@@ -280,6 +281,7 @@ var panel_list = [];
       'visParams': null,
       'raster_key': null,
       'polygon_key': null,
+      'last_labels': null,
     };
 
     active_context.map.style().set('cursor', 'crosshair');
@@ -374,13 +376,16 @@ var panel_list = [];
             return
           }
 
-          //TODO: in this spot remove the layer and clip it with the new polygon
-          active_context.aoi_polygon = ee.FeatureCollection(aggregate_polygons[polygon_key]);
+          active_context.aoi_polygon = ee.FeatureCollection(aggregate_polygons[polygon_key][0]);
           updateRasterLayer(active_context.raster_key, active_context);
 
           // Add the feature to the map with styling
           active_context.last_aoi = active_context.map.addLayer(
             active_context.aoi_polygon.style(default_vector_style));
+
+          // Do the feature name layers
+          // Function to add labels at the centroid of each feature
+          var feature_id_key = aggregate_polygons[polygon_key][1];
 
           self.setValue(original_value, false);
           self.setDisabled(false);
