@@ -142,7 +142,7 @@ def raster_op(op_str, base_raster_path_list, target_raster_path, target_nodata=N
                 valid_mask &= array != nodata
             valid_mask &= numpy.isfinite(array)
         eval_str = op_str.join([
-            f'array_list[{index}]' for index in range(len(array_list))])
+            f'array_list[{index}][valid_mask]' for index in range(len(array_list))])
         result[valid_mask] = eval(eval_str)
         return result
 
@@ -337,14 +337,14 @@ def main():
          POP_SERVICE_CV_PH_CONSERVATION_RESULT
         ),
         (
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\brush_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\grassland_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\perennial_crop_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\forest_mangroves_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\reefs_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\saltmarsh_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\seagrass_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\secondary forest_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\brush_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\grassland_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\perennial_crop_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\forest_mangroves_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\reefs_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\saltmarsh_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\seagrass_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\secondary forest_roads_within_15km_value_index.tif",
          ROAD_SERVICE_CV_PH_CONSERVATION_RESULT
         ),
         (
@@ -359,14 +359,14 @@ def main():
          POP_SERVICE_CV_PH_RESTORATION_RESULT
         ),
         (
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\grassland_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\perennial_crop_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\forest_mangroves_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\reefs_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\saltmarsh_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\seagrass_roads_within_15km_less_than_2m_value_index.tif",
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\secondary forest_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\grassland_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\perennial_crop_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\forest_mangroves_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\reefs_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\saltmarsh_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\seagrass_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\secondary forest_roads_within_15km_value_index.tif",
          ROAD_SERVICE_CV_PH_RESTORATION_RESULT
         )
     ]
