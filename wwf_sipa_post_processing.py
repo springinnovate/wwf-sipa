@@ -113,37 +113,37 @@ def make_top_nth_percentile_masks(
     return target_raster_path_result_list
 
 
-def raster_op(op_str, raster_path_a, raster_path_b, target_raster_path, target_nodata=None, target_datatype=None):
-    base_raster_list = [
-        raster_path_a,
-        raster_path_b]
+def raster_op(op_str, base_raster_path_list, target_raster_path, target_nodata=None, target_datatype=None):
     working_dir = tempfile.mkdtemp(
         prefix='ok_to_delete_', dir=os.path.dirname(target_raster_path))
     target_basename = os.path.splitext(os.path.basename(target_raster_path))[0]
     aligned_target_raster_path_list = [
         os.path.join(working_dir, f'align_{target_basename}_{os.path.basename(path)}')
-        for path in base_raster_list]
+        for path in base_raster_path_list]
     pixel_size = geoprocessing.get_raster_info(
-        raster_path_a)['pixel_size']
+        base_raster_path_list[0])['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
-        base_raster_list, aligned_target_raster_path_list, ['near']*2,
-        pixel_size, 'intersection')
+        base_raster_path_list, aligned_target_raster_path_list,
+        ['near']*len(base_raster_path_list), pixel_size, 'intersection')
 
-    raster_info = geoprocessing.get_raster_info(raster_path_a)
+    raster_info = geoprocessing.get_raster_info(base_raster_path_list[0])
 
-    a_nodata = geoprocessing.get_raster_info(aligned_target_raster_path_list[0])['nodata'][0]
-    b_nodata = geoprocessing.get_raster_info(aligned_target_raster_path_list[1])['nodata'][0]
+    nodata_list = [
+        geoprocessing.get_raster_info(path)['nodata'][0]
+        for path in aligned_target_raster_path_list]
     if target_nodata is None:
-        target_nodata = a_nodata
+        target_nodata = nodata_list[0]
 
-    def _op(array_a, array_b):
-        result = numpy.full(array_a.shape, target_nodata)
-        valid_mask = numpy.ones(array_a.shape, dtype=bool)
-        for array, nodata in [(array_a, a_nodata), (array_b, b_nodata)]:
+    def _op(*array_list):
+        result = numpy.full(array_list[0].shape, target_nodata)
+        valid_mask = numpy.ones(array_list[0].shape, dtype=bool)
+        for array, nodata in zip(array_list, nodata_list):
             if nodata is not None:
                 valid_mask &= array != nodata
             valid_mask &= numpy.isfinite(array)
-        result[valid_mask] = eval(f'array_a[valid_mask]{op_str}array_b[valid_mask]')
+        eval_str = op_str.join([
+            f'array_list[{index}]' for index in range(len(array_list))])
+        result[valid_mask] = eval(eval_str)
         return result
 
     if target_datatype is None:
@@ -171,7 +171,7 @@ def main():
     country_list = ['PH', 'IDN']
     scenario_list = ['restoration', 'conservation_inf']
     climate_list = ['ssp245']
-    beneficiary_list = ['dspop', 'road']
+    beneficiary_list = ['dspop', 'pop', 'road']
     top_percentile_list = [25, 10]
 
     ADMIN_POLYGONS = {
@@ -266,12 +266,110 @@ def main():
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_inf_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_restoration_ssp245.tif")
 
+    POP_SERVICE_CV_IDN_CONSERVATION_RESULT = os.path.join(RESULTS_DIR, 'service_pop_cv_idn_conservation_result.tif')
+    ROAD_SERVICE_CV_IDN_CONSERVATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_idn_conservation_result.tif')
+    POP_SERVICE_CV_IDN_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_pop_cv_idn_restoration_result.tif')
+    ROAD_SERVICE_CV_IDN_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_idn_restoration_result.tif')
+    POP_SERVICE_CV_PH_CONSERVATION_RESULT = os.path.join(RESULTS_DIR, 'service_pop_cv_ph_conservation_result.tif')
+    ROAD_SERVICE_CV_PH_CONSERVATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_ph_conservation_result.tif')
+    POP_SERVICE_CV_PH_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_pop_cv_ph_restoration_result.tif')
+    ROAD_SERVICE_CV_PH_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_ph_restoration_result.tif')
 
     # service first then beneficiary after
 
     # CHECK W BCK:
     # x diff between DSPOP and ROAD 'service_...' output files
     # x check that "diff" is an output to a multiply and that the filename makes sense
+    ADD_RASTER_SET = [
+        (
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\forest_mangrove_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\forest_mangroves_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\reefs_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\saltmarsh_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\savanna_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\seagrass_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\woody_crop_population_less_than_2m_value_index.tif",
+         POP_SERVICE_CV_IDN_CONSERVATION_RESULT
+        ),
+        (
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\woody_crop_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\forest_mangrove_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\forest_mangroves_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\reefs_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\saltmarsh_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\savanna_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\seagrass_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\secondary forest_roads_within_15km_value_index.tif",
+         ROAD_SERVICE_CV_IDN_CONSERVATION_RESULT
+        ),
+        (
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangrove_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangroves_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\reefs_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\saltmarsh_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\savanna_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\seagrass_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\woody_crop_population_less_than_2m_value_index.tif",
+         POP_SERVICE_CV_IDN_RESTORATION_RESULT
+        ),
+        (
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\woody_crop_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangrove_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangroves_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\reefs_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\saltmarsh_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\savanna_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\seagrass_roads_within_15km_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\secondary forest_roads_within_15km_value_index.tif",
+         ROAD_SERVICE_CV_IDN_RESTORATION_RESULT
+        ),
+        (
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\brush_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\grassland_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\perennial_crop_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\forest_mangroves_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\reefs_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\saltmarsh_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\seagrass_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
+         POP_SERVICE_CV_PH_CONSERVATION_RESULT
+        ),
+        (
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\brush_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\grassland_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\perennial_crop_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\forest_mangroves_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\reefs_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\saltmarsh_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\seagrass_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\secondary forest_roads_within_15km_less_than_2m_value_index.tif",
+         ROAD_SERVICE_CV_PH_CONSERVATION_RESULT
+        ),
+        (
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\grassland_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\perennial_crop_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\forest_mangroves_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\reefs_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\saltmarsh_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\seagrass_population_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
+         POP_SERVICE_CV_PH_RESTORATION_RESULT
+        ),
+        (
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\grassland_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\perennial_crop_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\forest_mangroves_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\reefs_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\saltmarsh_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\seagrass_roads_within_15km_less_than_2m_value_index.tif",
+         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\secondary forest_roads_within_15km_less_than_2m_value_index.tif",
+         ROAD_SERVICE_CV_PH_RESTORATION_RESULT
+        )
+    ]
 
     SUBTRACT_RASTER_SET = [
         (r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_historical_climate\stitched_sed_export_wwf_IDN_baseline_historical_climate.tif",
@@ -450,9 +548,6 @@ def main():
         (DIFF_SEDIMENT_PH_CONSERVATION_INF,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
          ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF),
-
-
-
         (DIFF_RECHARGE_IDN_RESTORATION_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_dspop_benes_md5_e4d2c4.tif",
          DSPOP_SERVICE_RECHARGE_IDN_RESTORATION_SSP245),
@@ -527,8 +622,9 @@ def main():
          ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245)
         ]
 
-    subtract_output_set = set([t[2] for t in SUBTRACT_RASTER_SET])
-    multiply_output_set = set([t[2] for t in MULTIPLY_RASTER_SET])
+    add_output_set = set([t[-1] for t in ADD_RASTER_SET])
+    subtract_output_set = set([t[-1] for t in SUBTRACT_RASTER_SET])
+    multiply_output_set = set([t[-1] for t in MULTIPLY_RASTER_SET])
     path_count = collections.defaultdict(int)
     for p in MULTIPLY_RASTER_SET:
         path = p[2]
@@ -536,12 +632,14 @@ def main():
         if path_count[path] > 1:
             print(f'duplicate: {path}')
 
+    print(len(add_output_set) == len(ADD_RASTER_SET))
     print(len(subtract_output_set) == len(SUBTRACT_RASTER_SET))
     print(len(multiply_output_set) == len(MULTIPLY_RASTER_SET))
     print(len(set(MULTIPLY_RASTER_SET)) == len(MULTIPLY_RASTER_SET))
 
-    for raster_a_in, raster_b_in, target_raster in SUBTRACT_RASTER_SET+MULTIPLY_RASTER_SET:
-        for p in [raster_a_in, raster_b_in]:
+    for raster_path_list_plus_target in \
+            ADD_RASTER_SET+SUBTRACT_RASTER_SET+MULTIPLY_RASTER_SET:
+        for p in raster_path_list_plus_target[:-1]:
             if not os.path.exists(p) and RESULTS_DIR not in p:
                 print(f'input path does not exist: {p}')
 
@@ -549,17 +647,20 @@ def main():
 
     service_raster_path_list = []
     task_set = {}
-    for raster_a_path, raster_b_path, target_raster_path, op_str in \
-            [t+('-',) for t in SUBTRACT_RASTER_SET]+\
-            [t+('*',) for t in MULTIPLY_RASTER_SET]:
-
+    for raster_path_list_plus_target, op_str in (
+            [(path_set, '+') for path_set in ADD_RASTER_SET] +
+            [(path_set, '-') for path_set in SUBTRACT_RASTER_SET] +
+            [(path_set, '*') for path_set in MULTIPLY_RASTER_SET]):
         dependent_task_list = []
-        for p in [raster_a_path, raster_b_path]:
+        target_raster_path = raster_path_list_plus_target[-1]
+        LOGGER.debug(f'*************{ADD_RASTER_SET}\n\n{raster_path_list_plus_target}')
+        input_rasters = raster_path_list_plus_target[:-1]
+        for p in input_rasters:
             if p in task_set:
                 dependent_task_list.append(task_set[p])
         op_task = task_graph.add_task(
             func=raster_op,
-            args=(op_str, raster_a_path, raster_b_path, target_raster_path),
+            args=(op_str, input_rasters, target_raster_path),
             target_path_list=[target_raster_path],
             dependent_task_list=dependent_task_list,
             task_name=f'calcualte {target_raster_path}')
