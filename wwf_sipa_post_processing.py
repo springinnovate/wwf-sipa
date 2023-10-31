@@ -21,6 +21,28 @@ logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
 
+def join_mask(mask_a_path, mask_b_path, joined_mask_path):
+    """Intersect and a b into joined."""
+    a_nodata = geoprocessing.get_raster_info(mask_a_path)['nodata'][0]
+    b_nodata = geoprocessing.get_raster_info(mask_a_path)['nodata'][0]
+    target_nodata = 2
+
+    def mask_op(array_a, array_b):
+        valid_mask = numpy.ones(array_a.shape, dtype=bool)
+        result = numpy.full(array_a.shape, target_nodata, dtype=numpy.byte)
+        if a_nodata is not None:
+            valid_mask &= array_a != a_nodata
+        if b_nodata is not None:
+            valid_mask &= array_b != b_nodata
+        result[valid_mask] = (
+            (array_a[valid_mask] == 1) & (array_b[valid_mask] == 1))
+        return result
+
+    geoprocessing.raster_calculator(
+        [(mask_a_path, 1), (mask_b_path, 1)], mask_op, joined_mask_path,
+        gdal.GDT_Byte, target_nodata)
+
+
 def zonal_stats(raster_path, vector_path, table_path):
     """Do zonal stats over base raster in each polygon of the vector."""
     working_dir = tempfile.mkdtemp(
@@ -695,13 +717,31 @@ def main():
         LOGGER.info(f'percentile for {service_path} is {percentile_task.get()}')
         percentile_raster_list.extend(local_percentile_rasters)
 
-    # :::: then add_sub_missing_as_zero for all the percentile_masks for each scenario so we can see the pixels that are in the top 25 or top 10
-        #percent for all services vs. multiple services vs. just for one
-    # we'll need to:
-    #   1) segment out what percentile it is
-    #   2) segment out which scenario it is
-    #   3) segiment out which service it is
-    #   4) segment out which climate it is
+    # if there are any percentile rasters that are with and without a climate ID then collapse those into a single raster
+    future_climate_scenario_id = scenario_list[0]
+    resilient_task_list = []
+    for local_percentile_raster in list(percentile_raster_list):
+        if local_percentile_raster.endswith(future_climate_scenario_id):
+            # we need to collapose into climate resilient
+            base_local_percentile_raster = local_percentile_raster.replace(f'_{future_climate_scenario_id}', '')
+            climate_percentile_raster_list = [
+                local_percentile_raster, base_local_percentile_raster]
+            percentile_raster_list.remove(local_percentile_raster)
+            percentile_raster_list.remove(base_local_percentile_raster)
+            resilient_raster_path = os.path.join(
+                CLIMATE_RESILIENT_PERCENTILES,
+                os.path.basename(local_percentile_raster))
+            percentile_raster_list.append(resilient_raster_path)
+            # only take the mask of both
+            join_mask_task = task_graph.add_task(
+                func=join_mask,
+                args=(
+                    local_percentile_raster, base_local_percentile_raster,
+                    resilient_raster_path),
+                target_path_list=[resilient_raster_path],
+                task_name=f'join for {resilient_raster_path}')
+            resilient_task_list.append(join_mask_task)
+
     percentile_groups = collections.defaultdict(list)
     for percentile_raster_path in percentile_raster_list:
         index_substring = ''
@@ -712,6 +752,7 @@ def main():
                     break
         percentile_groups[index_substring].append(percentile_raster_path)
 
+    # each element in percentile_groups is a set of services for that country/scenario/beneficiary/climate
     for key, percentile_raster_group in percentile_groups.items():
         if len(percentile_raster_group) != len(service_list):
             raise ValueError(f'expecting {len(service_list)} rasters but only got this: {key}: {percentile_raster_group}')
@@ -722,6 +763,7 @@ def main():
         service_count_task = task_graph.add_task(
             func=add_rasters,
             args=(percentile_raster_group, service_overlap_raster_path, gdal.GDT_Byte),
+            dependent_task_list=resilient_task_list,
             target_path_list=[service_overlap_raster_path],
             task_name=f'collect service count for {key}')
         if len(percentile_raster_group) != len(service_list):
