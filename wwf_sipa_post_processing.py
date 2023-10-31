@@ -170,8 +170,8 @@ def raster_op(
                 local_valid_mask &= (array != nodata)
             final_valid_mask |= local_valid_mask
             eval_str = (
-                f'result[local_valid_mask] {op_str}= array[local_valid_mask]')
-            eval(eval_str)
+                f'result[local_valid_mask] {op_str} array[local_valid_mask]')
+            result[local_valid_mask] = eval(eval_str)
 
         result[~final_valid_mask] = target_nodata
         return result
