@@ -135,7 +135,9 @@ def make_top_nth_percentile_masks(
     return target_raster_path_result_list
 
 
-def raster_op(op_str, base_raster_path_list, target_raster_path, target_nodata=None, target_datatype=None):
+def raster_op(
+        op_str, base_raster_path_list, target_raster_path, target_nodata=None,
+        target_datatype=None):
     working_dir = tempfile.mkdtemp(
         prefix='ok_to_delete_', dir=os.path.dirname(target_raster_path))
     target_basename = os.path.splitext(os.path.basename(target_raster_path))[0]
@@ -157,16 +159,21 @@ def raster_op(op_str, base_raster_path_list, target_raster_path, target_nodata=N
         target_nodata = nodata_list[0]
 
     def _op(*array_list):
-        result = numpy.full(array_list[0].shape, target_nodata)
-        valid_mask = numpy.ones(array_list[0].shape, dtype=bool)
+        if op_str in ['+', '-']:
+            result = numpy.zeros(array_list[0].shape, target_nodata)
+        elif op_str in ['*']:
+            result = numpy.ones(array_list[0].shape, target_nodata)
+        final_valid_mask = numpy.zeros(array_list[0].shape, dtype=bool)
         for array, nodata in zip(array_list, nodata_list):
+            local_valid_mask = numpy.isfinite(array)
             if nodata is not None:
-                valid_mask &= array != nodata
-            valid_mask &= numpy.isfinite(array)
-        eval_str = op_str.join([
-            f'array_list[{index}][valid_mask]' for index in range(len(array_list))])
-        LOGGER.debug(f'******* {eval_str}')
-        result[valid_mask] = eval(eval_str)
+                local_valid_mask &= (array != nodata)
+            final_valid_mask |= local_valid_mask
+            eval_str = (
+                f'result[local_valid_mask] {op_str}= array[local_valid_mask]')
+            eval(eval_str)
+
+        result[~final_valid_mask] = target_nodata
         return result
 
     if target_datatype is None:
@@ -468,7 +475,8 @@ def main():
          DIFF_RECHARGE_PH_CONSERVATION_INF_SSP245),
         (r"D:\repositories\swy_global\workspace_swy_wwf_PH_infra_ssp245_climate90\QF_wwf_PH_infra_ssp245_climate90.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_PH_baseline_ssp245_climate90\QF_wwf_PH_baseline_ssp245_climate90.tif",
-         DIFF_QUICKFLOW_PH_CONSERVATION_INF_SSP245)]
+         DIFF_QUICKFLOW_PH_CONSERVATION_INF_SSP245)
+        ]
 
     MULTIPLY_RASTER_SET = [
         (r"D:\repositories\wwf-sipa\idn_downstream_flood_risk.tif",
@@ -678,7 +686,6 @@ def main():
             [(path_set, '*') for path_set in MULTIPLY_RASTER_SET]):
         dependent_task_list = []
         target_raster_path = raster_path_list_plus_target[-1]
-        LOGGER.debug(f'*************{ADD_RASTER_SET}\n\n{raster_path_list_plus_target}')
         input_rasters = raster_path_list_plus_target[:-1]
         for p in input_rasters:
             if p in task_set:
@@ -721,7 +728,8 @@ def main():
     future_climate_scenario_id = scenario_list[0]
     resilient_task_list = []
     for local_percentile_raster in list(percentile_raster_list):
-        if local_percentile_raster.endswith(future_climate_scenario_id):
+        if local_percentile_raster.endswith(
+                f'{future_climate_scenario_id}.tif'):
             # we need to collapose into climate resilient
             base_local_percentile_raster = local_percentile_raster.replace(
                 f'_{future_climate_scenario_id}', '')
