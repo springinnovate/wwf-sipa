@@ -723,9 +723,8 @@ def main():
     for local_percentile_raster in list(percentile_raster_list):
         if local_percentile_raster.endswith(future_climate_scenario_id):
             # we need to collapose into climate resilient
-            base_local_percentile_raster = local_percentile_raster.replace(f'_{future_climate_scenario_id}', '')
-            climate_percentile_raster_list = [
-                local_percentile_raster, base_local_percentile_raster]
+            base_local_percentile_raster = local_percentile_raster.replace(
+                f'_{future_climate_scenario_id}', '')
             percentile_raster_list.remove(local_percentile_raster)
             percentile_raster_list.remove(base_local_percentile_raster)
             resilient_raster_path = os.path.join(
@@ -745,7 +744,7 @@ def main():
     percentile_groups = collections.defaultdict(list)
     for percentile_raster_path in percentile_raster_list:
         index_substring = ''
-        for substring_list in [top_percentile_list, country_list, scenario_list, beneficiary_list, climate_list]:
+        for substring_list in [top_percentile_list, country_list, scenario_list, beneficiary_list]:
             for substring in substring_list:
                 if str(substring) in percentile_raster_path:
                     index_substring += f'{substring}_'
