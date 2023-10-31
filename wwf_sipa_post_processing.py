@@ -143,6 +143,7 @@ def raster_op(op_str, base_raster_path_list, target_raster_path, target_nodata=N
             valid_mask &= numpy.isfinite(array)
         eval_str = op_str.join([
             f'array_list[{index}][valid_mask]' for index in range(len(array_list))])
+        LOGGER.debug(f'******* {eval_str}')
         result[valid_mask] = eval(eval_str)
         return result
 
@@ -164,7 +165,9 @@ def raster_op(op_str, base_raster_path_list, target_raster_path, target_nodata=N
 
 def main():
     RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\final_results'
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+    CLIMATE_RESILIENT_PERCENTILES = os.path.join(RESULTS_DIR, 'climate_resilient_results')
+    for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES]:
+        os.makedirs(dir_path, exist_ok=True)
 
     # diff x benes x services (4) x scenarios (2) x climage (2)
     service_list = ['flood_mitigation', 'recharge', 'sediment']
