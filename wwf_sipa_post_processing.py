@@ -172,9 +172,12 @@ def raster_op(
         target_nodata = nodata_list[0]
 
     def _op(*array_list):
-        if op_str in ['+', '-']:
+        if op_str == '-':
+            result = array_list[0]
+            array_list = array_list[1:]
+        elif op_str == '+':
             result = numpy.zeros(array_list[0].shape)
-        elif op_str in ['*']:
+        elif op_str == '*':
             result = numpy.ones(array_list[0].shape)
         final_valid_mask = numpy.zeros(array_list[0].shape, dtype=bool)
         for array, nodata in zip(array_list, nodata_list):
