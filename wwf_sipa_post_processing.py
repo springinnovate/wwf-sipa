@@ -673,8 +673,8 @@ def main():
         ]
 
     # prevent add and mult from doing it
-    add_output_set = set()  # set([t[-1] for t in ADD_RASTER_SET])
-    multiply_output_set = set()  # set([t[-1] for t in MULTIPLY_RASTER_SET])
+    add_output_set = set([t[-1] for t in ADD_RASTER_SET])
+    multiply_output_set = set([t[-1] for t in MULTIPLY_RASTER_SET])
     subtract_output_set = set([t[-1] for t in SUBTRACT_RASTER_SET])
     path_count = collections.defaultdict(int)
     for p in MULTIPLY_RASTER_SET:
@@ -700,23 +700,25 @@ def main():
     task_set = {}
     for raster_path_list_plus_target, op_str in (
             [(path_set, '+') for path_set in ADD_RASTER_SET] +
-            [(path_set, '-') for path_set in SUBTRACT_RASTER_SET] +
-            [(path_set, '*') for path_set in MULTIPLY_RASTER_SET]):
+            [(path_set, '*') for path_set in MULTIPLY_RASTER_SET] +
+            [(path_set, '-') for path_set in SUBTRACT_RASTER_SET]
+            ):
         dependent_task_list = []
         target_raster_path = raster_path_list_plus_target[-1]
         input_rasters = raster_path_list_plus_target[:-1]
         for p in input_rasters:
             if p in task_set:
                 dependent_task_list.append(task_set[p])
-        op_task = task_graph.add_task(
-            func=raster_op,
-            args=(op_str, input_rasters, target_raster_path),
-            target_path_list=[target_raster_path],
-            dependent_task_list=dependent_task_list,
-            task_name=f'calcualte {target_raster_path}')
-        if target_raster_path in task_set:
-            raise ValueError(f'calculating a result that we alreayd calculated {target_raster_path}')
-        task_set[target_raster_path] = op_task
+        if op_str not in ['+', '*']:
+            op_task = task_graph.add_task(
+                func=raster_op,
+                args=(op_str, input_rasters, target_raster_path),
+                target_path_list=[target_raster_path],
+                dependent_task_list=dependent_task_list,
+                task_name=f'calcualte {target_raster_path}')
+            if target_raster_path in task_set:
+                raise ValueError(f'calculating a result that we alreayd calculated {target_raster_path}')
+            task_set[target_raster_path] = op_task
         if 'service' in target_raster_path:
             service_raster_path_list.append((target_raster_path, op_task))
 
