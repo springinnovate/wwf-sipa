@@ -178,7 +178,7 @@ def raster_op(
             result = numpy.ones(array_list[0].shape)
         final_valid_mask = numpy.zeros(array_list[0].shape, dtype=bool)
         for array, nodata in zip(array_list, nodata_list):
-            local_valid_mask = numpy.isfinite(array)
+            local_valid_mask = numpy.isfinite(array) & array > 0
             if nodata is not None:
                 local_valid_mask &= (array != nodata)
             final_valid_mask |= local_valid_mask
@@ -212,11 +212,12 @@ def main():
         os.makedirs(dir_path, exist_ok=True)
 
     # diff x benes x services (4) x scenarios (2) x climage (2)
-    service_list = ['flood_mitigation', 'recharge', 'sediment']
-    country_list = ['PH', 'IDN']
+    #service_list = ['flood_mitigation', 'recharge', 'sediment']
+    #country_list = ['PH', 'IDN']
+    country_list = ['IDN']
     scenario_list = ['restoration', 'conservation_inf']
     climate_list = ['ssp245']
-    beneficiary_list = ['dspop', 'pop', 'road']
+    beneficiary_list = ['dspop', 'road']
     top_percentile_list = [25, 10]
 
     ADMIN_POLYGONS = {
@@ -311,13 +312,13 @@ def main():
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_inf_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_restoration_ssp245.tif")
 
-    POP_SERVICE_CV_IDN_CONSERVATION_RESULT = os.path.join(RESULTS_DIR, 'service_pop_cv_idn_conservation_result.tif')
-    ROAD_SERVICE_CV_IDN_CONSERVATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_idn_conservation_result.tif')
-    POP_SERVICE_CV_IDN_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_pop_cv_idn_restoration_result.tif')
+    DS_POP_SERVICE_CV_IDN_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_dspop_cv_idn_conservation_inf_result.tif')
+    ROAD_SERVICE_CV_IDN_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_idn_conservation_inf_result.tif')
+    DS_POP_SERVICE_CV_IDN_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_dspop_cv_idn_restoration_result.tif')
     ROAD_SERVICE_CV_IDN_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_idn_restoration_result.tif')
-    POP_SERVICE_CV_PH_CONSERVATION_RESULT = os.path.join(RESULTS_DIR, 'service_pop_cv_ph_conservation_result.tif')
-    ROAD_SERVICE_CV_PH_CONSERVATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_ph_conservation_result.tif')
-    POP_SERVICE_CV_PH_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_pop_cv_ph_restoration_result.tif')
+    DS_POP_SERVICE_CV_PH_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_dspop_cv_ph_conservation_inf_result.tif')
+    ROAD_SERVICE_CV_PH_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_ph_conservation_inf_result.tif')
+    DS_POP_SERVICE_CV_PH_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_dspop_cv_ph_restoration_result.tif')
     ROAD_SERVICE_CV_PH_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_ph_restoration_result.tif')
 
     # service first then beneficiary after
@@ -335,7 +336,7 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\seagrass_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\woody_crop_population_less_than_2m_value_index.tif",
-         POP_SERVICE_CV_IDN_CONSERVATION_RESULT
+         DS_POP_SERVICE_CV_IDN_CONSERVATION_INF_RESULT
         ),
         (
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\woody_crop_roads_within_15km_value_index.tif",
@@ -346,7 +347,7 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\savanna_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\seagrass_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\secondary forest_roads_within_15km_value_index.tif",
-         ROAD_SERVICE_CV_IDN_CONSERVATION_RESULT
+         ROAD_SERVICE_CV_IDN_CONSERVATION_INF_RESULT
         ),
         (
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangrove_population_less_than_2m_value_index.tif",
@@ -357,7 +358,7 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\seagrass_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\woody_crop_population_less_than_2m_value_index.tif",
-         POP_SERVICE_CV_IDN_RESTORATION_RESULT
+         DS_POP_SERVICE_CV_IDN_RESTORATION_RESULT
         ),
         (
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\woody_crop_roads_within_15km_value_index.tif",
@@ -379,7 +380,7 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\saltmarsh_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\seagrass_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
-         POP_SERVICE_CV_PH_CONSERVATION_RESULT
+         DS_POP_SERVICE_CV_PH_CONSERVATION_INF_RESULT
         ),
         (
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\brush_roads_within_15km_value_index.tif",
@@ -390,7 +391,7 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\saltmarsh_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\seagrass_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\secondary forest_roads_within_15km_value_index.tif",
-         ROAD_SERVICE_CV_PH_CONSERVATION_RESULT
+         ROAD_SERVICE_CV_PH_CONSERVATION_INF_RESULT
         ),
         (
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_population_less_than_2m_value_index.tif",
@@ -401,7 +402,7 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\saltmarsh_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\seagrass_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
-         POP_SERVICE_CV_PH_RESTORATION_RESULT
+         DS_POP_SERVICE_CV_PH_RESTORATION_RESULT
         ),
         (
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_roads_within_15km_value_index.tif",
@@ -768,10 +769,15 @@ def main():
     for percentile_raster_path in percentile_raster_list:
         index_substring = ''
         for substring_list in [top_percentile_list, country_list, scenario_list, beneficiary_list]:
+            found = False
             for substring in substring_list:
                 if str(substring).lower() in percentile_raster_path.lower():
                     index_substring += f'{substring}_'
+                    found = True
                     break
+            if not found:
+                # shortcut for doing a single country
+                continue
         percentile_groups[index_substring].append(percentile_raster_path)
 
     # each element in percentile_groups is a set of services for that country/scenario/beneficiary/climate
@@ -781,7 +787,7 @@ def main():
 
     LOGGER.debug(f'these are the percentile groups: {list(percentile_groups.keys())}')
     for key, percentile_raster_group in percentile_groups.items():
-        service_overlap_raster_path = os.path.join(RESULTS_DIR, f'{key}_service_overlap_count.tif')
+        service_overlap_raster_path = os.path.join(RESULTS_DIR, f'{key}service_overlap_count.tif')
         service_count_task = task_graph.add_task(
             func=add_rasters,
             args=(percentile_raster_group, service_overlap_raster_path, gdal.GDT_Byte),
