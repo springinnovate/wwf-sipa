@@ -672,9 +672,10 @@ def main():
          ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245)
         ]
 
-    add_output_set = set([t[-1] for t in ADD_RASTER_SET])
+    # prevent add and mult from doing it
+    add_output_set = set()  # set([t[-1] for t in ADD_RASTER_SET])
+    multiply_output_set = set()  # set([t[-1] for t in MULTIPLY_RASTER_SET])
     subtract_output_set = set([t[-1] for t in SUBTRACT_RASTER_SET])
-    multiply_output_set = set([t[-1] for t in MULTIPLY_RASTER_SET])
     path_count = collections.defaultdict(int)
     for p in MULTIPLY_RASTER_SET:
         path = p[2]
