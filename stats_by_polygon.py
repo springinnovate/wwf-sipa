@@ -6,6 +6,7 @@ import os
 import shutil
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
+import numpy
 
 from osgeo import ogr
 logging.basicConfig(
@@ -20,19 +21,17 @@ LOGGER = logging.getLogger(__name__)
 aggregate_vector = './data/admin_boundaries/IDN_gdam3.gpkg'
 
 rasters_to_process = {
-    'IDN_10th_percentile_service_conservation_dspop': 'idn_emergency_data/10_IDN_conservation_inf_dspop__service_overlap_count.tif',
-    'IDN_10th_percentile_service_conservation_road': 'idn_emergency_data/10_IDN_conservation_inf_road__service_overlap_count.tif',
-    'IDN_10th_percentile_service_restoration_dspop': 'idn_emergency_data/10_IDN_restoration_dspop__service_overlap_count.tif',
-    'IDN_10th_percentile_service_restoration_road': 'idn_emergency_data/10_IDN_restoration_road__service_overlap_count.tif',
+    'IDN_10th_percentile_service_conservation': ('idn_emergency_data/10_IDN_conservation_inf_dspop__service_overlap_count.tif', 'idn_emergency_data/10_IDN_conservation_inf_road__service_overlap_count.tif'),
+    'IDN_10th_percentile_service_restoration': ('idn_emergency_data/10_IDN_restoration_dspop__service_overlap_count.tif', 'idn_emergency_data/10_IDN_restoration_road__service_overlap_count.tif'),
 }
 
 
-def local_zonal_stats(raster_path):
+def local_zonal_stats(prefix, raster_path_list):
     working_dir = tempfile.mkdtemp(
         prefix='zonal_stats_', dir=os.path.dirname(__file__))
     fixed_raster_path = os.path.join(
-            working_dir, os.path.basename(raster_path))
-    zero_to_nodata(raster_path, fixed_raster_path)
+            working_dir, f'{prefix}.tif')
+    sum_zero_to_nodata(raster_path_list, fixed_raster_path)
     stat_dict = geoprocessing.zonal_statistics(
         (fixed_raster_path, 1), aggregate_vector,
         working_dir=working_dir,
@@ -42,18 +41,32 @@ def local_zonal_stats(raster_path):
     return stat_dict
 
 
-def zero_to_nodata(base_raster_path, target_raster_path):
-    raster_info = geoprocessing.get_raster_info(base_raster_path)
-    nodata = raster_info['nodata'][0]
+def sum_zero_to_nodata(base_raster_path_list, target_raster_path):
+    raster_info = geoprocessing.get_raster_info(base_raster_path_list[0])
+    global_nodata = raster_info['nodata'][0]
+    if global_nodata is None:
+        global_nodata = 0
 
-    def _op(base_array):
-        result = base_array.copy()
-        result[result == 0] = nodata
+    nodata_list = [
+        geoprocessing.get_raster_info(path)['nodata'][0]
+        for path in base_raster_path_list]
+
+    def _op(*base_array_list):
+        result = numpy.zeros(base_array_list[0].shape)
+        running_valid_mask = numpy.zeros(result.shape, dtype=bool)
+        for base_array, local_nodata in zip(base_array_list, nodata_list):
+            valid_mask = base_array != 0
+            if local_nodata is not None:
+                valid_mask = valid_mask & (base_array != local_nodata)
+            result[valid_mask] += base_array[valid_mask]
+            running_valid_mask |= valid_mask
+        result[result == 0] = global_nodata
         return result
 
     geoprocessing.raster_calculator(
-        [(base_raster_path, 1)], _op, target_raster_path,
-        raster_info['datatype'], nodata)
+        [(path, 1) for path in base_raster_path_list], _op, target_raster_path,
+        raster_info['datatype'], global_nodata,
+        allow_different_blocksize=True)
 
 
 def zonal_stats():
@@ -61,11 +74,11 @@ def zonal_stats():
     task_graph = taskgraph.TaskGraph(os.path.dirname(__file__), len(rasters_to_process), 10.0)
 
     zonal_results = {}
-    for key, raster_path in rasters_to_process.items():
+    for key, raster_path_list in rasters_to_process.items():
         LOGGER.info(f'processing {key}')
         zonal_stats_task = task_graph.add_task(
             func=local_zonal_stats,
-            args=(raster_path),
+            args=(key, raster_path_list,),
             store_result=True,
             task_name=f'stats for {key}')
         zonal_results[key] = zonal_stats_task
