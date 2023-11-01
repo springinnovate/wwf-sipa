@@ -1,14 +1,14 @@
 var default_vector_style = {
     color: 'FFFFFF',
-    width: 2,
+    width: 0.5,
     fillColor: '00000000',
 }
 var aggregate_polygons = {
     '(*clear*)': '',
-    'Philippines Administrative Level 1': ['projects/ecoshard-202922/assets/gdam_PH_1', 'NAME_1'],
-    'Philippines Administrative Level 2': ['projects/ecoshard-202922/assets/gdam_PH_2', 'NAME_2'],
-    'Indonesia Administrative Level 1': ['projects/ecoshard-202922/assets/gdam_IDN_1', 'NAME_1'],
-    'Indonesia Administrative Level 2': ['projects/ecoshard-202922/assets/gdam_IDN_2', 'NAME_2'],
+    'PH Province': ['projects/ecoshard-202922/assets/gdam_PH_1', 'NAME_1'],
+    'PH Municipality': ['projects/ecoshard-202922/assets/gdam_PH_2', 'NAME_2'],
+    'IDN Province': ['projects/ecoshard-202922/assets/gdam_IDN_1', 'NAME_1'],
+    'IDN Regency': ['projects/ecoshard-202922/assets/gdam_IDN_2', 'NAME_2'],
 }
 
 var datasets = {
@@ -245,6 +245,9 @@ function changeColorScheme(key, active_context) {
 
 function updateRasterLayer(key, active_context) {
   if (key !== null) {
+    if (active_context.last_layer !== null) {
+      active_context.map.remove(active_context.last_layer);
+    }
     active_context.raster = ee.Image.loadGeoTIFF(datasets[key]);
     if (active_context.aoi_polygon != null) {
       active_context.raster = active_context.raster.clipToCollection(active_context.aoi_polygon);
@@ -316,6 +319,7 @@ var panel_list = [];
           self.setValue(null, false);
           if (active_context.last_layer !== null) {
             active_context.map.remove(active_context.last_layer);
+            active_context.last_layer = null;
             active_context.min_val.setDisabled(true);
             active_context.max_val.setDisabled(true);
           }
