@@ -178,7 +178,7 @@ def raster_op(
             result = numpy.ones(array_list[0].shape)
         final_valid_mask = numpy.zeros(array_list[0].shape, dtype=bool)
         for array, nodata in zip(array_list, nodata_list):
-            local_valid_mask = numpy.isfinite(array) & array > 0
+            local_valid_mask = numpy.isfinite(array) & (array > 0)
             if nodata is not None:
                 local_valid_mask &= (array != nodata)
             final_valid_mask |= local_valid_mask
