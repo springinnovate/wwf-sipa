@@ -38,9 +38,22 @@ def join_mask(mask_a_path, mask_b_path, joined_mask_path):
             (array_a[valid_mask] == 1) & (array_b[valid_mask] == 1))
         return result
 
+    aligned_dir = tempfile.mkdtemp(
+        prefix='join_mask_', dir=os.path.dirname(joined_mask_path))
+    aligned_target_raster_path_list = [
+        os.path.join(aligned_dir, f'align_{os.path.basename(path)}')
+        for path in [mask_a_path, mask_b_path]]
+
+    pixel_size = geoprocessing.get_raster_info(
+        mask_a_path)['pixel_size']
+    geoprocessing.align_and_resize_raster_stack(
+        [mask_a_path, mask_b_path], aligned_target_raster_path_list,
+        ['near']*2, pixel_size, 'intersection')
+
     geoprocessing.raster_calculator(
-        [(mask_a_path, 1), (mask_b_path, 1)], mask_op, joined_mask_path,
-        gdal.GDT_Byte, target_nodata)
+        [(path, 1) for path in aligned_target_raster_path_list], mask_op,
+        joined_mask_path, gdal.GDT_Byte, target_nodata)
+    shutil.rmtree(aligned_dir)
 
 
 def zonal_stats(raster_path, vector_path, table_path):
@@ -751,11 +764,12 @@ def main():
             resilient_task_list.append(join_mask_task)
 
     percentile_groups = collections.defaultdict(list)
+    LOGGER.debug(f'************ THESE ARE THE PERCNTILES {percentile_raster_list}')
     for percentile_raster_path in percentile_raster_list:
         index_substring = ''
         for substring_list in [top_percentile_list, country_list, scenario_list, beneficiary_list]:
             for substring in substring_list:
-                if str(substring) in percentile_raster_path:
+                if str(substring).lower() in percentile_raster_path.lower():
                     index_substring += f'{substring}_'
                     break
         percentile_groups[index_substring].append(percentile_raster_path)
@@ -777,6 +791,7 @@ def main():
         # if len(percentile_raster_group) != len(service_list):
         #     raise ValueError(f'expecting {len(service_list)} rasters but only got this: {key}: {percentile_raster_group}')
 
+        LOGGER.debug(f'*** checking for overlap for this raster {service_overlap_raster_path}')
         for country in country_list:
             if country in service_overlap_raster_path:
                 admin_poly = ADMIN_POLYGONS[country]
