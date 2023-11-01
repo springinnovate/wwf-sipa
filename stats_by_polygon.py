@@ -79,6 +79,9 @@ def zonal_stats():
         stat_dict = task.get()
 
         # Create the target Geopackage
+        target_vector_path = f"{key}.gpkg"
+        if os.path.exists(target_vector_path):
+            os.remove(target_vector_path)
         target_ds = driver.CreateDataSource(f"{key}.gpkg")
 
         # Create the target layer with the same schema as the source layer
