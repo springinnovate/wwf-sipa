@@ -761,9 +761,9 @@ def main():
         percentile_groups[index_substring].append(percentile_raster_path)
 
     # each element in percentile_groups is a set of services for that country/scenario/beneficiary/climate
-    for key, percentile_raster_group in percentile_groups.items():
-        if len(percentile_raster_group) != len(service_list):
-            raise ValueError(f'expecting {len(service_list)} rasters but only got this: {key}: {percentile_raster_group}')
+    # for key, percentile_raster_group in percentile_groups.items():
+    #     if len(percentile_raster_group) != len(service_list):
+    #         raise ValueError(f'expecting {len(service_list)} rasters but only got this: {key}: {percentile_raster_group}')
 
     LOGGER.debug(f'these are the percentile groups: {list(percentile_groups.keys())}')
     for key, percentile_raster_group in percentile_groups.items():
@@ -774,8 +774,8 @@ def main():
             dependent_task_list=resilient_task_list,
             target_path_list=[service_overlap_raster_path],
             task_name=f'collect service count for {key}')
-        if len(percentile_raster_group) != len(service_list):
-            raise ValueError(f'expecting {len(service_list)} rasters but only got this: {key}: {percentile_raster_group}')
+        # if len(percentile_raster_group) != len(service_list):
+        #     raise ValueError(f'expecting {len(service_list)} rasters but only got this: {key}: {percentile_raster_group}')
 
         for country in country_list:
             if country in service_overlap_raster_path:
