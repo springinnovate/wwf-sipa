@@ -676,7 +676,7 @@ def main():
             if not os.path.exists(p) and RESULTS_DIR not in p:
                 print(f'input path does not exist: {p}')
 
-    task_graph = taskgraph.TaskGraph(RESULTS_DIR, os.cpu_count(), 15.0)
+    task_graph = taskgraph.TaskGraph(RESULTS_DIR, os.cpu_count()//2, 15.0)
 
     service_raster_path_list = []
     task_set = {}
@@ -725,7 +725,7 @@ def main():
         percentile_raster_list.extend(local_percentile_rasters)
 
     # if there are any percentile rasters that are with and without a climate ID then collapse those into a single raster
-    future_climate_scenario_id = scenario_list[0]
+    future_climate_scenario_id = climate_list[0]
     resilient_task_list = []
     for local_percentile_raster in list(percentile_raster_list):
         if local_percentile_raster.endswith(
@@ -733,6 +733,7 @@ def main():
             # we need to collapose into climate resilient
             base_local_percentile_raster = local_percentile_raster.replace(
                 f'_{future_climate_scenario_id}', '')
+            LOGGER.debug(f'*** collapse {local_percentile_raster} into {base_local_percentile_raster}')
             percentile_raster_list.remove(local_percentile_raster)
             percentile_raster_list.remove(base_local_percentile_raster)
             resilient_raster_path = os.path.join(
