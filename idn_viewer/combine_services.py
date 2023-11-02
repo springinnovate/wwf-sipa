@@ -21,16 +21,34 @@ LOGGER = logging.getLogger(__name__)
 
 aggregate_vector = './data/admin_boundaries/IDN_gdam3.gpkg'
 
+
 rasters_to_process = {
-    'IDN_10th_percentile_service_conservation': ('10_IDN_conservation_inf_dspop__service_overlap_count.tif', '10_IDN_conservation_inf_road__service_overlap_count.tif'),
-    'IDN_10th_percentile_service_restoration': ('10_IDN_restoration_dspop__service_overlap_count.tif', '10_IDN_restoration_road__service_overlap_count.tif'),
-    'IDN_10th_percentile_service_flood_mitigation_conservation_inf': ['top_10th_percentile_service_dspop_flood_mitigation_IDN_conservation_inf.tif', 'top_10th_percentile_service_road_flood_mitigation_IDN_conservation_inf.tif'],
-    'IDN_10th_percentile_service_flood_mitigation_restoration': ['top_10th_percentile_service_dspop_flood_mitigation_IDN_restoration.tif', 'top_10th_percentile_service_road_flood_mitigation_IDN_restoration.tif'],
-    'IDN_10th_percentile_service_recharge_conservation_inf': ['top_10th_percentile_service_dspop_recharge_IDN_conservation_inf.tif', 'top_10th_percentile_service_road_recharge_IDN_conservation_inf.tif'],
-    'IDN_10th_percentile_service_recharge_restoration': ['top_10th_percentile_service_dspop_recharge_IDN_restoration.tif', 'top_10th_percentile_service_road_recharge_IDN_restoration.tif'],
-    'IDN_10th_percentile_service_sediment_conservation_inf': ['top_10th_percentile_service_dspop_sediment_IDN_conservation_inf.tif', 'top_10th_percentile_service_road_sediment_IDN_conservation_inf.tif'],
-    'IDN_10th_percentile_service_sediment_restoration': ['top_10th_percentile_service_dspop_sediment_IDN_restoration.tif', 'top_10th_percentile_service_road_sediment_IDN_restoration.tif'],
+    'IDN_10th_percentile_service_restoration': [
+        '../final_results/10_IDN_restoration_road_service_overlap_count.tif',
+        '../final_results/10_IDN_restoration_dspop_service_overlap_count.tif'],
+    'IDN_10th_percentile_service_conservation_inf': [
+        '../final_results/10_IDN_conservation_inf_road_service_overlap_count.tif',
+        '../final_results/10_IDN_conservation_inf_dspop_service_overlap_count.tif'],
+    'IDN_10th_percentile_service_flood_mitigation_conservation_inf': ['../final_results/top_10th_percentile_service_dspop_flood_mitigation_IDN_conservation_inf.tif', '../final_results/top_10th_percentile_service_road_flood_mitigation_IDN_conservation_inf.tif'],
+    'IDN_10th_percentile_service_flood_mitigation_restoration': ['../final_results/top_10th_percentile_service_dspop_flood_mitigation_IDN_restoration.tif', '../final_results/top_10th_percentile_service_road_flood_mitigation_IDN_restoration.tif'],
+    'IDN_10th_percentile_service_recharge_conservation_inf': ['../final_results/top_10th_percentile_service_dspop_recharge_IDN_conservation_inf.tif', '../final_results/top_10th_percentile_service_road_recharge_IDN_conservation_inf.tif'],
+    'IDN_10th_percentile_service_recharge_restoration': ['../final_results/top_10th_percentile_service_dspop_recharge_IDN_restoration.tif', '../final_results/top_10th_percentile_service_road_recharge_IDN_restoration.tif'],
+    'IDN_10th_percentile_service_sediment_conservation_inf': ['../final_results/top_10th_percentile_service_dspop_sediment_IDN_conservation_inf.tif', '../final_results/top_10th_percentile_service_road_sediment_IDN_conservation_inf.tif'],
+    'IDN_10th_percentile_service_sediment_restoration': ['../final_results/top_10th_percentile_service_dspop_sediment_IDN_restoration.tif', '../final_results/top_10th_percentile_service_road_sediment_IDN_restoration.tif'],
+    'IDN_10th_percentile_service_cv_conservation': ['../final_results/top_10th_percentile_service_road_cv_idn_conservation_inf_result.tif', '../final_results/top_10th_percentile_service_dspop_cv_idn_conservation_inf_result.tif'],
+    'IDN_10th_percentile_service_cv_restoration': ['../final_results/top_10th_percentile_service_road_cv_idn_restoration_result.tif', '../final_results/top_10th_percentile_service_dspop_cv_idn_restoration_result.tif'],
 }
+
+# rasters_to_process = {
+#     'IDN_10th_percentile_service_conservation': ('10_IDN_conservation_inf_dspop__service_overlap_count.tif', '10_IDN_conservation_inf_road__service_overlap_count.tif'),
+#     'IDN_10th_percentile_service_restoration': ('10_IDN_restoration_dspop__service_overlap_count.tif', '10_IDN_restoration_road__service_overlap_count.tif'),
+#     'IDN_10th_percentile_service_flood_mitigation_conservation_inf': ['top_10th_percentile_service_dspop_flood_mitigation_IDN_conservation_inf.tif', 'top_10th_percentile_service_road_flood_mitigation_IDN_conservation_inf.tif'],
+#     'IDN_10th_percentile_service_flood_mitigation_restoration': ['top_10th_percentile_service_dspop_flood_mitigation_IDN_restoration.tif', 'top_10th_percentile_service_road_flood_mitigation_IDN_restoration.tif'],
+#     'IDN_10th_percentile_service_recharge_conservation_inf': ['top_10th_percentile_service_dspop_recharge_IDN_conservation_inf.tif', 'top_10th_percentile_service_road_recharge_IDN_conservation_inf.tif'],
+#     'IDN_10th_percentile_service_recharge_restoration': ['top_10th_percentile_service_dspop_recharge_IDN_restoration.tif', 'top_10th_percentile_service_road_recharge_IDN_restoration.tif'],
+#     'IDN_10th_percentile_service_sediment_conservation_inf': ['top_10th_percentile_service_dspop_sediment_IDN_conservation_inf.tif', 'top_10th_percentile_service_road_sediment_IDN_conservation_inf.tif'],
+#     'IDN_10th_percentile_service_sediment_restoration': ['top_10th_percentile_service_dspop_sediment_IDN_restoration.tif', 'top_10th_percentile_service_road_sediment_IDN_restoration.tif'],
+# }
 
 
 def sum_zero_to_nodata(base_raster_path_list, target_raster_path):
