@@ -21,8 +21,8 @@ LOGGER = logging.getLogger(__name__)
 aggregate_vector = './data/admin_boundaries/IDN_gdam3.gpkg'
 
 rasters_to_process = {
-    'IDN_10th_percentile_service_conservation': ('idn_emergency_data/10_IDN_conservation_inf_dspop__service_overlap_count.tif', 'idn_emergency_data/10_IDN_conservation_inf_road__service_overlap_count.tif'),
-    'IDN_10th_percentile_service_restoration': ('idn_emergency_data/10_IDN_restoration_dspop__service_overlap_count.tif', 'idn_emergency_data/10_IDN_restoration_road__service_overlap_count.tif'),
+    'IDN_25th_percentile_service_conservation': ('idn_emergency_data/25_IDN_conservation_inf_dspop__service_overlap_count.tif', 'idn_emergency_data/25_IDN_conservation_inf_road__service_overlap_count.tif'),
+    'IDN_25th_percentile_service_restoration': ('idn_emergency_data/25_IDN_restoration_dspop__service_overlap_count.tif', 'idn_emergency_data/25_IDN_restoration_road__service_overlap_count.tif'),
 }
 
 
