@@ -696,16 +696,15 @@ def main():
         for p in input_rasters:
             if p in task_set:
                 dependent_task_list.append(task_set[p])
-        if op_str not in ['+', '*']:
-            op_task = task_graph.add_task(
-                func=raster_op,
-                args=(op_str, input_rasters, target_raster_path),
-                target_path_list=[target_raster_path],
-                dependent_task_list=dependent_task_list,
-                task_name=f'calcualte {target_raster_path}')
-            if target_raster_path in task_set:
-                raise ValueError(f'calculating a result that we alreayd calculated {target_raster_path}')
-            task_set[target_raster_path] = op_task
+        op_task = task_graph.add_task(
+            func=raster_op,
+            args=(op_str, input_rasters, target_raster_path),
+            target_path_list=[target_raster_path],
+            dependent_task_list=dependent_task_list,
+            task_name=f'calcualte {target_raster_path}')
+        if target_raster_path in task_set:
+            raise ValueError(f'calculating a result that we already calculated {target_raster_path}')
+        task_set[target_raster_path] = op_task
         if 'service' in target_raster_path:
             service_raster_path_list.append((target_raster_path, op_task))
 
