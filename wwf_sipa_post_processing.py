@@ -211,7 +211,8 @@ def raster_op(
 def main():
     RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\final_results'
     CLIMATE_RESILIENT_PERCENTILES = os.path.join(RESULTS_DIR, 'climate_resilient_results')
-    for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES]:
+    MASK_SUBSET_DIR = os.path.join(RESULTS_DIR, 'mask_service_subsets')
+    for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES, MASK_SUBSET_DIR]:
         os.makedirs(dir_path, exist_ok=True)
 
     # diff x benes x services (4) x scenarios (2) x climage (2)
@@ -222,9 +223,21 @@ def main():
     top_percentile_list = [25, 10]
 
     ADMIN_POLYGONS = {
-        'PH': r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_gdam2.gpkg",
-        'IDN': r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_gdam3.gpkg"
-        }
+        'PH': [
+            "./data/admin_boundaries/ph_visayas.gpkg",
+            "./data/admin_boundaries/ph_luzon.gpkg",
+            "./data/admin_boundaries/ph_mindanao.gpkg",
+        ],
+        'IDN': [
+            "./data/admin_boundaries/idn_java.gpkg",
+            "./data/admin_boundaries/idn_kalimantan.gpkg",
+            "./data/admin_boundaries/idn_maluku_islands.gpkg",
+            "./data/admin_boundaries/idn_nusa_tenggara.gpkg",
+            "./data/admin_boundaries/idn_paupa.gpkg",
+            "./data/admin_boundaries/idn_sulawesi.gpkg",
+            "./data/admin_boundaries/idn_sumatra.gpkg",
+        ]
+    }
 
     DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_inf.tif")
     DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_inf_ssp245.tif")
@@ -720,27 +733,66 @@ def main():
         if 'service' in target_raster_path:
             service_raster_path_list.append((target_raster_path, op_task))
 
-    # ASK BCK: gte-75 gte-90 means top 25 top 10 so only 25 or 10% are selected
-    # :::: call python mask_by_percentile.py D:\repositories\wwf-sipa\final_results\service_*.tif gte-75-percentile_[file_name]_gte75.tif gte-90-percentile_[file_name]_gte90.tif
     percentile_task_list = []
     for service_path, service_task in service_raster_path_list:
-        percentile_task = task_graph.add_task(
-            func=make_top_nth_percentile_masks,
-            args=(
-                service_path,
-                top_percentile_list,
-                os.path.join(RESULTS_DIR, 'top_{percentile}th_percentile_' + os.path.basename(service_path))),
-            dependent_task_list=[service_task],
-            store_result=True,
-            task_name=f'percentile for {service_path}')
-        percentile_task_list.append((service_path, percentile_task))
+        # TODO: break this up by admin polygon
+        # for ADMIN_POLYGONS
+        #   1) mask out service path for each polygon
+        #   2) get the percentile for that service path
+        #   3) add all the sub percentiles back together into one raster
+        for country_code in ADMIN_POLYGONS:
+            if f'{country_code.lower()}_' in service_path:
+                break
+        # country_code is the right country code now
+        per_admin_task_list = []
+        for admin_vector_path in ADMIN_POLYGONS[country_code]:
+            # mask service_path to admin_vector_path
+            admin_basename = os.path.splitext(os.path.basename(admin_vector_path))[0]
+            masked_service_path = os.path.join(
+                MASK_SUBSET_DIR, f'{admin_basename}_{os.path.basename(service_path)}')
+            mask_task = task_graph.add_task(
+                func=geoprocessing.mask_raster,
+                args=(
+                    (service_path, 1), admin_vector_path, masked_service_path),
+                kwargs={'working_dir': MASK_SUBSET_DIR},
+                target_path_list=[masked_service_path],
+                dependent_task_list=[service_task],
+                task_name=f'mask {service_path} by {admin_vector_path}')
+
+            percentile_task = task_graph.add_task(
+                func=make_top_nth_percentile_masks,
+                args=(
+                    masked_service_path,
+                    top_percentile_list,
+                    os.path.join(RESULTS_DIR, 'top_{percentile}th_percentile_' + os.path.basename(masked_service_path))),
+                dependent_task_list=[mask_task],
+                store_result=True,
+                task_name=f'percentile for {service_path}')
+            per_admin_task_list.append(percentile_task)
+            # right here -> get this aggregated together into one path
+        percentile_task_list.append((service_path, per_admin_task_list))
+
     task_graph.join()
 
     percentile_raster_list = []
-    for service_path, percentile_task in percentile_task_list:
-        local_percentile_rasters = percentile_task.get()
-        LOGGER.info(f'percentile for {service_path} is {percentile_task.get()}')
-        percentile_raster_list.extend(local_percentile_rasters)
+    for service_path, per_admin_percentile_task_list in percentile_task_list:
+        percentile_sets = collections.defaultdict(list)
+        for local_admin_percentile_task in per_admin_percentile_task_list:
+            # gather into each percentile
+            for local_admin_service_path in local_admin_percentile_task.get():
+                for percentile_value in top_percentile_list:
+                    if f'top_{percentile_value}' in local_admin_percentile_task:
+                        percentile_sets[percentile_value].append(local_admin_service_path)
+        for percentile_value in top_percentile_list:
+            target_percentile_sum = os.path.join(
+                RESULTS_DIR, f'top_{percentile_value}th_percentile_'+os.path.basename(service_path))
+            task_graph.add_task(
+                func=raster_op,
+                args=('+', percentile_sets[percentile_value], target_percentile_sum),
+                target_path_list=[target_percentile_sum],
+                task_name=f're-sum the percentiles to {target_percentile_sum}')
+            percentile_raster_list.append(target_percentile_sum)
+    task_graph.join()
 
     # if there are any percentile rasters that are with and without a climate ID then collapse those into a single raster
     future_climate_scenario_id = climate_list[0]
