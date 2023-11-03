@@ -686,9 +686,9 @@ def main():
     service_raster_path_list = []
     task_set = {}
     for raster_path_list_plus_target, op_str in (
+            [(path_set, '-') for path_set in SUBTRACT_RASTER_SET] +
             [(path_set, '+') for path_set in ADD_RASTER_SET] +
-            [(path_set, '*') for path_set in MULTIPLY_RASTER_SET] +
-            [(path_set, '-') for path_set in SUBTRACT_RASTER_SET]
+            [(path_set, '*') for path_set in MULTIPLY_RASTER_SET]
             ):
         dependent_task_list = []
         target_raster_path = raster_path_list_plus_target[-1]
