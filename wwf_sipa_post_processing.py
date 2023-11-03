@@ -10,6 +10,7 @@ from ecoshard import taskgraph
 from ecoshard import geoprocessing
 from osgeo import gdal
 import numpy
+from osgeo import ogr
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -54,35 +55,6 @@ def join_mask(mask_a_path, mask_b_path, joined_mask_path):
         [(path, 1) for path in aligned_target_raster_path_list], mask_op,
         joined_mask_path, gdal.GDT_Byte, target_nodata)
     shutil.rmtree(aligned_dir)
-
-
-def zonal_stats(raster_path, vector_path, table_path):
-    """Do zonal stats over base raster in each polygon of the vector."""
-    working_dir = tempfile.mkdtemp(
-        prefix='zonal_stats_', dir=os.path.dirname(table_path))
-    LOGGER.info(f'processing {raster_path}')
-    stat_dict = geoprocessing.zonal_statistics(
-        (raster_path, 1), vector_path,
-        working_dir=working_dir,
-        clean_working_dir=True,
-        polygons_might_overlap=False)
-    stat_list = ['count', 'max', 'min', 'nodata_count', 'sum']
-    LOGGER.info(f'*********** building table at {table_path}')
-    with open(table_path, 'w') as table_file:
-        table_file.write(f'{raster_path}\n{vector_path}\n')
-        table_file.write('fid,')
-        table_file.write(f'{",".join(stat_list)},mean\n')
-        for fid, stats in stat_dict.items():
-            table_file.write(f'{fid},')
-            for stat_id in stat_list:
-                table_file.write(f'{stats[stat_id]},')
-            if stats['count'] > 0:
-                table_file.write(f'{stats["sum"]/stats["count"]}')
-            else:
-                table_file.write('NaN')
-            table_file.write('\n')
-    shutil.rmtree(working_dir)
-    LOGGER.info(f'all done, table at {table_path}')
 
 
 def add_rasters(raster_path_list, target_raster_path, target_datatype):
@@ -217,6 +189,10 @@ def main():
 
     # diff x benes x services (4) x scenarios (2) x climage (2)
     country_list = ['PH', 'IDN']
+    country_vector_list = [
+        './data/admin_boundaries/PH_gdam2.gpkg',
+        './data/admin_boundaries/IDN_gdam3.gpkg',
+    ]
     scenario_list = ['restoration', 'conservation_inf']
     climate_list = ['ssp245']
     beneficiary_list = ['dspop', 'road']
@@ -847,9 +823,117 @@ def main():
             task_name=f'collect service count for {key}')
 
     task_graph.join()
+
+    # build the stats by polygon
+
+    for percentile_value in top_percentile_list:
+        for country_id, country_aggregate_vector in zip(country_list, country_vector_list):
+            for scenario_id in scenario_list:
+                    target_vector = os.path.join(
+                        RESULTS_DIR,
+                        # 25_IDN_restoration_dspop_service_overlap_count
+                        f'{percentile_value}_{country_id}_{scenario_id}_service_overlap_count.gpkg')
+                    base_raster_list = [
+                        f'final_results/{percentile_value}_{country_id}_{scenario_id}_{beneficiary_id}_service_overlap_count.tif'
+                        for beneficiary_id in beneficiary_list]
+                    zonal_stats(base_raster_list, country_aggregate_vector, target_vector)
+
+
     task_graph.close()
     LOGGER.info(f'all done! results in {RESULTS_DIR}')
 
+
+def local_zonal_stats(prefix, raster_path_list, aggregate_vector_path):
+    working_dir = tempfile.mkdtemp(
+        prefix='zonal_stats_', dir=os.path.dirname(__file__))
+    fixed_raster_path = os.path.join(
+            working_dir, f'{prefix}.tif')
+    sum_zero_to_nodata(raster_path_list, fixed_raster_path)
+    stat_dict = geoprocessing.zonal_statistics(
+        (fixed_raster_path, 1), aggregate_vector_path,
+        working_dir=working_dir,
+        clean_working_dir=True,
+        polygons_might_overlap=False)
+    shutil.rmtree(working_dir)
+    return stat_dict
+
+
+def sum_zero_to_nodata(base_raster_path_list, target_raster_path):
+    raster_info = geoprocessing.get_raster_info(base_raster_path_list[0])
+    global_nodata = raster_info['nodata'][0]
+    if global_nodata is None:
+        global_nodata = 0
+
+    nodata_list = [
+        geoprocessing.get_raster_info(path)['nodata'][0]
+        for path in base_raster_path_list]
+
+    def _op(*base_array_list):
+        result = numpy.zeros(base_array_list[0].shape)
+        running_valid_mask = numpy.zeros(result.shape, dtype=bool)
+        for base_array, local_nodata in zip(base_array_list, nodata_list):
+            valid_mask = base_array != 0
+            if local_nodata is not None:
+                valid_mask = valid_mask & (base_array != local_nodata)
+            result[valid_mask] += base_array[valid_mask]
+            running_valid_mask |= valid_mask
+        result[result == 0] = global_nodata
+        return result
+
+    geoprocessing.raster_calculator(
+        [(path, 1) for path in base_raster_path_list], _op, target_raster_path,
+        raster_info['datatype'], global_nodata,
+        allow_different_blocksize=True)
+
+
+def zonal_stats(raster_path_list, aggregate_vector_path, target_vector_path):
+    """Do zonal stats over base raster in each polygon of the vector."""
+    basename = os.path.basename(os.path.splitext(target_vector_path)[0])
+    stat_dict = local_zonal_stats(basename, raster_path_list, aggregate_vector_path)
+
+    source_ds = ogr.Open(aggregate_vector_path, 0)
+    source_layer = source_ds.GetLayer()
+    driver = ogr.GetDriverByName("GPKG")
+
+    # Create the target Geopackage
+    if os.path.exists(target_vector_path):
+        os.remove(target_vector_path)
+    target_ds = driver.CreateDataSource(target_vector_path)
+
+    # Create the target layer with the same schema as the source layer
+    target_layer = target_ds.CreateLayer(basename, geom_type=source_layer.GetGeomType())
+    target_layer.CreateFields(source_layer.schema)
+
+    # Add two new floating point fields
+    target_layer.CreateField(
+        ogr.FieldDefn("proportional_service_area", ogr.OFTReal))
+    target_layer.CreateField(
+        ogr.FieldDefn("service_intensity", ogr.OFTReal))
+
+    # Copy features from source layer to target layer and populate new fields
+    source_layer.ResetReading()
+    for feature in source_layer:
+        new_feature = ogr.Feature(target_layer.GetLayerDefn())
+        new_feature.SetFrom(feature)
+        fid = feature.GetFID()
+        try:
+            proportional_service_area = stat_dict[fid]['count']/(stat_dict[fid]['count']+stat_dict[fid]['nodata_count'])
+            service_intensity = stat_dict[fid]['sum']/stat_dict[fid]['count']
+        except ZeroDivisionError:
+            proportional_service_area = 0
+            service_intensity = 0
+        # Set values for the new fields (optional)
+        new_feature.SetField(
+            "proportional_service_area", proportional_service_area)
+        new_feature.SetField(
+            "service_intensity", service_intensity)
+        target_layer.CreateFeature(new_feature)
+
+    target_layer = None
+    target_ds = None
+    # Cleanup
+    source_ds = None
+    target_ds = None
 
 if __name__ == '__main__':
     main()
