@@ -829,15 +829,18 @@ def main():
     for percentile_value in top_percentile_list:
         for country_id, country_aggregate_vector in zip(country_list, country_vector_list):
             for scenario_id in scenario_list:
-                    target_vector = os.path.join(
-                        RESULTS_DIR,
-                        # 25_IDN_restoration_dspop_service_overlap_count
-                        f'{percentile_value}_{country_id}_{scenario_id}_service_overlap_count.gpkg')
-                    base_raster_list = [
-                        f'final_results/{percentile_value}_{country_id}_{scenario_id}_{beneficiary_id}_service_overlap_count.tif'
-                        for beneficiary_id in beneficiary_list]
-                    zonal_stats(base_raster_list, country_aggregate_vector, target_vector)
-
+                target_vector = os.path.join(
+                    RESULTS_DIR,
+                    # 25_IDN_restoration_dspop_service_overlap_count
+                    f'{percentile_value}_{country_id}_{scenario_id}_service_overlap_count.gpkg')
+                base_raster_list = [
+                    f'final_results/{percentile_value}_{country_id}_{scenario_id}_{beneficiary_id}_service_overlap_count.tif'
+                    for beneficiary_id in beneficiary_list]
+                task_graph.add_task(
+                    func=zonal_stats,
+                    args=(base_raster_list, country_aggregate_vector, target_vector),
+                    target_path_list=[target_vector],
+                    task_name=f'stats on {target_vector}')
 
     task_graph.close()
     LOGGER.info(f'all done! results in {RESULTS_DIR}')
