@@ -215,9 +215,7 @@ def main():
         os.makedirs(dir_path, exist_ok=True)
 
     # diff x benes x services (4) x scenarios (2) x climage (2)
-    #service_list = ['flood_mitigation', 'recharge', 'sediment']
-    #country_list = ['PH', 'IDN']
-    country_list = ['IDN']
+    country_list = ['PH', 'IDN']
     scenario_list = ['restoration', 'conservation_inf']
     climate_list = ['ssp245']
     beneficiary_list = ['dspop', 'road']
@@ -786,37 +784,16 @@ def main():
                 continue
         percentile_groups[index_substring].append(percentile_raster_path)
 
-    # each element in percentile_groups is a set of services for that country/scenario/beneficiary/climate
-    # for key, percentile_raster_group in percentile_groups.items():
-    #     if len(percentile_raster_group) != len(service_list):
-    #         raise ValueError(f'expecting {len(service_list)} rasters but only got this: {key}: {percentile_raster_group}')
-
     LOGGER.debug(f'these are the percentile groups: {list(percentile_groups.keys())}')
     for key, percentile_raster_group in percentile_groups.items():
         service_overlap_raster_path = os.path.join(RESULTS_DIR, f'{key}service_overlap_count.tif')
-        service_count_task = task_graph.add_task(
+        _ = task_graph.add_task(
             func=add_rasters,
             args=(percentile_raster_group, service_overlap_raster_path, gdal.GDT_Byte),
             dependent_task_list=resilient_task_list,
             target_path_list=[service_overlap_raster_path],
             task_name=f'collect service count for {key}')
-        # if len(percentile_raster_group) != len(service_list):
-        #     raise ValueError(f'expecting {len(service_list)} rasters but only got this: {key}: {percentile_raster_group}')
 
-        LOGGER.debug(f'*** checking for overlap for this raster {service_overlap_raster_path}')
-        for country in country_list:
-            if country in service_overlap_raster_path:
-                admin_poly = ADMIN_POLYGONS[country]
-                break
-        admin_base = os.path.basename(os.path.splitext(admin_poly)[0])
-        table_path = os.path.splitext(service_overlap_raster_path)[0] + f'_{admin_base}.csv'
-        task_graph.add_task(
-            func=zonal_stats,
-            args=(service_overlap_raster_path, admin_poly, table_path),
-            target_path_list=[table_path],
-            dependent_task_list=[service_count_task],
-            task_name=f'zonal stats for {service_overlap_raster_path}/{admin_poly}')
-        # aggregate over the available polygons
     task_graph.join()
     task_graph.close()
     LOGGER.info(f'all done! results in {RESULTS_DIR}')
