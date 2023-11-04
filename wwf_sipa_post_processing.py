@@ -730,7 +730,9 @@ def main():
                 func=geoprocessing.mask_raster,
                 args=(
                     (service_path, 1), admin_vector_path, masked_service_path),
-                kwargs={'working_dir': MASK_SUBSET_DIR},
+                kwargs={
+                    'working_dir': MASK_SUBSET_DIR,
+                    'allow_different_blocksize': True},
                 target_path_list=[masked_service_path],
                 dependent_task_list=[service_task],
                 task_name=f'mask {service_path} by {admin_vector_path}')
