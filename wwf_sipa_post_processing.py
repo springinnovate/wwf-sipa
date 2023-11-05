@@ -154,7 +154,7 @@ def raster_op(
             result = numpy.ones(array_list[0].shape)
         final_valid_mask = numpy.zeros(array_list[0].shape, dtype=bool)
         for array, nodata in zip(array_list, nodata_list):
-            local_valid_mask = numpy.isfinite(array) & (array > 0)
+            local_valid_mask = numpy.isfinite(array) & (array != 0)
             if nodata is not None:
                 local_valid_mask &= (array != nodata)
             final_valid_mask |= local_valid_mask
@@ -891,10 +891,18 @@ def sum_zero_to_nodata(base_raster_path_list, target_raster_path):
         result[result == 0] = global_nodata
         return result
 
+    working_dir = tempfile.mkdtemp(
+        prefix='zero_to_nodata_', dir=os.path.dirname(__file__))
+    pre_cog_target = os.path.join(working_dir, os.path.basename(target_raster_path))
+
     geoprocessing.raster_calculator(
-        [(path, 1) for path in base_raster_path_list], _op, target_raster_path,
+        [(path, 1) for path in base_raster_path_list], _op, pre_cog_target,
         raster_info['datatype'], global_nodata,
         allow_different_blocksize=True)
+
+    subprocess.check_call(
+        f'gdal_translate {pre_cog_target} {target_raster_path} -of COG -co BIGTIFF=YES')
+    shutil.rmtree(working_dir)
 
 
 def zonal_stats(raster_path_list, aggregate_vector_path, target_vector_path):
