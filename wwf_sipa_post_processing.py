@@ -832,6 +832,8 @@ def main():
 
     for percentile_value in top_percentile_list:
         for country_id, country_aggregate_vector in zip(country_list, country_vector_list):
+            if 'idn' in country_id.lower(): # TODO: skipoing IDN
+                continue
             for scenario_id in scenario_list:
                 target_vector = os.path.join(
                     RESULTS_DIR,
