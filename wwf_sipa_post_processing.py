@@ -56,7 +56,7 @@ def join_mask(mask_a_path, mask_b_path, joined_mask_path):
         [(path, 1) for path in aligned_target_raster_path_list], mask_op,
         pre_cog_target, gdal.GDT_Byte, target_nodata)
     subprocess.check_call(
-        f'gdal_translate {pre_cog_target} {pre_cog_target} -of COG -co BIGTIFF=YES')
+        f'gdal_translate {pre_cog_target} {joined_mask_path} -of COG -co BIGTIFF=YES')
     shutil.rmtree(aligned_dir)
 
 
