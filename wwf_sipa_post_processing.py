@@ -205,15 +205,15 @@ def main():
             "./data/admin_boundaries/ph_luzon.gpkg",
             "./data/admin_boundaries/ph_mindanao.gpkg",
         ],
-        'IDN': [
-            "./data/admin_boundaries/idn_java.gpkg",
-            "./data/admin_boundaries/idn_kalimantan.gpkg",
-            "./data/admin_boundaries/idn_maluku_islands.gpkg",
-            "./data/admin_boundaries/idn_nusa_tenggara.gpkg",
-            "./data/admin_boundaries/idn_paupa.gpkg",
-            "./data/admin_boundaries/idn_sulawesi.gpkg",
-            "./data/admin_boundaries/idn_sumatra.gpkg",
-        ]
+        # 'IDN': [
+        #     "./data/admin_boundaries/idn_java.gpkg",
+        #     "./data/admin_boundaries/idn_kalimantan.gpkg",
+        #     "./data/admin_boundaries/idn_maluku_islands.gpkg",
+        #     "./data/admin_boundaries/idn_nusa_tenggara.gpkg",
+        #     "./data/admin_boundaries/idn_paupa.gpkg",
+        #     "./data/admin_boundaries/idn_sulawesi.gpkg",
+        #     "./data/admin_boundaries/idn_sumatra.gpkg",
+        # ]
     }
 
     DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_inf.tif")
