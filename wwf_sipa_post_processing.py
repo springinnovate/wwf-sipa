@@ -79,7 +79,7 @@ def add_rasters(raster_path_list, target_raster_path, target_datatype):
     pre_cog_target = os.path.join(working_dir, os.path.basename(target_raster_path))
     geoprocessing.raster_calculator(
         [(path, 1) for path in aligned_target_raster_path_list], _sum_op, pre_cog_target,
-        target_datatype, None,
+        target_datatype, 0,
         allow_different_blocksize=True)
     subprocess.check_call(
         f'gdal_translate {pre_cog_target} {target_raster_path} -of COG -co BIGTIFF=YES')
