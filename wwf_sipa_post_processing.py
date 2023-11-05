@@ -840,12 +840,13 @@ def main():
                 base_raster_list = [
                     f'final_results/{percentile_value}_{country_id}_{scenario_id}_{beneficiary_id}_service_overlap_count.tif'
                     for beneficiary_id in beneficiary_list]
+                # TODO: add the base raster list together before aggregating?
                 task_graph.add_task(
                     func=zonal_stats,
                     args=(base_raster_list, country_aggregate_vector, target_vector),
                     target_path_list=[target_vector],
                     task_name=f'stats on {target_vector}')
-
+    task_graph.join()
     task_graph.close()
     LOGGER.info(f'all done! results in {RESULTS_DIR}')
 
@@ -853,15 +854,16 @@ def main():
 def local_zonal_stats(prefix, raster_path_list, aggregate_vector_path):
     working_dir = tempfile.mkdtemp(
         prefix='zonal_stats_', dir=os.path.dirname(__file__))
+    summed_dir = os.path.join(
+        os.path.dirname(aggregate_vector_path), 'summed_services')
     fixed_raster_path = os.path.join(
-            working_dir, f'{prefix}.tif')
+            summed_dir, f'{prefix}.tif')
     sum_zero_to_nodata(raster_path_list, fixed_raster_path)
     stat_dict = geoprocessing.zonal_statistics(
         (fixed_raster_path, 1), aggregate_vector_path,
         working_dir=working_dir,
         clean_working_dir=True,
         polygons_might_overlap=False)
-    shutil.rmtree(working_dir)
     return stat_dict
 
 
