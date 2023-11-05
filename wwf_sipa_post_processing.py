@@ -51,9 +51,12 @@ def join_mask(mask_a_path, mask_b_path, joined_mask_path):
         [mask_a_path, mask_b_path], aligned_target_raster_path_list,
         ['near']*2, pixel_size, 'intersection')
 
+    pre_cog_target = os.path.join(aligned_dir, os.path.basename(joined_mask_path))
     geoprocessing.raster_calculator(
         [(path, 1) for path in aligned_target_raster_path_list], mask_op,
-        joined_mask_path, gdal.GDT_Byte, target_nodata)
+        pre_cog_target, gdal.GDT_Byte, target_nodata)
+    subprocess.check_call(
+        f'gdal_translate {pre_cog_target} {pre_cog_target} -of COG -co BIGTIFF=YES')
     shutil.rmtree(aligned_dir)
 
 
@@ -763,6 +766,7 @@ def main():
                 for percentile_value in top_percentile_list:
                     if f'top_{percentile_value}' in local_admin_service_path:
                         percentile_sets[percentile_value].append(local_admin_service_path)
+        # add the sub-islands together
         for percentile_value in top_percentile_list:
             target_percentile_sum = os.path.join(
                 RESULTS_DIR, f'top_{percentile_value}th_percentile_'+os.path.basename(service_path))
