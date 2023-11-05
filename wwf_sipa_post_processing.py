@@ -761,7 +761,7 @@ def main():
             # gather into each percentile
             for local_admin_service_path in local_admin_percentile_task.get():
                 for percentile_value in top_percentile_list:
-                    if f'top_{percentile_value}' in local_admin_percentile_task:
+                    if f'top_{percentile_value}' in local_admin_service_path:
                         percentile_sets[percentile_value].append(local_admin_service_path)
         for percentile_value in top_percentile_list:
             target_percentile_sum = os.path.join(
