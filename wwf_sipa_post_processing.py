@@ -682,7 +682,7 @@ def main():
             if not os.path.exists(p) and RESULTS_DIR not in p:
                 print(f'input path does not exist: {p}')
 
-    task_graph = taskgraph.TaskGraph(RESULTS_DIR, os.cpu_count()//2, 15.0)
+    task_graph = taskgraph.TaskGraph(RESULTS_DIR, os.cpu_count()//2+2, 15.0)
 
     service_raster_path_list = []
     task_set = {}
@@ -693,6 +693,8 @@ def main():
             ):
         dependent_task_list = []
         target_raster_path = raster_path_list_plus_target[-1]
+        if 'idn_' in target_raster_path.lower():
+            continue  # skip indonesia for now becase becky
         input_rasters = raster_path_list_plus_target[:-1]
         for p in input_rasters:
             if p in task_set:
