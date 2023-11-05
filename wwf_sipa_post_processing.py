@@ -745,7 +745,7 @@ def main():
                     os.path.join(RESULTS_DIR, 'top_{percentile}th_percentile_' + os.path.basename(masked_service_path))),
                 dependent_task_list=[mask_task],
                 store_result=True,
-                task_name=f'percentile for {service_path}')
+                task_name=f'percentile for {masked_service_path}')
             per_admin_task_list.append(percentile_task)
             # right here -> get this aggregated together into one path
         percentile_task_list.append((service_path, per_admin_task_list))
