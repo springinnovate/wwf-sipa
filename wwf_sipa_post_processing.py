@@ -858,6 +858,7 @@ def local_zonal_stats(prefix, raster_path_list, aggregate_vector_path):
         prefix='zonal_stats_', dir=os.path.dirname(__file__))
     summed_dir = os.path.join(
         os.path.dirname(aggregate_vector_path), 'summed_services')
+    os.makedirs(summed_dir, exist_ok=True)
     fixed_raster_path = os.path.join(
             summed_dir, f'{prefix}.tif')
     sum_zero_to_nodata(raster_path_list, fixed_raster_path)
