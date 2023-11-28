@@ -723,6 +723,7 @@ def main():
         #   3) add all the sub percentiles back together into one raster
         for country_code in ADMIN_POLYGONS:
             if f'{country_code.lower()}_' in service_path:
+                # this sets `country_code` to be the current country code
                 break
         # country_code is the right country code now
         per_admin_task_list = []
@@ -836,8 +837,6 @@ def main():
 
     for percentile_value in top_percentile_list:
         for country_id, country_aggregate_vector in zip(country_list, country_vector_list):
-            if 'idn' in country_id.lower(): # TODO: skipoing IDN
-                continue
             for scenario_id in scenario_list:
                 target_vector = os.path.join(
                     RESULTS_DIR,
