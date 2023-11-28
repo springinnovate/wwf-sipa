@@ -696,8 +696,6 @@ def main():
             ):
         dependent_task_list = []
         target_raster_path = raster_path_list_plus_target[-1]
-        if 'idn_' in target_raster_path.lower():
-            continue  # skip indonesia for now becase becky
         input_rasters = raster_path_list_plus_target[:-1]
         for p in input_rasters:
             if p in task_set:
