@@ -720,7 +720,7 @@ def main():
         #   2) get the percentile for that service path
         #   3) add all the sub percentiles back together into one raster
         for country_code in ADMIN_POLYGONS:
-            if f'{country_code.lower()}_' in service_path:
+            if f'{country_code.lower()}_' in service_path.lower():
                 # this sets `country_code` to be the current country code
                 break
         # country_code is the right country code now
