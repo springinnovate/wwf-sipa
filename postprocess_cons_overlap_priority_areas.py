@@ -19,6 +19,9 @@ IDN KBAs: './data/protected_areas/Indonesia_KBA'
 
 def main():
     """Entry point."""
+    # Do PH
+    # Do IDN
+    pass
 
 
 if __name__ == '__main__':

@@ -263,7 +263,6 @@ def main():
     ROAD_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_IDN_restoration.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_conservation_inf.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_restoration.tif")
-    ROAD_SERVICE_RECHARGE_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_recharge_IDN_conservation_inf.tif")
 
     DSPOP_SERVICE_RECHARGE_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_restoration.tif")
     DSPOP_SERVICE_RECHARGE_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_conservation_inf.tif")
@@ -272,9 +271,6 @@ def main():
     DSPOP_SERVICE_SEDIMENT_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_restoration.tif")
     DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_inf.tif")
     DSPOP_SERVICE_SEDIMENT_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_restoration.tif")
-    ROAD_SERVICE_RECHARGE_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_road_recharge_IDN_restoration.tif")
-    ROAD_SERVICE_RECHARGE_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_recharge_PH_conservation_inf.tif")
-    ROAD_SERVICE_RECHARGE_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_road_recharge_PH_restoration.tif")
     ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_inf.tif")
     ROAD_SERVICE_SEDIMENT_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_restoration.tif")
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_inf.tif")
@@ -289,7 +285,6 @@ def main():
     ROAD_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_IDN_restoration_ssp245.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_conservation_inf_ssp245.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_restoration_ssp245.tif")
-    ROAD_SERVICE_RECHARGE_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_recharge_IDN_conservation_inf_ssp245.tif")
 
     DSPOP_SERVICE_RECHARGE_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_restoration_ssp245.tif")
     DSPOP_SERVICE_RECHARGE_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_conservation_inf_ssp245.tif")
@@ -298,9 +293,6 @@ def main():
     DSPOP_SERVICE_SEDIMENT_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_restoration_ssp245.tif")
     DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_inf_ssp245.tif")
     DSPOP_SERVICE_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_restoration_ssp245.tif")
-    ROAD_SERVICE_RECHARGE_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_recharge_IDN_restoration_ssp245.tif")
-    ROAD_SERVICE_RECHARGE_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_recharge_PH_conservation_inf_ssp245.tif")
-    ROAD_SERVICE_RECHARGE_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_recharge_PH_restoration_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_inf_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_restoration_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_inf_ssp245.tif")
@@ -526,9 +518,6 @@ def main():
         (DIFF_SEDIMENT_IDN_RESTORATION,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_dspop_benes_md5_e4d2c4.tif",
          DSPOP_SERVICE_SEDIMENT_IDN_RESTORATION),
-        (DIFF_RECHARGE_IDN_RESTORATION,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
-         ROAD_SERVICE_RECHARGE_IDN_RESTORATION),
         (DIFF_FLOOD_MITIGATION_IDN_RESTORATION,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION),
@@ -544,9 +533,6 @@ def main():
         (DIFF_SEDIMENT_PH_RESTORATION,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_dspop_benes_md5_028732.tif",
          DSPOP_SERVICE_SEDIMENT_PH_RESTORATION),
-        (DIFF_RECHARGE_PH_RESTORATION,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
-         ROAD_SERVICE_RECHARGE_PH_RESTORATION),
         (DIFF_FLOOD_MITIGATION_PH_RESTORATION,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_PH_RESTORATION),
@@ -562,9 +548,6 @@ def main():
         (DIFF_SEDIMENT_IDN_CONSERVATION_INF,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_dspop_benes_md5_e4d2c4.tif",
          DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_INF),
-        (DIFF_RECHARGE_IDN_CONSERVATION_INF,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
-         ROAD_SERVICE_RECHARGE_IDN_CONSERVATION_INF),
         (DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_IDN_CONSERVATION_INF),
@@ -580,9 +563,6 @@ def main():
         (DIFF_SEDIMENT_PH_CONSERVATION_INF,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_dspop_benes_md5_028732.tif",
          DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF),
-        (DIFF_RECHARGE_PH_CONSERVATION_INF,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
-         ROAD_SERVICE_RECHARGE_PH_CONSERVATION_INF),
         (DIFF_FLOOD_MITIGATION_PH_CONSERVATION_INF,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF),
@@ -598,9 +578,6 @@ def main():
         (DIFF_SEDIMENT_IDN_RESTORATION_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_dspop_benes_md5_e4d2c4.tif",
          DSPOP_SERVICE_SEDIMENT_IDN_RESTORATION_SSP245),
-        (DIFF_RECHARGE_IDN_RESTORATION_SSP245,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
-         ROAD_SERVICE_RECHARGE_IDN_RESTORATION_SSP245),
         (DIFF_FLOOD_MITIGATION_IDN_RESTORATION_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION_SSP245),
@@ -616,9 +593,6 @@ def main():
         (DIFF_SEDIMENT_PH_RESTORATION_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_dspop_benes_md5_028732.tif",
          DSPOP_SERVICE_SEDIMENT_PH_RESTORATION_SSP245),
-        (DIFF_RECHARGE_PH_RESTORATION_SSP245,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
-         ROAD_SERVICE_RECHARGE_PH_RESTORATION_SSP245),
         (DIFF_FLOOD_MITIGATION_PH_RESTORATION_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_PH_RESTORATION_SSP245),
@@ -634,9 +608,6 @@ def main():
         (DIFF_SEDIMENT_IDN_CONSERVATION_INF_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_dspop_benes_md5_e4d2c4.tif",
          DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_INF_SSP245),
-        (DIFF_RECHARGE_IDN_CONSERVATION_INF_SSP245,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
-         ROAD_SERVICE_RECHARGE_IDN_CONSERVATION_INF_SSP245),
         (DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_IDN_CONSERVATION_INF_SSP245),
@@ -652,9 +623,6 @@ def main():
         (DIFF_SEDIMENT_PH_CONSERVATION_INF_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_dspop_benes_md5_028732.tif",
          DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245),
-        (DIFF_RECHARGE_PH_CONSERVATION_INF_SSP245,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
-         ROAD_SERVICE_RECHARGE_PH_CONSERVATION_INF_SSP245),
         (DIFF_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245),
