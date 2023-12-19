@@ -185,7 +185,7 @@ def raster_op(
 
 
 def main():
-    RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\final_results'
+    RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_no_road_recharge'
     CLIMATE_RESILIENT_PERCENTILES = os.path.join(RESULTS_DIR, 'climate_resilient_results')
     MASK_SUBSET_DIR = os.path.join(RESULTS_DIR, 'mask_service_subsets')
     for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES, MASK_SUBSET_DIR]:
@@ -200,7 +200,7 @@ def main():
     scenario_list = ['restoration', 'conservation_inf']
     climate_list = ['ssp245']
     beneficiary_list = ['dspop', 'road']
-    top_percentile_list = [25, 10]
+    top_percentile_list = [10]
 
     ADMIN_POLYGONS = {
         'PH': [
