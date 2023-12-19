@@ -58,7 +58,7 @@ def main():
         service_overlap_raster_path = SERVICE_OVERLAP_RASTERS[region_id]
         service_overlap_in_pa_path = os.path.join(
             WORKING_DIR,
-            f'%s_{region_id}_protected_areas%s' % os.path.splitext(
+            f'%s_{region_id}_in_pa%s' % os.path.splitext(
                 service_overlap_raster_path)
             )
         pa_overlap_task = task_graph.add_task(
@@ -76,7 +76,7 @@ def main():
 
         service_overlap_in_kba_path = os.path.join(
             WORKING_DIR,
-            f'%s_{region_id}_protected_areas%s' % os.path.splitext(
+            f'%s_{region_id}_in_kba%s' % os.path.splitext(
                 service_overlap_raster_path)
             )
         kba_overlap_task = task_graph.add_task(
@@ -91,6 +91,45 @@ def main():
                 'allow_different_blocksize': True},
             target_path_list=[service_overlap_in_kba_path],
             task_name=f'kba overlap for {region_id}')
+
+        service_overlap_in_pa_excluding_kba_path = os.path.join(
+            WORKING_DIR,
+            f'%s_{region_id}_in_kba_excluding_pa%s' % os.path.splitext(
+                service_overlap_raster_path)
+            )
+        task_graph.add_task(
+            func=exclude_by_raster,
+            args=(
+                service_overlap_in_kba_path,
+                service_overlap_in_pa_path,
+                service_overlap_in_pa_excluding_kba_path),
+            target_path_list=[service_overlap_in_pa_excluding_kba_path],
+            dependent_task_list=[kba_overlap_task, pa_overlap_task],
+            task_name=f'exclude PA from KBA for {region_id}')
+    task_graph.join()
+    task_graph.close()
+    LOGGER.info(f'all done, results at {RESULTS_DIR}')
+
+
+def exclude_by_raster(
+        base_raster_path, excluder_raster_path, target_raster_path):
+    """Exclude regions in the base that are defined in the excluder."""
+    base_nodata = geoprocessing.get_raster_info(
+        base_raster_path)['nodata'][0]
+    excluder_nodata = geoprocessing.get_raster_info(
+        excluder_raster_path)['nodata'][0]
+
+    def _op(base_array, excluder_array):
+        result = base_array.copy()
+        result[excluder_array != excluder_nodata] = base_nodata
+        return result
+
+    geoprocessing.raster_calculator(
+        [(base_raster_path, 1), (excluder_raster_path, 1)], _op,
+        target_raster_path,
+        geoprocessing.get_raster_info(
+            base_raster_path)['datatype'], base_nodata,
+        allow_different_blocksize=True)
 
 
 if __name__ == '__main__':
