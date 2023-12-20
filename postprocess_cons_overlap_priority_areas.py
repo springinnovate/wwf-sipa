@@ -49,15 +49,11 @@ KEY_BIODIVERSITY_AREAS = {
 
 SERVICE_OVERLAP_RASTERS = {
     'PH': [
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_PH_restoration_road_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_PH_conservation_inf_dspop_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_PH_restoration_dspop_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_PH_conservation_inf_road_service_overlap_count.tif",],
+        "D:/repositories/wwf-sipa/data/admin_boundaries/summed_services/10_PH_conservation_inf_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/data/admin_boundaries/summed_services/10_PH_restoration_service_overlap_count.tif",],
     'IDN': [
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_IDN_conservation_inf_dspop_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_IDN_conservation_inf_road_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_IDN_restoration_dspop_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_IDN_restoration_road_service_overlap_count.tif",]
+        "D:/repositories/wwf-sipa/data/admin_boundaries/summed_services/10_IDN_conservation_inf_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/data/admin_boundaries/summed_services/10_IDN_restoration_service_overlap_count.tif",],
     }
 
 RESULTS_DIR = f'workspace_{os.path.basename(os.path.splitext(__file__)[0])}'
