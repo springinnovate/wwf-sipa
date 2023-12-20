@@ -48,9 +48,17 @@ KEY_BIODIVERSITY_AREAS = {
 }
 
 SERVICE_OVERLAP_RASTERS = {
-    'PH': '',
-    'IDN': '',
-}
+    'PH': [
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_PH_restoration_road_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_PH_conservation_inf_dspop_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_PH_restoration_dspop_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_PH_conservation_inf_road_service_overlap_count.tif",],
+    'IDN': [
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_IDN_conservation_inf_dspop_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_IDN_conservation_inf_road_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_IDN_restoration_dspop_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/10_IDN_restoration_road_service_overlap_count.tif",]
+    }
 
 RESULTS_DIR = f'workspace_{os.path.basename(os.path.splitext(__file__)[0])}'
 WORKING_DIR = os.path.join(RESULTS_DIR, 'working_dir')
@@ -64,71 +72,74 @@ def main():
 
     pixel_counts_per_region = {}
     for region_id in REGIONS_TO_ANALYZE:
-        service_overlap_raster_path = SERVICE_OVERLAP_RASTERS[region_id]
-        service_overlap_in_pa_path = os.path.join(
-            WORKING_DIR,
-            f'%s_{region_id}_in_pa%s' % os.path.splitext(
-                service_overlap_raster_path)
-            )
-        pa_overlap_task = task_graph.add_task(
-            func=geoprocessing.mask_raster,
-            args=(
-                service_overlap_raster_path,
-                PROTECTED_AREAS[region_id],
-                service_overlap_in_pa_path),
-            kwargs={
-                'working_dir': WORKING_DIR,
-                'all_touched': True,
-                'allow_different_blocksize': True},
-            target_path_list=[service_overlap_in_pa_path],
-            task_name=f'pa overlap for {region_id}')
+        for service_overlap_raster_path in SERVICE_OVERLAP_RASTERS[region_id]:
+            service_overlap_in_pa_path = os.path.join(
+                WORKING_DIR,
+                f'%s_{region_id}_in_pa%s' % os.path.splitext(
+                    service_overlap_raster_path)
+                )
+            pa_overlap_task = task_graph.add_task(
+                func=geoprocessing.mask_raster,
+                args=(
+                    service_overlap_raster_path,
+                    PROTECTED_AREAS[region_id],
+                    service_overlap_in_pa_path),
+                kwargs={
+                    'working_dir': WORKING_DIR,
+                    'all_touched': True,
+                    'allow_different_blocksize': True},
+                target_path_list=[service_overlap_in_pa_path],
+                task_name=f'pa overlap for {region_id}')
 
-        service_overlap_in_kba_path = os.path.join(
-            WORKING_DIR,
-            f'%s_{region_id}_in_kba%s' % os.path.splitext(
-                service_overlap_raster_path)
-            )
-        kba_overlap_task = task_graph.add_task(
-            func=geoprocessing.mask_raster,
-            args=(
-                service_overlap_raster_path,
-                KEY_BIODIVERSITY_AREAS[region_id],
-                service_overlap_in_kba_path),
-            kwargs={
-                'working_dir': WORKING_DIR,
-                'all_touched': True,
-                'allow_different_blocksize': True},
-            target_path_list=[service_overlap_in_kba_path],
-            task_name=f'kba overlap for {region_id}')
+            service_overlap_in_kba_path = os.path.join(
+                WORKING_DIR,
+                f'%s_{region_id}_in_kba%s' % os.path.splitext(
+                    service_overlap_raster_path)
+                )
+            kba_overlap_task = task_graph.add_task(
+                func=geoprocessing.mask_raster,
+                args=(
+                    service_overlap_raster_path,
+                    KEY_BIODIVERSITY_AREAS[region_id],
+                    service_overlap_in_kba_path),
+                kwargs={
+                    'working_dir': WORKING_DIR,
+                    'all_touched': True,
+                    'allow_different_blocksize': True},
+                target_path_list=[service_overlap_in_kba_path],
+                task_name=f'kba overlap for {region_id}')
 
-        service_overlap_in_pa_excluding_kba_path = os.path.join(
-            WORKING_DIR,
-            f'%s_{region_id}_in_kba_excluding_pa%s' % os.path.splitext(
-                service_overlap_raster_path)
-            )
-        kba_excluding_pa_overlap_task = task_graph.add_task(
-            func=exclude_by_raster,
-            args=(
-                service_overlap_in_kba_path,
-                service_overlap_in_pa_path,
-                service_overlap_in_pa_excluding_kba_path),
-            target_path_list=[service_overlap_in_pa_excluding_kba_path],
-            dependent_task_list=[kba_overlap_task, pa_overlap_task],
-            task_name=f'exclude PA from KBA for {region_id}')
+            service_overlap_in_pa_excluding_kba_path = os.path.join(
+                WORKING_DIR,
+                f'%s_{region_id}_in_kba_excluding_pa%s' % os.path.splitext(
+                    service_overlap_raster_path)
+                )
+            kba_excluding_pa_overlap_task = task_graph.add_task(
+                func=exclude_by_raster,
+                args=(
+                    service_overlap_in_kba_path,
+                    service_overlap_in_pa_path,
+                    service_overlap_in_pa_excluding_kba_path),
+                target_path_list=[service_overlap_in_pa_excluding_kba_path],
+                dependent_task_list=[kba_overlap_task, pa_overlap_task],
+                task_name=f'exclude PA from KBA for {region_id}')
 
-        pixel_counts = {}
-        for key, raster_path, dependent_task_list in [
-                ('service', service_overlap_raster_path, []),
-                ('service_in_pa', service_overlap_in_pa_path, [pa_overlap_task]),
-                ('service_in_kpa', service_overlap_in_kba_path, [kba_overlap_task]),
-                ('service_in_kpa_excluding_pa', service_overlap_in_pa_excluding_kba_path, [kba_excluding_pa_overlap_task])]
-            pixel_counts[key] = task_graph.add_task(
-                func=count_valid_pixels,
-                args=(raster_path,),
-                dependent_task_list=dependent_task_list,
-                store_result=True,
-                task_name=f'count valid in {region_id} {key}')
-        pixel_counts_per_region[region_id] = pixel_counts
+            pixel_counts = {}
+            for key, raster_path, dependent_task_list in [
+                    ('service', service_overlap_raster_path, []),
+                    ('service_in_pa', service_overlap_in_pa_path, [pa_overlap_task]),
+                    ('service_in_kpa', service_overlap_in_kba_path, [kba_overlap_task]),
+                    ('service_in_kpa_excluding_pa', service_overlap_in_pa_excluding_kba_path, [kba_excluding_pa_overlap_task])]
+                pixel_counts[key] = task_graph.add_task(
+                    func=count_valid_pixels,
+                    args=(raster_path,),
+                    dependent_task_list=dependent_task_list,
+                    store_result=True,
+                    task_name=f'count valid in {region_id} {key}')
+            service_overlap_basename = os.path.basename(
+                os.path.splitext(service_overlap_raster_path)[0])
+            pixel_counts_per_region[
+                f'{region_id}_{service_overlap_raster_path}'] = pixel_counts
 
     task_graph.join()
     task_graph.close()
