@@ -69,6 +69,7 @@ for dir_path in [RESULTS_DIR, WORKING_DIR]:
 def main():
     """Entry point."""
     task_graph = taskgraph.TaskGraph(RESULTS_DIR, os.cpu_count()//2+2, 15.0)
+    #task_graph = taskgraph.TaskGraph(RESULTS_DIR, -1)
 
     pixel_counts_per_region = {}
     for region_id in REGIONS_TO_ANALYZE:
@@ -81,7 +82,7 @@ def main():
             pa_overlap_task = task_graph.add_task(
                 func=geoprocessing.mask_raster,
                 args=(
-                    service_overlap_raster_path,
+                    (service_overlap_raster_path, 1),
                     PROTECTED_AREAS[region_id],
                     service_overlap_in_pa_path),
                 kwargs={
@@ -99,7 +100,7 @@ def main():
             kba_overlap_task = task_graph.add_task(
                 func=geoprocessing.mask_raster,
                 args=(
-                    service_overlap_raster_path,
+                    (service_overlap_raster_path, 1),
                     KEY_BIODIVERSITY_AREAS[region_id],
                     service_overlap_in_kba_path),
                 kwargs={
