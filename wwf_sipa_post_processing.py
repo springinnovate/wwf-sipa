@@ -21,6 +21,11 @@ logging.basicConfig(
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
+RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_no_road_recharge'
+CLIMATE_RESILIENT_PERCENTILES = os.path.join(RESULTS_DIR, 'climate_resilient_results')
+MASK_SUBSET_DIR = os.path.join(RESULTS_DIR, 'mask_service_subsets')
+for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES, MASK_SUBSET_DIR]:
+    os.makedirs(dir_path, exist_ok=True)
 
 def join_mask(mask_a_path, mask_b_path, joined_mask_path):
     """Intersect and a b into joined."""
@@ -185,11 +190,6 @@ def raster_op(
 
 
 def main():
-    RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_no_road_recharge'
-    CLIMATE_RESILIENT_PERCENTILES = os.path.join(RESULTS_DIR, 'climate_resilient_results')
-    MASK_SUBSET_DIR = os.path.join(RESULTS_DIR, 'mask_service_subsets')
-    for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES, MASK_SUBSET_DIR]:
-        os.makedirs(dir_path, exist_ok=True)
 
     # diff x benes x services (4) x scenarios (2) x climage (2)
     country_list = ['PH', 'IDN']
@@ -831,7 +831,7 @@ def local_zonal_stats(prefix, raster_path_list, aggregate_vector_path):
     working_dir = tempfile.mkdtemp(
         prefix='zonal_stats_', dir=os.path.dirname(__file__))
     summed_dir = os.path.join(
-        os.path.dirname(aggregate_vector_path), 'summed_services')
+        RESULTS_DIR, 'summed_services')
     os.makedirs(summed_dir, exist_ok=True)
     fixed_raster_path = os.path.join(
             summed_dir, f'{prefix}.tif')
@@ -867,10 +867,10 @@ def sum_zero_to_nodata(base_raster_path_list, target_raster_path):
         return result
 
     working_dir = tempfile.mkdtemp(
-        prefix='zero_to_nodata_', dir=os.path.dirname(__file__))
+        prefix='zero_to_nodata_', dir=os.path.dirname(target_raster_path))
     pre_cog_target = os.path.join(working_dir, os.path.basename(target_raster_path))
 
-    geoprocessing.raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in base_raster_path_list], _op, pre_cog_target,
         raster_info['datatype'], global_nodata,
         allow_different_blocksize=True)
