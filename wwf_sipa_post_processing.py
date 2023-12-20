@@ -194,9 +194,11 @@ def main():
     # diff x benes x services (4) x scenarios (2) x climage (2)
     country_list = ['PH', 'IDN']
     country_vector_list = [
-        './data/admin_boundaries/PH_gdam2.gpkg',
-        './data/admin_boundaries/IDN_gdam3.gpkg',
+        ('PH', './data/admin_boundaries/PH_gdam2.gpkg'),
+        ('IDN', './data/admin_boundaries/IDN_gdam3.gpkg'),
+        ('IDN', './data/admin_boundaries/IDN_adm1.gpkg'),
     ]
+
     scenario_list = ['restoration', 'conservation_inf']
     climate_list = ['ssp245']
     beneficiary_list = ['dspop', 'road']
@@ -805,7 +807,7 @@ def main():
     # build the stats by polygon
 
     for percentile_value in top_percentile_list:
-        for country_id, country_aggregate_vector in zip(country_list, country_vector_list):
+        for country_id, country_aggregate_vector in country_vector_list:
             for scenario_id in scenario_list:
                 target_vector = os.path.join(
                     RESULTS_DIR,
