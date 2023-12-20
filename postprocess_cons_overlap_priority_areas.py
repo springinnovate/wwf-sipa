@@ -63,7 +63,7 @@ SERVICE_OVERLAP_RASTERS = {
 RESULTS_DIR = f'workspace_{os.path.basename(os.path.splitext(__file__)[0])}'
 WORKING_DIR = os.path.join(RESULTS_DIR, 'working_dir')
 for dir_path in [RESULTS_DIR, WORKING_DIR]:
-    os.path.makedirs(dir_path)
+    os.makedirs(dir_path, exist_ok=True)
 
 
 def main():
