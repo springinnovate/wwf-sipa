@@ -195,7 +195,7 @@ def main():
     country_list = ['PH', 'IDN']
     country_vector_list = [
         ('PH', './data/admin_boundaries/PH_gdam2.gpkg'),
-        ('IDN', './data/admin_boundaries/IDN_gdam3.gpkg'),
+        #('IDN', './data/admin_boundaries/IDN_gdam3.gpkg'),
         ('IDN', './data/admin_boundaries/IDN_adm1.gpkg'),
     ]
 
@@ -811,10 +811,9 @@ def main():
             for scenario_id in scenario_list:
                 target_vector = os.path.join(
                     RESULTS_DIR,
-                    # 25_IDN_restoration_dspop_service_overlap_count
                     f'{percentile_value}_{country_id}_{scenario_id}_service_overlap_count.gpkg')
                 base_raster_list = [
-                    f'final_results/{percentile_value}_{country_id}_{scenario_id}_{beneficiary_id}_service_overlap_count.tif'
+                    f'{RESULTS_DIR}/{percentile_value}_{country_id}_{scenario_id}_{beneficiary_id}_service_overlap_count.tif'
                     for beneficiary_id in beneficiary_list]
                 # TODO: add the base raster list together before aggregating?
                 task_graph.add_task(
@@ -829,7 +828,7 @@ def main():
 
 def local_zonal_stats(prefix, raster_path_list, aggregate_vector_path):
     working_dir = tempfile.mkdtemp(
-        prefix='zonal_stats_', dir=os.path.dirname(__file__))
+        prefix='zonal_stats_', dir=os.path.dirname(aggregate_vector_path))
     summed_dir = os.path.join(
         RESULTS_DIR, 'summed_services')
     os.makedirs(summed_dir, exist_ok=True)
@@ -872,8 +871,7 @@ def sum_zero_to_nodata(base_raster_path_list, target_raster_path):
 
     geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in base_raster_path_list], _op, pre_cog_target,
-        raster_info['datatype'], global_nodata,
-        allow_different_blocksize=True)
+        raster_info['datatype'], global_nodata)
 
     subprocess.check_call(
         f'gdal_translate {pre_cog_target} {target_raster_path} -of COG -co BIGTIFF=YES')
