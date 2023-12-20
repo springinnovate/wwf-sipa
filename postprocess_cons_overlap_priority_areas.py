@@ -72,7 +72,7 @@ def main():
         for service_overlap_raster_path in SERVICE_OVERLAP_RASTERS[region_id]:
             service_overlap_in_pa_path = os.path.join(
                 WORKING_DIR,
-                f'%s_{region_id}_in_pa%s' % os.path.basename(os.path.splitext(
+                f'%s_{region_id}_in_pa%s' % os.path.splitext(os.path.basename(
                     service_overlap_raster_path))
                 )
             pa_overlap_task = task_graph.add_task(
