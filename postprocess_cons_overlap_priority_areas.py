@@ -144,8 +144,12 @@ def main():
         RESULTS_DIR, 'pixel_count_priority_areas.csv'), 'w')
     for region_id, pixel_counts in pixel_counts_per_region.items():
         pixel_count_file.write(f'{region_id}\n')
+        first_val = None
         for service_key, task in pixel_counts.items():
-            pixel_count_file.write(f'{service_key},{task.get()}\n')
+            local_val = task.get()
+            if first_val is None:
+                first_val = local_val
+            pixel_count_file.write(f'{service_key},{local_val},{local_val/first_val*100:.2f}%\n')
     pixel_count_file.close()
     LOGGER.info(f'all done, results at {RESULTS_DIR}')
 
