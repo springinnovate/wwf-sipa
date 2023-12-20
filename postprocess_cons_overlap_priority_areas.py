@@ -62,6 +62,7 @@ def main():
     """Entry point."""
     task_graph = taskgraph.TaskGraph(RESULTS_DIR, os.cpu_count()//2+2, 15.0)
 
+    pixel_counts_per_region = {}
     for region_id in REGIONS_TO_ANALYZE:
         service_overlap_raster_path = SERVICE_OVERLAP_RASTERS[region_id]
         service_overlap_in_pa_path = os.path.join(
@@ -105,7 +106,7 @@ def main():
             f'%s_{region_id}_in_kba_excluding_pa%s' % os.path.splitext(
                 service_overlap_raster_path)
             )
-        task_graph.add_task(
+        kba_excluding_pa_overlap_task = task_graph.add_task(
             func=exclude_by_raster,
             args=(
                 service_overlap_in_kba_path,
@@ -114,9 +115,39 @@ def main():
             target_path_list=[service_overlap_in_pa_excluding_kba_path],
             dependent_task_list=[kba_overlap_task, pa_overlap_task],
             task_name=f'exclude PA from KBA for {region_id}')
+
+        pixel_counts = {}
+        for key, raster_path, dependent_task_list in [
+                ('service', service_overlap_raster_path, []),
+                ('service_in_pa', service_overlap_in_pa_path, [pa_overlap_task]),
+                ('service_in_kpa', service_overlap_in_kba_path, [kba_overlap_task]),
+                ('service_in_kpa_excluding_pa', service_overlap_in_pa_excluding_kba_path, [kba_excluding_pa_overlap_task])]
+            pixel_counts[key] = task_graph.add_task(
+                func=count_valid_pixels,
+                args=(raster_path,),
+                dependent_task_list=dependent_task_list,
+                store_result=True,
+                task_name=f'count valid in {region_id} {key}')
+        pixel_counts_per_region[region_id] = pixel_counts
+
     task_graph.join()
     task_graph.close()
+    pixel_count_file = open(os.path.join(
+        RESULTS_DIR, 'pixel_count_priority_areas.csv'), 'w')
+    for region_id, pixel_counts in pixel_counts_per_region.items():
+        pixel_count_file.write(f'{region_id}\n')
+        for service_key, task in pixel_counts.items():
+            pixel_count_file.write(f'{service_key},{task.get()}\n')
+    pixel_count_file.close()
     LOGGER.info(f'all done, results at {RESULTS_DIR}')
+
+
+def count_valid_pixels(raster_path):
+    nodata = geoprocessing.get_raster_info(raster_path)['nodata'][0]
+    valid_count = 0
+    for _, array in geoprocessing.iterblocks((raster_path, 1)):
+        valid_count += numpy.count_nonzero(array != nodata)
+    return valid_count
 
 
 def exclude_by_raster(
