@@ -172,7 +172,7 @@ def main():
     task_graph.join()
     task_graph.close()
     pixel_count_file = open(os.path.join(
-        RESULTS_DIR, 'pixel_count_priority_areas.csv'), 'w')
+        RESULTS_DIR, 'area_analysis_of_priority_areas.csv'), 'w')
     for region_id, pixel_counts in pixel_counts_per_region.items():
         pixel_count_file.write(f'{region_id}\n')
         pixel_count_file.write(f'service,area in Ha,% of total service\n')
@@ -181,7 +181,7 @@ def main():
             _, area_in_ha = task.get()
             if first_val is None:
                 first_val = area_in_ha
-            pixel_count_file.write(f'{service_key},{area_in_ha},{area_in_ha/first_val*100:.2f}%\n')
+            pixel_count_file.write(f'{service_key},{area_in_ha:.1f},{area_in_ha/first_val*100:.2f}%\n')
     pixel_count_file.close()
     LOGGER.info(f'all done, results at {RESULTS_DIR}')
 
