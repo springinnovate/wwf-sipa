@@ -793,6 +793,7 @@ def main():
         percentile_groups[index_substring].append(percentile_raster_path)
 
     LOGGER.debug(f'these are the percentile groups: {list(percentile_groups.keys())}')
+    overlap_file_list = open('overlap.txt', 'w')
     for key, percentile_raster_group in percentile_groups.items():
         service_overlap_raster_path = os.path.join(RESULTS_DIR, f'{key}service_overlap_count.tif')
         _ = task_graph.add_task(
@@ -801,11 +802,14 @@ def main():
             dependent_task_list=resilient_task_list,
             target_path_list=[service_overlap_raster_path],
             task_name=f'collect service count for {key}')
+        overlap_file_list.write(f'{service_overlap_raster_path}:\n\t')
+        overlap_file_list.write('\n\t'.join(percentile_raster_group))
+        overlap_file_list.write('\n')
+    overlap_file_list.close()
 
     task_graph.join()
 
     # build the stats by polygon
-
     for percentile_value in top_percentile_list:
         for country_id, country_aggregate_vector in country_vector_list:
             for scenario_id in scenario_list:

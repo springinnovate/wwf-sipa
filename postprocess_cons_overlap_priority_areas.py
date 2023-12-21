@@ -62,6 +62,37 @@ for dir_path in [RESULTS_DIR, WORKING_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 
+def area_of_pixel_km2(pixel_size, center_lat):
+    """Calculate km^2 area of a wgs84 square pixel.
+
+    Adapted from: https://gis.stackexchange.com/a/127327/2397
+
+    Parameters:
+        pixel_size (float): length of side of pixel in degrees.
+        center_lat (float): latitude of the center of the pixel. Note this
+            value +/- half the `pixel-size` must not exceed 90/-90 degrees
+            latitude or an invalid area will be calculated.
+
+    Returns:
+        Area of square pixel of side length `pixel_size` centered at
+        `center_lat` in km^2.
+
+    """
+    a = 6378137  # meters
+    b = 6356752.3142  # meters
+    e = numpy.sqrt(1 - (b/a)**2)
+    area_list = []
+    for f in [center_lat+pixel_size/2, center_lat-pixel_size/2]:
+        zm = 1 - e*numpy.sin(numpy.radians(f))
+        zp = 1 + e*numpy.sin(numpy.radians(f))
+        area_list.append(
+            numpy.pi * b**2 * (
+                numpy.log(zp/zm) / (2*e) +
+                numpy.sin(numpy.radians(f)) / (zp*zm)))
+    # mult by 1e-6 to convert m^2 to km^2
+    return pixel_size / 360. * (area_list[0] - area_list[1]) * 1e-6
+
+
 def main():
     """Entry point."""
     task_graph = taskgraph.TaskGraph(RESULTS_DIR, os.cpu_count()//2+2, 15.0)
@@ -90,8 +121,8 @@ def main():
 
             service_overlap_in_kba_path = os.path.join(
                 WORKING_DIR,
-                f'%s_{region_id}_in_kba%s' % os.path.splitext(
-                    service_overlap_raster_path)
+                f'%s_{region_id}_in_kba%s' % os.path.splitext(os.path.basename(
+                    service_overlap_raster_path))
                 )
             kba_overlap_task = task_graph.add_task(
                 func=geoprocessing.mask_raster,
@@ -109,7 +140,7 @@ def main():
             service_overlap_in_pa_excluding_kba_path = os.path.join(
                 WORKING_DIR,
                 f'%s_{region_id}_in_kba_excluding_pa%s' % os.path.splitext(
-                    service_overlap_raster_path)
+                    os.path.basename(service_overlap_raster_path))
                 )
             kba_excluding_pa_overlap_task = task_graph.add_task(
                 func=exclude_by_raster,
@@ -144,22 +175,34 @@ def main():
         RESULTS_DIR, 'pixel_count_priority_areas.csv'), 'w')
     for region_id, pixel_counts in pixel_counts_per_region.items():
         pixel_count_file.write(f'{region_id}\n')
+        pixel_count_file.write(f'service,area in Ha,% of total service\n')
         first_val = None
         for service_key, task in pixel_counts.items():
-            local_val = task.get()
+            _, area_in_ha = task.get()
             if first_val is None:
-                first_val = local_val
-            pixel_count_file.write(f'{service_key},{local_val},{local_val/first_val*100:.2f}%\n')
+                first_val = area_in_ha
+            pixel_count_file.write(f'{service_key},{area_in_ha},{area_in_ha/first_val*100:.2f}%\n')
     pixel_count_file.close()
     LOGGER.info(f'all done, results at {RESULTS_DIR}')
 
 
 def count_valid_pixels(raster_path):
-    nodata = geoprocessing.get_raster_info(raster_path)['nodata'][0]
+    raster_info = geoprocessing.get_raster_info(raster_path)
+    nodata = raster_info['nodata'][0]
+    gt = raster_info['geotransform']
+
     valid_count = 0
-    for _, array in geoprocessing.iterblocks((raster_path, 1)):
-        valid_count += numpy.count_nonzero(array != nodata)
-    return valid_count
+    total_area_ha = 0
+    for offset_dict, array in geoprocessing.iterblocks((raster_path, 1)):
+        x_coord, y_coord = gdal.ApplyGeoTransform(
+            gt,
+            offset_dict['xoff']+offset_dict['win_xsize']/2,
+            offset_dict['yoff']+offset_dict['win_ysize']/2)
+        pixel_area_in_ha = 100*area_of_pixel_km2(raster_info['pixel_size'][0], y_coord)
+        local_valid_count = numpy.count_nonzero(array != nodata)
+        valid_count += local_valid_count
+        total_area_ha += pixel_area_in_ha*local_valid_count
+    return valid_count, total_area_ha
 
 
 def exclude_by_raster(
