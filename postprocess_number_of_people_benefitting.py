@@ -206,8 +206,19 @@ def merge_and_mask_raster(
 
     merged_raster_path = os.path.join(temp_dir, f'merged_{basename}.tif')
 
+    a_nodata = geoprocessing.get_raster_info(mask_a_path)['nodata'][0]
+    b_nodata = geoprocessing.get_raster_info(mask_b_path)['nodata'][0]
+
     def _merge_op(array_a, array_b):
-        return ((array_a >= 1) | (array_b >= 1)).astype(int)
+        if a_nodata is None:
+            a_mask = array_a > 0
+        else:
+            a_mask = array_a != a_nodata
+        if b_nodata is None:
+            b_mask = array_b > 0
+        else:
+            b_mask = array_b != b_nodata
+        return (a_mask | b_mask).astype(int)
     geoprocessing.raster_calculator(
         [(mask_a_path, 1), (mask_b_path, 1)], _merge_op,
         merged_raster_path, gdal.GDT_Byte, None)
@@ -314,7 +325,7 @@ def main():
                             f'{local_sum}\n')
                 else:
                     results_table.write(
-                        f'{region_id},{local_region_id},{value}\n')
+                        f'{region_id},{local_region_id},,{value}\n')
     task_graph.close()
     LOGGER.info(f'all done, results in {RESULTS_DIR}')
 
