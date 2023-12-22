@@ -71,22 +71,22 @@ SERVICE_OVERLAP_RASTERS = {
 
 AOI_REGIONS = {
     'PH': {
-        'total': (None, None),
-        'municipality': (r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg", 'NAME_1'),
-        'visayas': (r"D:\repositories\wwf-sipa\data\island_groups\ph_visayas.gpkg", None),
         'luzon': (r"D:\repositories\wwf-sipa\data\island_groups\ph_luzon.gpkg", None),
         'mindanao': (r"D:\repositories\wwf-sipa\data\island_groups\ph_mindanao.gpkg", None),
+        'municipality': (r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg", 'NAME_1'),
+        'total': (None, None),
+        'visayas': (r"D:\repositories\wwf-sipa\data\island_groups\ph_visayas.gpkg", None),
     },
     'IDN': {
-        'total': (None, None),
-        'provence': (r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg", 'NAME_1'),
         'java': (r"D:\repositories\wwf-sipa\data\island_groups\idn_java.gpkg", None),
         'kalimantan': (r"D:\repositories\wwf-sipa\data\island_groups\idn_kalimantan.gpkg", None),
         'maluku_islands': (r"D:\repositories\wwf-sipa\data\island_groups\idn_maluku_islands.gpkg", None),
         'nusa_tenggara': (r"D:\repositories\wwf-sipa\data\island_groups\idn_nusa_tenggara.gpkg", None),
         'paupa': (r"D:\repositories\wwf-sipa\data\island_groups\idn_paupa.gpkg", None, ),
+        'provence': (r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg", 'NAME_1'),
         'sulawesi': (r"D:\repositories\wwf-sipa\data\island_groups\idn_sulawesi.gpkg", None),
         'sumatra': (r"D:\repositories\wwf-sipa\data\island_groups\idn_sumatra.gpkg", None),
+        'total': (None, None),
     },
 }
 
@@ -94,7 +94,7 @@ AOI_REGIONS = {
 def route_dem(
         dem_path, flow_dir_path, outlet_raster_path):
     """Turn DEM into flow direction raster."""
-    basename = os.path.dirname(os.path.splitext(flow_dir_path)[0])
+    basename = os.path.basename(os.path.splitext(flow_dir_path)[0])
     temp_dir = tempfile.mkdtemp(
         dir=os.path.dirname(flow_dir_path), prefix=f'route_dem_{basename}')
     filled_dem_raster_path = os.path.join(temp_dir, f'filled_{basename}.tif')
@@ -134,10 +134,10 @@ def route_dem(
 
 def lowlying_area_mask(dem_path, lowlying_area_raster_path):
     """Calculate low-lying coastal areas <2m w/in 2km of coast."""
-    basename = os.path.dirname(os.path.splitext(lowlying_area_raster_path)[0])
+    basename = os.path.basename(os.path.splitext(lowlying_area_raster_path)[0])
     temp_dir = tempfile.mkdtemp(
         dir=os.path.dirname(lowlying_area_raster_path),
-        prefix=f'route_dem_{basename}')
+        prefix=f'lowlying_area_{basename}')
     nodata_mask_raster_path = os.path.join(temp_dir, 'nodata_mask.tif')
     nodata = geoprocessing.get_raster_info(dem_path)['nodata'][0]
 
@@ -146,7 +146,7 @@ def lowlying_area_mask(dem_path, lowlying_area_raster_path):
         return result
     geoprocessing.raster_calculator(
         [(dem_path, 1)], _nodata_mask_op, nodata_mask_raster_path,
-        gdal.GDT_Byte, None)
+        gdal.GDT_Byte, None, allow_different_blocksize=True)
 
     distance_raster_path = os.path.join(temp_dir, 'distance.tif')
     geoprocessing.distance_transform_edt(
@@ -161,7 +161,8 @@ def lowlying_area_mask(dem_path, lowlying_area_raster_path):
         return result.astype(int)
     geoprocessing.raster_calculator(
         [(dem_path, 1), (distance_raster_path, 1)], _lowlying_op,
-        lowlying_area_raster_path, gdal.GDT_Byte, None)
+        lowlying_area_raster_path, gdal.GDT_Byte, None,
+        allow_different_blocksize=True)
     # shutil.rmtree(temp_dir)
 
 
@@ -200,9 +201,9 @@ def calc_sum_by_mask(base_raster_path, vector_path, field_val):
 def merge_and_mask_raster(
         mask_a_path, mask_b_path, raster_to_mask, target_mask_path):
     """Merge a and b and resize so it fits reference."""
-    basename = os.path.dirname(os.path.splitext(target_mask_path)[0])
+    basename = os.path.basename(os.path.splitext(target_mask_path)[0])
     temp_dir = tempfile.mkdtemp(
-        dir=os.path.dirname(target_mask_path), prefix=f'route_dem_{basename}')
+        dir=os.path.dirname(target_mask_path), prefix=f'merge_and_mask_{basename}')
 
     merged_raster_path = os.path.join(temp_dir, f'merged_{basename}.tif')
 
@@ -238,7 +239,7 @@ def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, os.cpu_count(), 15.0)
     sum_results = {}
     for region_id in REGIONS_TO_ANALYZE:
-        basename = os.path.basename(os.path.splitext(DEM_PATHS[region_id][0]))
+        basename = os.path.basename(os.path.splitext(DEM_PATHS[region_id])[0])
         flow_dir_path = os.path.join(WORKING_DIR, f'flow_dir_{basename}.tif')
         outlet_raster_path = os.path.join(
             WORKING_DIR, f'outlet_{basename}.tif')
@@ -275,9 +276,9 @@ def main():
                 dependent_task_list=[route_task],
                 task_name=f'downstream mask for {service_basename}')
             pop_basename = os.path.basename(
-                os.path.splitext(POP_PATHS[region_id][0]))
+                os.path.splitext(POP_PATHS[region_id])[0])
             masked_population_path = os.path.join(
-                WORKING_DIR, f'masked_{pop_basename}.tif')
+                WORKING_DIR, f'masked_{pop_basename}_by_{service_basename}.tif')
             # warp masks so it fits the population raster
             merge_and_mask_task = task_graph.add_task(
                 func=merge_and_mask_raster,
@@ -290,7 +291,7 @@ def main():
 
             local_region_sum_results = {}
             for local_region_id, (vector_path, field_name) in \
-                    AOI_REGIONS.items():
+                    AOI_REGIONS[region_id].items():
                 sum_by_mask_task = task_graph.add_task(
                     func=calc_sum_by_mask,
                     args=(masked_population_path, vector_path, field_name),
