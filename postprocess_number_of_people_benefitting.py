@@ -48,7 +48,7 @@ for dir_path in [RESULTS_DIR, WORKING_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 
-REGIONS_TO_ANALYZE = ['PH', 'IDN']
+REGIONS_TO_ANALYZE = ['PH',] #  TODO: 'IDN']
 
 DEM_PATHS = {
     'PH': r"D:\repositories\wwf-sipa\data\ph_dem.tif",
@@ -62,11 +62,11 @@ POP_PATHS = {
 
 SERVICE_OVERLAP_RASTERS = {
     'PH': [
-        "D:/repositories/wwf-sipa/data/admin_boundaries/summed_services/10_PH_conservation_inf_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/data/admin_boundaries/summed_services/10_PH_restoration_service_overlap_count.tif",],
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_PH_conservation_inf_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_PH_restoration_service_overlap_count.tif",],
     'IDN': [
-        "D:/repositories/wwf-sipa/data/admin_boundaries/summed_services/10_IDN_conservation_inf_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/data/admin_boundaries/summed_services/10_IDN_restoration_service_overlap_count.tif",],
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_IDN_conservation_inf_service_overlap_count.tif",
+        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_IDN_restoration_service_overlap_count.tif",],
 }
 
 AOI_REGIONS = {

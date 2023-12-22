@@ -820,6 +820,8 @@ def main():
     # build the stats by polygon
     for percentile_value in top_percentile_list:
         for country_id, country_aggregate_vector in country_vector_list:
+            if country_id.lower() == 'idn':
+                continue
             for scenario_id in scenario_list:
                 target_vector = os.path.join(
                     RESULTS_DIR,
