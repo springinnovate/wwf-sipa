@@ -235,7 +235,7 @@ def merge_and_mask_raster(
 
 def main():
     """Entry point."""
-    task_graph = taskgraph.TaskGraph(WORKING_DIR, os.cpu_count())
+    task_graph = taskgraph.TaskGraph(WORKING_DIR, os.cpu_count(), 15.0)
     sum_results = {}
     for region_id in REGIONS_TO_ANALYZE:
         basename = os.path.basename(os.path.splitext(DEM_PATHS[region_id]))
