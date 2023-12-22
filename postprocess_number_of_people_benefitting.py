@@ -170,8 +170,12 @@ def calc_sum_by_mask(base_raster_path, vector_path, field_val):
     if vector_path is None:
         # sum by total
         running_sum = 0
+        nodata = geoprocessing.get_raster_info(base_raster_path)['nodata'][0]
         for _, array in geoprocessing.iterblocks((base_raster_path, 1)):
-            running_sum = numpy.sum(array)
+            if nodata is None:
+                running_sum += numpy.sum(array)
+            else:
+                running_sum += numpy.sum(array[array != nodata])
         return running_sum
 
     zonal_stats = geoprocessing.zonal_statistics(
@@ -241,8 +245,8 @@ def merge_and_mask_raster(
 
     geoprocessing.raster_calculator(
         [(warped_merged_raster_path, 1), (raster_to_mask, 1)], _mask_op,
-        target_mask_path, reference_raster_info['datatype'], None)
-    # shutil.rmtree(temp_dir)
+        target_mask_path, reference_raster_info['datatype'],
+        reference_raster_info['nodata'][0])
 
 
 def main():
