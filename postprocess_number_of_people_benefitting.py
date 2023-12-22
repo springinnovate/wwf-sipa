@@ -71,22 +71,22 @@ SERVICE_OVERLAP_RASTERS = {
 
 AOI_REGIONS = {
     'PH': {
+        'total': (None, None),
+        'municipality': (r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_gdam2.gpkg", 'NAME_2'),
         'luzon': (r"D:\repositories\wwf-sipa\data\island_groups\ph_luzon.gpkg", None),
         'mindanao': (r"D:\repositories\wwf-sipa\data\island_groups\ph_mindanao.gpkg", None),
-        'municipality': (r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_gdam2.gpkg", 'NAME_2'),
-        'total': (None, None),
         'visayas': (r"D:\repositories\wwf-sipa\data\island_groups\ph_visayas.gpkg", None),
     },
     'IDN': {
+        'total': (None, None),
+        'provence': (r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg", 'NAME_1'),
         'java': (r"D:\repositories\wwf-sipa\data\island_groups\idn_java.gpkg", None),
         'kalimantan': (r"D:\repositories\wwf-sipa\data\island_groups\idn_kalimantan.gpkg", None),
         'maluku_islands': (r"D:\repositories\wwf-sipa\data\island_groups\idn_maluku_islands.gpkg", None),
         'nusa_tenggara': (r"D:\repositories\wwf-sipa\data\island_groups\idn_nusa_tenggara.gpkg", None),
         'paupa': (r"D:\repositories\wwf-sipa\data\island_groups\idn_paupa.gpkg", None, ),
-        'provence': (r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg", 'NAME_1'),
         'sulawesi': (r"D:\repositories\wwf-sipa\data\island_groups\idn_sulawesi.gpkg", None),
         'sumatra': (r"D:\repositories\wwf-sipa\data\island_groups\idn_sumatra.gpkg", None),
-        'total': (None, None),
     },
 }
 
