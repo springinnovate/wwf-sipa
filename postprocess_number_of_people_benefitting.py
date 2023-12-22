@@ -124,7 +124,7 @@ def route_dem(
         geom = feature.GetGeometryRef()
         x_coord, y_coord = gdal.ApplyGeoTransform(
             inv_gt, geom.GetX(), geom.GetY())
-        band.WriteArray([[1]], xoff=x_coord, yoff=y_coord)
+        band.WriteArray(numpy.array([[1]]), xoff=x_coord, yoff=y_coord)
     band = None
     raster = None
     vector = None
