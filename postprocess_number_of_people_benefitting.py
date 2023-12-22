@@ -236,7 +236,8 @@ def merge_and_mask_raster(
 
     def _mask_op(mask_array, base_array):
         result = base_array.copy()
-        result[mask_array < 0] = 0
+        result[mask_array != 1] = 0
+        return result
 
     geoprocessing.raster_calculator(
         [(warped_merged_raster_path, 1), (raster_to_mask, 1)], _mask_op,
