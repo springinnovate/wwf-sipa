@@ -238,7 +238,7 @@ def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, os.cpu_count(), 15.0)
     sum_results = {}
     for region_id in REGIONS_TO_ANALYZE:
-        basename = os.path.basename(os.path.splitext(DEM_PATHS[region_id]))
+        basename = os.path.basename(os.path.splitext(DEM_PATHS[region_id][0]))
         flow_dir_path = os.path.join(WORKING_DIR, f'flow_dir_{basename}.tif')
         outlet_raster_path = os.path.join(
             WORKING_DIR, f'outlet_{basename}.tif')
@@ -275,7 +275,7 @@ def main():
                 dependent_task_list=[route_task],
                 task_name=f'downstream mask for {service_basename}')
             pop_basename = os.path.basename(
-                os.path.splitext(POP_PATHS[region_id]))
+                os.path.splitext(POP_PATHS[region_id][0]))
             masked_population_path = os.path.join(
                 WORKING_DIR, f'masked_{pop_basename}.tif')
             # warp masks so it fits the population raster
