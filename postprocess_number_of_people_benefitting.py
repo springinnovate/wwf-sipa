@@ -169,11 +169,22 @@ def lowlying_area_mask(
     coastal_protected_area_mask_path = os.path.join(
         temp_dir, 'coastal_protected_area_mask.tif')
 
+    warped_protected_area_raster_path = '%s_warped%s' % os.path.splitext(
+        protected_area_mask_path)
+    dem_raster_info = geoprocessing.get_raster_info(dem_path)
+    geoprocessing.warp_raster(
+        protected_area_mask_path, dem_raster_info['pixel_size'],
+        warped_protected_area_raster_path, 'near',
+        target_bb=dem_raster_info['bounding_box'],
+        target_projection_wkt=dem_raster_info['projection_wkt'],
+        working_dir=temp_dir,
+        output_type=gdal.GDT_Byte)
+
     def _mask_coastal_protected_areas_op(protected_array, coastal_dist_array):
         result = (protected_array == 1) & (coastal_dist_array <= 2000)
         return result
     geoprocessing.raster_calculator(
-        [(protected_area_mask_path, 1),
+        [(warped_protected_area_raster_path, 1),
          (coastal_distance_raster_path, 1)],
         _mask_coastal_protected_areas_op,
         coastal_protected_area_mask_path, gdal.GDT_Byte, None,
