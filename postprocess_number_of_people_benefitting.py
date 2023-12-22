@@ -170,7 +170,7 @@ def calc_sum_by_mask(base_raster_path, vector_path, field_val):
     if vector_path is None:
         # sum by total
         running_sum = 0
-        for _, array in geoprocessing.iterblocks(base_raster_path):
+        for _, array in geoprocessing.iterblocks((base_raster_path, 1)):
             running_sum = numpy.sum(array)
         return running_sum
 
@@ -189,7 +189,7 @@ def calc_sum_by_mask(base_raster_path, vector_path, field_val):
     layer = vector.GetLayer()
 
     result_by_fieldname = {
-        layer.GetFid(fid).GetField(field_val): value_dict['sum']
+        layer.GetFeature(fid).GetField(field_val): value_dict['sum']
         for fid, value_dict in zonal_stats.items()
     }
     vector = None
