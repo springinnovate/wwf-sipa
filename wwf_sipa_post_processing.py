@@ -153,6 +153,7 @@ def raster_op(
         target_nodata = nodata_list[0]
 
     def _op(*array_list):
+        final_valid_mask = numpy.zeros(array_list[0].shape, dtype=bool)
         if op_str == '-':
             result = array_list[0]
             array_list = array_list[1:]
@@ -160,12 +161,17 @@ def raster_op(
             result = numpy.zeros(array_list[0].shape)
         elif op_str == '*':
             result = numpy.ones(array_list[0].shape)
-        final_valid_mask = numpy.zeros(array_list[0].shape, dtype=bool)
+            final_valid_mask[:] = True  # all vals need to be defined for mult
         for array, nodata in zip(array_list, nodata_list):
             local_valid_mask = numpy.isfinite(array) & (array != 0)
             if nodata is not None:
                 local_valid_mask &= (array != nodata)
-            final_valid_mask |= local_valid_mask
+            if op_str == '*':
+                # if * then all values need to be defined
+                final_valid_mask &= local_valid_mask
+            else:
+                # otherwise we treat nodata as 0
+                final_valid_mask |= local_valid_mask
             eval_str = (
                 f'result[local_valid_mask] {op_str} array[local_valid_mask]')
             result[local_valid_mask] = eval(eval_str)
