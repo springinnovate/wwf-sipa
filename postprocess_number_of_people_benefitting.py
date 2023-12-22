@@ -104,7 +104,6 @@ def route_dem(
         working_dir=temp_dir,
         max_pixel_fill_count=10000)
 
-    flow_dir_path = os.path.join(temp_dir, f'flow_dir_d8_{basename}.tif')
     routing.flow_dir_d8(
         (filled_dem_raster_path, 1), flow_dir_path, working_dir=temp_dir)
 
