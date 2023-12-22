@@ -60,6 +60,11 @@ POP_PATHS = {
     'IDN': r"D:\repositories\wwf-sipa\data\pop\idn_ppp_2020.tif",
 }
 
+PROTECTED_AREAS = {
+    'PH': 'D:/repositories/wwf-sipa/data/protected_areas/PH_Combined_PAs',
+    'IDN': 'D:/repositories/wwf-sipa/data/protected_areas/ID_Combined PAs',
+}
+
 SERVICE_OVERLAP_RASTERS = {
     'PH': [
         "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_PH_conservation_inf_service_overlap_count.tif",
@@ -131,7 +136,8 @@ def route_dem(
     # shutil.rmtree(temp_dir)
 
 
-def lowlying_area_mask(dem_path, lowlying_area_raster_path):
+def lowlying_area_mask(
+        dem_path, protected_area_vector_path, lowlying_area_raster_path):
     """Calculate low-lying coastal areas <2m w/in 2km of coast."""
     basename = os.path.basename(os.path.splitext(lowlying_area_raster_path)[0])
     temp_dir = tempfile.mkdtemp(
@@ -147,19 +153,50 @@ def lowlying_area_mask(dem_path, lowlying_area_raster_path):
         [(dem_path, 1)], _nodata_mask_op, nodata_mask_raster_path,
         gdal.GDT_Byte, None, allow_different_blocksize=True)
 
-    distance_raster_path = os.path.join(temp_dir, 'distance.tif')
+    coastal_distance_raster_path = os.path.join(
+        temp_dir, 'coastal_distance.tif')
     geoprocessing.distance_transform_edt(
-        (nodata_mask_raster_path, 1), distance_raster_path,
+        (nodata_mask_raster_path, 1), coastal_distance_raster_path,
         sampling_distance=(90., 90.),
         working_dir=temp_dir, clean_working_dir=True)
 
-    def _lowlying_op(dem_array, dist_array):
+    # rasterize protected areas then distance transform them
+    protected_area_mask_path = os.path.join(
+        temp_dir, 'protected_area_mask.tif')
+    geoprocessing.new_raster_from_base(
+        dem_path, protected_area_mask_path, gdal.GDT_Byte, [0])
+    geoprocessing.rasterize(
+        protected_area_vector_path, protected_area_mask_path,
+        burn_values=[1])
+
+    # only keep areas within 2km of the coast
+    coastal_protected_area_mask_path = os.path.join(
+        temp_dir, 'coastal_protected_area_mask.tif')
+
+    def _mask_coastal_protected_areas_op(protected_array, coastal_dist_array):
+        result = (protected_array == 1) & (coastal_dist_array <= 2000)
+        return result
+    geoprocessing.raster_calculator(
+        [(protected_area_mask_path, 1),
+         (coastal_distance_raster_path, 1)],
+        _mask_coastal_protected_areas_op,
+        coastal_protected_area_mask_path, gdal.GDT_Byte, None,
+        allow_different_blocksize=True)
+
+    protected_distance_raster_path = os.path.join(
+        temp_dir, 'protected_distance.tif')
+    geoprocessing.distance_transform_edt(
+        (coastal_protected_area_mask_path, 1), protected_distance_raster_path,
+        sampling_distance=(90., 90.),
+        working_dir=temp_dir, clean_working_dir=True)
+
+    def _lowlying_op(dem_array, protected_area_dist_array):
         # filter by DEM <= 2m and within 2km of shore
         result = (
-            (dem_array != nodata) & (dem_array <= 2) & (dist_array <= 2000))
+            (dem_array != nodata) & (dem_array <= 2) & (protected_area_dist_array <= 2000))
         return result.astype(int)
     geoprocessing.raster_calculator(
-        [(dem_path, 1), (distance_raster_path, 1)], _lowlying_op,
+        [(dem_path, 1), (protected_distance_raster_path, 1)], _lowlying_op,
         lowlying_area_raster_path, gdal.GDT_Byte, None,
         allow_different_blocksize=True)
     # shutil.rmtree(temp_dir)
@@ -269,7 +306,8 @@ def main():
             WORKING_DIR, f'lowlying_mask_{basename}.tif')
         lowlying_task = task_graph.add_task(
             func=lowlying_area_mask,
-            args=(DEM_PATHS[region_id], lowlying_area_raster_path),
+            args=(DEM_PATHS[region_id], PROTECTED_AREAS[region_id],
+                  lowlying_area_raster_path),
             target_path_list=[lowlying_area_raster_path],
             task_name=f'calc lowlying areas {basename}')
 
