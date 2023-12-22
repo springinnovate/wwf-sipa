@@ -60,11 +60,6 @@ POP_PATHS = {
     'IDN': r"D:\repositories\wwf-sipa\data\pop\idn_ppp_2020.tif",
 }
 
-PROTECTED_AREAS = {
-    'PH': 'D:/repositories/wwf-sipa/data/protected_areas/PH_Combined_PAs',
-    'IDN': 'D:/repositories/wwf-sipa/data/protected_areas/ID_Combined PAs',
-}
-
 SERVICE_OVERLAP_RASTERS = {
     'PH': [
         "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_PH_conservation_inf_service_overlap_count.tif",
@@ -133,11 +128,11 @@ def route_dem(
     raster = None
     vector = None
     layer = None
-    # shutil.rmtree(temp_dir)
+    shutil.rmtree(temp_dir)
 
 
 def lowlying_area_mask(
-        dem_path, protected_area_vector_path, lowlying_area_raster_path):
+        dem_path, priority_area_mask_raster_path, lowlying_area_raster_path):
     """Calculate low-lying coastal areas <2m w/in 2km of coast."""
     basename = os.path.basename(os.path.splitext(lowlying_area_raster_path)[0])
     temp_dir = tempfile.mkdtemp(
@@ -163,11 +158,12 @@ def lowlying_area_mask(
     # rasterize protected areas then distance transform them
     protected_area_mask_path = os.path.join(
         temp_dir, 'protected_area_mask.tif')
-    geoprocessing.new_raster_from_base(
-        dem_path, protected_area_mask_path, gdal.GDT_Byte, [0])
-    geoprocessing.rasterize(
-        protected_area_vector_path, protected_area_mask_path,
-        burn_values=[1])
+    def _mask_valid(array):
+        return (array > 0).astype(int)
+    geoprocessing.raster_calculator(
+        [(priority_area_mask_raster_path, 1)], _mask_valid,
+        protected_area_mask_path, gdal.GDT_Byte, None,
+        allow_different_blocksize=True)
 
     # only keep areas within 2km of the coast
     coastal_protected_area_mask_path = os.path.join(
@@ -199,7 +195,7 @@ def lowlying_area_mask(
         [(dem_path, 1), (protected_distance_raster_path, 1)], _lowlying_op,
         lowlying_area_raster_path, gdal.GDT_Byte, None,
         allow_different_blocksize=True)
-    # shutil.rmtree(temp_dir)
+    shutil.rmtree(temp_dir)
 
 
 def calc_sum_by_mask(base_raster_path, vector_path, field_val):
@@ -301,21 +297,22 @@ def main():
             target_path_list=[flow_dir_path, outlet_raster_path],
             task_name=f'route {basename}')
 
-        # TODO: delinate areas <2m within 2km of the coast
-        lowlying_area_raster_path = os.path.join(
-            WORKING_DIR, f'lowlying_mask_{basename}.tif')
-        lowlying_task = task_graph.add_task(
-            func=lowlying_area_mask,
-            args=(DEM_PATHS[region_id], PROTECTED_AREAS[region_id],
-                  lowlying_area_raster_path),
-            target_path_list=[lowlying_area_raster_path],
-            task_name=f'calc lowlying areas {basename}')
-
         for service_overlap_raster_path in SERVICE_OVERLAP_RASTERS[region_id]:
             # TODO: warp service overlap to fit DEM
             # delineate the areas downstream of 10% mask
+            # TODO: delinate areas <2m within 2km of the coast
             service_basename = os.path.basename(
                 os.path.splitext(service_overlap_raster_path)[0])
+
+            lowlying_area_raster_path = os.path.join(
+                WORKING_DIR, f'coastal_benefit_areas_{basename}_{service_basename}.tif')
+            lowlying_task = task_graph.add_task(
+                func=lowlying_area_mask,
+                args=(DEM_PATHS[region_id], service_overlap_raster_path,
+                      lowlying_area_raster_path),
+                target_path_list=[lowlying_area_raster_path],
+                task_name=f'calc lowlying areas {basename}')
+
             downstream_mask_raster_path = os.path.join(
                 WORKING_DIR, f'{service_basename}_downstream_mask.tif')
             downstream_mask_task = task_graph.add_task(
