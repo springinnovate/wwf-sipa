@@ -327,10 +327,10 @@ def main():
                     for sub_region_id, local_sum in value.items():
                         results_table.write(
                             f'{region_id},{local_region_id},{sub_region_id},'
-                            f'{local_sum}\n')
+                            f'{local_sum:.0f}\n')
                 else:
                     results_table.write(
-                        f'{region_id},{local_region_id},,{value}\n')
+                        f'{region_id},{local_region_id},,{value:.0f}\n')
     task_graph.close()
     LOGGER.info(f'all done, results in {RESULTS_DIR}')
 
