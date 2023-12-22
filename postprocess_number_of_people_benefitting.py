@@ -307,30 +307,44 @@ def main():
             local_region_sum_results = {}
             for local_region_id, (vector_path, field_name) in \
                     AOI_REGIONS[region_id].items():
-                sum_by_mask_task = task_graph.add_task(
+                sum_masked_pop_by_mask_task = task_graph.add_task(
                     func=calc_sum_by_mask,
                     args=(masked_population_path, vector_path, field_name),
                     store_result=True,
                     dependent_task_list=[merge_and_mask_task],
                     task_name=f'sum up {local_region_id} in {region_id}')
-                local_region_sum_results[local_region_id] = sum_by_mask_task
+                sum_total_pop_by_mask_task = task_graph.add_task(
+                    func=calc_sum_by_mask,
+                    args=(POP_PATHS[region_id], vector_path, field_name),
+                    store_result=True,
+                    dependent_task_list=[merge_and_mask_task],
+                    task_name=f'sum up {local_region_id} in {region_id}')
+
+                local_region_sum_results[local_region_id] = (
+                    sum_masked_pop_by_mask_task, sum_total_pop_by_mask_task)
             sum_results[region_id] = local_region_sum_results
 
     task_graph.join()
-    result_table_path = os.path.join(RESULTS_DIR, 'number_of_people_benefittting.csv')
+    result_table_path = os.path.join(
+        RESULTS_DIR, 'number_of_people_benefittting.csv')
     with open(result_table_path, 'w') as results_table:
-        results_table.write('region,local,sub local,pop sum\n')
+        results_table.write(
+            'region,local,sub local,masked pop sum,total pop sum\n')
         for region_id in REGIONS_TO_ANALYZE:
-            for local_region_id, value_task in sum_results[region_id].items():
-                value = value_task.get()
-                if isinstance(value, dict):
-                    for sub_region_id, local_sum in value.items():
+            for local_region_id, (masked_pop_value_task, total_pop_value_task) in sum_results[region_id].items():
+                masked_pop_value = masked_pop_value_task.get()
+                if isinstance(masked_pop_value, dict):
+                    total_pop_value = total_pop_value_task.get()
+                    for sub_region_id, local_sum in masked_pop_value.items():
                         results_table.write(
                             f'{region_id},{local_region_id},{sub_region_id},'
-                            f'{local_sum:.0f}\n')
+                            f'{local_sum:.0f},'
+                            f'{total_pop_value[sub_region_id]:.0f}\n')
                 else:
                     results_table.write(
-                        f'{region_id},{local_region_id},,{value:.0f}\n')
+                        f'{region_id},{local_region_id},,'
+                        f'{masked_pop_value:.0f},'
+                        f'{total_pop_value_task.get():.0f}\n')
     task_graph.close()
     LOGGER.info(f'all done, results in {RESULTS_DIR}')
 
