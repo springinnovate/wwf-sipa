@@ -301,7 +301,8 @@ def main():
             sum_results[region_id] = local_region_sum_results
 
     task_graph.join()
-    with open(RESULTS_DIR, 'w') as results_table:
+    result_table_path = os.path.join(RESULTS_DIR, 'number_of_people_benefittting.csv')
+    with open(result_table_path, 'w') as results_table:
         results_table.write('region,local,sub local,pop sum\n')
         for region_id in REGIONS_TO_ANALYZE:
             for local_region_id, value_task in sum_results[region_id].items():
