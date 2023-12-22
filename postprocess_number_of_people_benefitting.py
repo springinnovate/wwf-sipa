@@ -316,6 +316,7 @@ def main():
                     results_table.write(
                         f'{region_id},{local_region_id},{value}\n')
     task_graph.close()
+    LOGGER.info(f'all done, results in {RESULTS_DIR}')
 
 
 if __name__ == '__main__':
