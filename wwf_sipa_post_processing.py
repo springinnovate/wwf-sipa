@@ -672,6 +672,9 @@ def main():
             ):
         dependent_task_list = []
         target_raster_path = raster_path_list_plus_target[-1]
+        if '_idn_' in target_raster_path.lower():
+            LOGGER.warn(f'SKIPPING IDN: {target_raster_path}')
+            continue  # skipping  IDN stuff
         input_rasters = raster_path_list_plus_target[:-1]
         for p in input_rasters:
             if p in task_set:
@@ -690,7 +693,6 @@ def main():
 
     percentile_task_list = []
     for service_path, service_task in service_raster_path_list:
-        # TODO: break this up by admin polygon
         # for ADMIN_POLYGONS
         #   1) mask out service path for each polygon
         #   2) get the percentile for that service path
@@ -825,7 +827,6 @@ def main():
                 base_raster_list = [
                     f'{RESULTS_DIR}/{percentile_value}_{country_id}_{scenario_id}_{beneficiary_id}_service_overlap_count.tif'
                     for beneficiary_id in beneficiary_list]
-                # TODO: add the base raster list together before aggregating?
                 task_graph.add_task(
                     func=zonal_stats,
                     args=(base_raster_list, country_aggregate_vector, target_vector),
