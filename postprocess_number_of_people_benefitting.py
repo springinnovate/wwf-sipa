@@ -73,7 +73,7 @@ AOI_REGIONS = {
     'PH': {
         'luzon': (r"D:\repositories\wwf-sipa\data\island_groups\ph_luzon.gpkg", None),
         'mindanao': (r"D:\repositories\wwf-sipa\data\island_groups\ph_mindanao.gpkg", None),
-        'municipality': (r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg", 'NAME_1'),
+        'municipality': (r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_gdam2.gpkg", 'NAME_2'),
         'total': (None, None),
         'visayas': (r"D:\repositories\wwf-sipa\data\island_groups\ph_visayas.gpkg", None),
     },
