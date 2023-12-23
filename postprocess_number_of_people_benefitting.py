@@ -250,22 +250,16 @@ def merge_and_mask_raster(
     """Merge a and b and resize so it fits reference."""
     basename = os.path.basename(os.path.splitext(target_mask_path)[0])
     temp_dir = tempfile.mkdtemp(
-        dir=os.path.dirname(target_mask_path), prefix=f'merge_and_mask_{basename}')
+        dir=os.path.dirname(target_mask_path), prefix=f'merge_and_mask_{basename[5:]}')
 
-    merged_raster_path = os.path.join(temp_dir, f'merged_{basename}.tif')
+    merged_raster_path = os.path.join(temp_dir, f'merged_{basename[5:]}.tif')
 
     a_nodata = geoprocessing.get_raster_info(mask_a_path)['nodata'][0]
     b_nodata = geoprocessing.get_raster_info(mask_b_path)['nodata'][0]
 
     def _merge_op(array_a, array_b):
-        if a_nodata is None:
-            a_mask = array_a > 0
-        else:
-            a_mask = array_a != a_nodata
-        if b_nodata is None:
-            b_mask = array_b > 0
-        else:
-            b_mask = array_b != b_nodata
+        a_mask = array_a > 0
+        b_mask = array_b > 0
         return (a_mask | b_mask).astype(int)
     geoprocessing.raster_calculator(
         [(mask_a_path, 1), (mask_b_path, 1)], _merge_op,
@@ -329,7 +323,7 @@ def main():
 
             warped_service_overlap_raster_path = os.path.join(
                 WORKING_DIR, '%s_warped%s' % (
-                    os.path.basename(service_overlap_raster_path)))
+                    os.path.splitext(os.path.basename(service_overlap_raster_path))))
             dem_info = geoprocessing.get_raster_info(DEM_PATHS[region_id])
             warped_service_task = task_graph.add_task(
                 func=geoprocessing.warp_raster,
