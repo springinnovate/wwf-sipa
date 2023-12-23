@@ -327,14 +327,29 @@ def main():
             downstream_mask_raster_path = os.path.join(
                 WORKING_DIR, f'{service_basename}_downstream_mask.tif')
 
+            warped_service_overlap_raster_path = os.path.join(
+                WORKING_DIR, '%s_warped%s' % (
+                    os.path.basename(service_overlap_raster_path)))
+            dem_info = geoprocessing.get_raster_info(DEM_PATHS[region_id])
+            warped_service_task = task_graph.add_task(
+                func=geoprocessing.warp_raster,
+                args=(service_overlap_raster_path, dem_info['pixel_size'],
+                      warped_service_overlap_raster_path, 'near'),
+                kwargs={
+                    'target_bb': dem_info['bounding_box'],
+                    'target_projection_wkt': dem_info['projection_wkt'],
+                    'working_dir': WORKING_DIR},
+                target_path_list=[warped_service_overlap_raster_path],
+                task_name=f'warp {warped_service_overlap_raster_path}')
+
             downstream_mask_task = task_graph.add_task(
                 func=routing.flow_accumulation_d8,
                 args=((flow_dir_path, 1), downstream_mask_raster_path),
                 kwargs={
-                    'weight_raster_path_band': (service_overlap_raster_path, 1)
+                    'weight_raster_path_band': (warped_service_overlap_raster_path, 1)
                     },
                 target_path_list=[downstream_mask_raster_path],
-                dependent_task_list=[route_task],
+                dependent_task_list=[route_task, warped_service_task],
                 task_name=f'downstream mask for {service_basename}')
             pop_basename = os.path.basename(
                 os.path.splitext(POP_PATHS[region_id])[0])
