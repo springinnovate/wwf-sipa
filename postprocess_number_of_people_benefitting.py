@@ -368,7 +368,7 @@ def main():
 
                 local_region_sum_results[local_region_id] = (
                     sum_masked_pop_by_mask_task, sum_total_pop_by_mask_task)
-            sum_results[region_id] = local_region_sum_results
+            sum_results[f'{region_id}_{service_basename}'] = local_region_sum_results
 
     task_graph.join()
     result_table_path = os.path.join(
@@ -376,7 +376,7 @@ def main():
     with open(result_table_path, 'w') as results_table:
         results_table.write(
             'region,local,sub local,masked pop sum,total pop sum\n')
-        for region_id in REGIONS_TO_ANALYZE:
+        for region_id in sum_results:
             for local_region_id, (masked_pop_value_task, total_pop_value_task) in sum_results[region_id].items():
                 masked_pop_value = masked_pop_value_task.get()
                 if isinstance(masked_pop_value, dict):
