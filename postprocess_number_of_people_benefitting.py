@@ -102,7 +102,7 @@ def route_dem(
     routing.fill_pits(
         (dem_path, 1), filled_dem_raster_path,
         working_dir=temp_dir,
-        max_pixel_fill_count=10000)
+        max_pixel_fill_count=-1)
 
     routing.flow_dir_d8(
         (filled_dem_raster_path, 1), flow_dir_path, working_dir=temp_dir)
@@ -326,10 +326,10 @@ def main():
 
             downstream_mask_raster_path = os.path.join(
                 WORKING_DIR, f'{service_basename}_downstream_mask.tif')
+
             downstream_mask_task = task_graph.add_task(
-                func=routing.distance_to_channel_d8,
-                args=((flow_dir_path, 1), (outlet_raster_path, 1),
-                      downstream_mask_raster_path),
+                func=routing.flow_accumulation_d8,
+                args=((flow_dir_path, 1), downstream_mask_raster_path),
                 kwargs={
                     'weight_raster_path_band': (service_overlap_raster_path, 1)
                     },
