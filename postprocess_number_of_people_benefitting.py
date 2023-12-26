@@ -48,7 +48,7 @@ for dir_path in [RESULTS_DIR, WORKING_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 
-REGIONS_TO_ANALYZE = ['PH',] #  TODO: 'IDN']
+REGIONS_TO_ANALYZE = ['PH', 'IDN']
 
 DEM_PATHS = {
     'PH': r"D:\repositories\wwf-sipa\data\ph_dem.tif",
@@ -336,9 +336,19 @@ def main():
                 target_path_list=[warped_service_overlap_raster_path],
                 task_name=f'warp {warped_service_overlap_raster_path}')
 
+            # downstream_mask_task = task_graph.add_task(
+            #     func=routing.flow_accumulation_d8,
+            #     args=((flow_dir_path, 1), downstream_mask_raster_path),
+            #     kwargs={
+            #         'weight_raster_path_band': (warped_service_overlap_raster_path, 1)
+            #         },
+            #     target_path_list=[downstream_mask_raster_path],
+            #     dependent_task_list=[route_task, warped_service_task],
+            #     task_name=f'downstream mask for {service_basename}')
+
             downstream_mask_task = task_graph.add_task(
-                func=routing.flow_accumulation_d8,
-                args=((flow_dir_path, 1), downstream_mask_raster_path),
+                func=routing.distance_to_channel_d8,
+                args=((flow_dir_path, 1), (outlet_raster_path, 1), downstream_mask_raster_path),
                 kwargs={
                     'weight_raster_path_band': (warped_service_overlap_raster_path, 1)
                     },

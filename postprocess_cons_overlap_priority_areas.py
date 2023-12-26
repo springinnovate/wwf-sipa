@@ -36,7 +36,7 @@ logging.basicConfig(
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-REGIONS_TO_ANALYZE = ['PH',] # TODO: 'IDN']
+REGIONS_TO_ANALYZE = ['PH', 'IDN']
 PROTECTED_AREAS = {
     'PH': 'D:/repositories/wwf-sipa/data/protected_areas/PH_Combined_PAs',
     'IDN': 'D:/repositories/wwf-sipa/data/protected_areas/ID_Combined PAs',
