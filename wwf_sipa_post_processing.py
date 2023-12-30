@@ -672,9 +672,6 @@ def main():
             ):
         dependent_task_list = []
         target_raster_path = raster_path_list_plus_target[-1]
-        if '_idn_' in target_raster_path.lower():
-            LOGGER.warn(f'SKIPPING IDN: {target_raster_path}')
-            continue  # skipping  IDN stuff
         input_rasters = raster_path_list_plus_target[:-1]
         for p in input_rasters:
             if p in task_set:
