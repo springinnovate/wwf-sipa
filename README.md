@@ -13,6 +13,6 @@ Data generators for scenarios
 * `precip_events_cmip6.py` - used to calculate monthly precip events from CMIP6 dataset.
 
 
-Postprocessing
---------------
+Analysis
+--------
 * `downstream_beneficiaries_aggregator.py` - used in conjunction with `downstream_*.ini` files to calculate the count of the beneficiaries downstream from a mask such as priority areas.

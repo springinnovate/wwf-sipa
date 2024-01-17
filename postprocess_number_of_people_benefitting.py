@@ -303,9 +303,6 @@ def main():
             task_name=f'route {basename}')
 
         for service_overlap_raster_path in SERVICE_OVERLAP_RASTERS[region_id]:
-            # TODO: warp service overlap to fit DEM
-            # delineate the areas downstream of 10% mask
-            # TODO: delinate areas <2m within 2km of the coast
             service_basename = os.path.basename(
                 os.path.splitext(service_overlap_raster_path)[0])
 
@@ -335,16 +332,6 @@ def main():
                     'working_dir': WORKING_DIR},
                 target_path_list=[warped_service_overlap_raster_path],
                 task_name=f'warp {warped_service_overlap_raster_path}')
-
-            # downstream_mask_task = task_graph.add_task(
-            #     func=routing.flow_accumulation_d8,
-            #     args=((flow_dir_path, 1), downstream_mask_raster_path),
-            #     kwargs={
-            #         'weight_raster_path_band': (warped_service_overlap_raster_path, 1)
-            #         },
-            #     target_path_list=[downstream_mask_raster_path],
-            #     dependent_task_list=[route_task, warped_service_task],
-            #     task_name=f'downstream mask for {service_basename}')
 
             downstream_mask_task = task_graph.add_task(
                 func=routing.distance_to_channel_d8,
