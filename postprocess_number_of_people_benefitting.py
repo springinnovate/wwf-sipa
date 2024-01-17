@@ -391,7 +391,7 @@ def main():
 
     task_graph.join()
     result_table_path = os.path.join(
-        RESULTS_DIR, 'number_of_people_benefittting.csv')
+        RESULTS_DIR, 'number_of_people_benefittting_with_idn_too.csv')
     with open(result_table_path, 'w') as results_table:
         results_table.write(
             'region,local,sub local,masked pop sum,total pop sum\n')
