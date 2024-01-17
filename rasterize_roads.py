@@ -1,4 +1,4 @@
-"""Rasterize roads onto rasters."""
+"""Rasterize roads into buffered rasters."""
 import argparse
 import os
 import logging
@@ -10,7 +10,6 @@ from osgeo import osr
 from osgeo import ogr
 from osgeo import gdal
 from ecoshard import geoprocessing
-from ecoshard import taskgraph
 from ecoshard.geoprocessing.geoprocessing_core import DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS
 from ecoshard.geoprocessing.geoprocessing_core import DEFAULT_OSR_AXIS_MAPPING_STRATEGY
 
@@ -32,7 +31,8 @@ WORKSPACE_DIR = '_workspace_auto_riparian_buffers'
 
 def main():
     """Entry point."""
-    parser = argparse.ArgumentParser(description='Rasterize Roads')
+    parser = argparse.ArgumentParser(
+        description='Rasterize roads into buffered areas.')
     parser.add_argument('base_raster_path', help='Path to base raster.')
     parser.add_argument('road_vector_path', help='Path to road vector.')
     parser.add_argument(
