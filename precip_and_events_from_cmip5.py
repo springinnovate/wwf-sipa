@@ -1,19 +1,14 @@
-"""Utility to extract CIMP5 data from GEE."""
-from osgeo import gdal
-from shapely.geometry import Polygon
-from dateutil.relativedelta import relativedelta
-import requests
+"""Utility to extract CIMP5 precip data from GEE."""
 import argparse
 import datetime
-import concurrent
-import glob
 import logging
-import sys
 import os
-import pickle
-import time
-import threading
+import requests
+import sys
 
+from dateutil.relativedelta import relativedelta
+from osgeo import gdal
+from shapely.geometry import Polygon
 import ee
 import geemap
 import geopandas
@@ -28,51 +23,15 @@ logging.basicConfig(
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
 
-CACHE_DIR = '_cimp5_cache_dir'
 DATASET_ID = 'NASA/NEX-GDDP'
 DATASET_CRS = 'EPSG:4326'
 SCENARIO_ID = 'rcp85'
-PERCENTILE_TO_QUERY = 90
-DATASET_SCALE = 27830
-SCENARIO_LIST = ['historical', 'rcp45', 'rcp85']
-BAND_NAMES = ['tasmin', 'tasmax', 'pr']
-MODEL_LIST = [
-    'ACCESS1-0',
-    'bcc-csm1-1',
-    'BNU-ESM',
-    'CanESM2',
-    'CCSM4',
-    'CESM1-BGC',
-    'CNRM-CM5',
-    'CSIRO-Mk3-6-0',
-    'GFDL-CM3',
-    'GFDL-ESM2G',
-    'GFDL-ESM2M',
-    'inmcm4',
-    'IPSL-CM5A-LR',
-    'IPSL-CM5A-MR',
-    'MIROC-ESM',
-    'MIROC-ESM-CHEM',
-    'MIROC5',
-    'MPI-ESM-LR',
-    'MPI-ESM-MR',
-    'MRI-CGCM3',
-    'NorESM1-M']
-MODELS_BY_DATE_CACHEFILE = '_cimp5_models_by_date.dat'
-QUOTA_READS_PER_MINUTE = 3000
-
-
-def _throttle_query():
-    """Sleep to avoid exceeding quota request."""
-    time.sleep(1/QUOTA_READS_PER_MINUTE*60)
 
 
 def main():
     """Entry point."""
     parser = argparse.ArgumentParser(description=(
-        'Extract CIMP5 data from GEE given an AOI and date range. Produces '
-        'a CSV table with the pattern `CIMP5_{unique_id}.csv` with monthly  '
-        'means for precipitation and temperature broken down by model.'))
+        'Extract CIMP5 precip data from GEE given an AOI and date range.'))
     parser.add_argument(
         'aoi_vector_path', help='Path to vector/shapefile of area of interest')
     parser.add_argument('--aggregate_by_field', help=(
@@ -178,8 +137,8 @@ def main():
                 models = ee.List(
                     clipped_dataset.aggregate_array('model')).distinct()
 
-
                 def createMask(precip_image):
+                    # 86400 turns into mm of rain / day
                     precip_image = precip_image.multiply(86400)
                     mask = precip_image.gt(1)
                     return mask
@@ -203,15 +162,16 @@ def main():
                     models.map(reduce_by_sum_per_model))
                 percentile_image = monthly_precip_images.reduce(
                     ee.Reducer.percentile([percentile]))
+                # 86400 turns into mm of rain / day
                 mm_image = percentile_image.multiply(86400)
                 target_path = os.path.join(
                     f'precip_{unique_id}_{2050}_{SCENARIO_ID}_{percentile}',
-                    f'precip_{SCENARIO_ID}_{percentile}_{year_month_str.replace("-", "_")}.tif')
+                    f'precip_{SCENARIO_ID}_{percentile}_'
+                    f'{year_month_str.replace("-", "_")}.tif')
                 print(f'fetching {target_path}')
                 download_image(
                     mm_image, ee_poly.geometry().bounds(),
                     target_path)
-
 
                 monthly_event_images = ee.ImageCollection(
                     models.map(reduce_by_count_gt_per_model))
@@ -219,7 +179,8 @@ def main():
                     ee.Reducer.percentile([percentile]))
                 target_path = os.path.join(
                     f'n_events_{unique_id}_{2050}_{SCENARIO_ID}_{percentile}',
-                    f'n_events_{SCENARIO_ID}_{percentile}_{year_month_str.replace("-", "_")}.tif')
+                    f'n_events_{SCENARIO_ID}_{percentile}_'
+                    f'{year_month_str.replace("-", "_")}.tif')
                 print(f'fetching {target_path}')
                 download_image(
                     percentile_image, ee_poly.geometry().bounds(),

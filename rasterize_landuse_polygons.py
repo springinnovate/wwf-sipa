@@ -3,8 +3,6 @@ import argparse
 import glob
 import logging
 import os
-import subprocess
-import sys
 
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
@@ -23,7 +21,6 @@ logging.basicConfig(
 logging.getLogger('taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-#TARGET_PIXEL_SIZE = 30.0
 TARGET_PIXEL_SIZE = 1/3600
 CODE_ID = 'id'
 
@@ -195,9 +192,6 @@ def main():
         target_raster_path = os.path.join(
             path_to_target_rasters, f'{args.single_raster_mode_name}.tif')
         if not os.path.exists(target_raster_path):
-            # geoprocessing.create_raster_from_vector_extents(
-            #     simplified_vector_path, target_raster_path,
-            #     (TARGET_PIXEL_SIZE, -TARGET_PIXEL_SIZE), gdal.GDT_Byte, 128)
             driver = gdal.GetDriverByName('GTiff')
             raster = driver.Create(
                 target_raster_path, n_cols, n_rows, 1, gdal.GDT_Byte,
