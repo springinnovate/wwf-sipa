@@ -1,0 +1,3 @@
+path,type,raster value,vector key,vector value,max impact dist,decay type,effect_distance_type,value of parameter at min distance
+data\infrastructure_polygons\PH_All_Roads_Merged.gpkg,vector,,STATUS,1,15000,linear,nearest,98
+data\landcover_rasters\ph_baseline_lulc_md5_7f29da.tif,raster,3,,,25000,linear,convolution,91

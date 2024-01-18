@@ -1,0 +1,4 @@
+path,type,raster value,vector key,vector value,max impact dist,decay type,effect_distance_type,value of parameter at min distance
+data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg,vector,,OBJECTID,1,15000,linear,nearest,98
+data\landcover_rasters\idn_baseline_lulc_all_islands_corr_md5_044b56.tif,raster,18,,,25000,linear,convolution,91
+data\landcover_rasters\idn_baseline_lulc_all_islands_corr_md5_044b56.tif,raster,21,,,25000,linear,convolution,91
