@@ -20,7 +20,7 @@ from osgeo import gdal
 
 
 OUTPUT_DIR = 'area_of_polygon_working_dir'
-PIXEL_SIZE = (0.0002777777777777777778, 0.0002777777777777777778)
+PIXEL_SIZE = (0.0002777777777777777778, -0.0002777777777777777778)
 
 
 def area_of_pixel_km2(pixel_size, center_lat):
@@ -76,34 +76,29 @@ def count_valid_pixels(raster_path):
 def main():
     """Entry point."""
     parser = argparse.ArgumentParser(description='projected area of polygon')
-    parser.add_argument('vector_path_pattern', help='path/pattern to vectors')
+    parser.add_argument('vector_path_pattern_list', nargs='+', help='path/pattern to vectors')
     args = parser.parse_args()
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    task_graph = taskgraph.TaskGraph(OUTPUT_DIR, os.cpu_count(), 15.0)
 
     count_task_list = []
-    for vector_path in glob.glob(args.vector_path_pattern):
-        raster_path = os.path.join(
-            OUTPUT_DIR, os.path.splitext(os.path.basename(vector_path))[0])
-        rasterize_task = task_graph.add_task(
-            func=geoprocessing.create_raster_from_vector_extents,
-            args=(vector_path, raster_path, PIXEL_SIZE, gdal.GDT_Byte, 0),
-            target_path_list=[raster_path],
-            task_name=f'rasterize {raster_path}')
-        count_task = task_graph.add_task(
-            func=count_valid_pixels,
-            args=(raster_path,),
-            dependent_task_list=[rasterize_task],
-            store_result=True,
-            task_name=f'count {raster_path}')
-        count_task_list.append((
-            os.path.splitext(os.path.basename(raster_path))[0], count_task))
+    for vector_path_pattern in args.vector_path_pattern_list:
+        for vector_path in glob.glob(vector_path_pattern):
+            raster_path = os.path.join(
+                OUTPUT_DIR, os.path.splitext(os.path.basename(vector_path))[0] + '.tif')
+            print(vector_path)
+            geoprocessing.create_raster_from_vector_extents(
+                vector_path, raster_path, PIXEL_SIZE, gdal.GDT_Byte, 0)
+            geoprocessing.rasterize(vector_path, raster_path, burn_values=[1])
+            pixel_count, area_ha = count_valid_pixels(raster_path)
+            count_task_list.append((
+                os.path.splitext(os.path.basename(raster_path))[0],
+                pixel_count,
+                area_ha))
     with open('area_table.csv', 'w') as table:
         table.write('file,pixel count,area ha\n')
-        for filename, count_task in count_task_list:
-            pixel_count, area_ha = count_task.get()
-            table.write(f'{filename},{pixel_count},{count_task}\n')
+        for filename, pixel_count, area_ha in count_task_list:
+            table.write(f'{filename},{pixel_count},{area_ha}\n')
 
 
 if __name__ == '__main__':
