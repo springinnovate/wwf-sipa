@@ -71,7 +71,7 @@ def main():
 
             srs = osr.SpatialReference()
             srs.ImportFromWkt(raster.GetProjection())
-
+            print(srs)
             # Create the destination data source
             target_layername = f'{country_id}_{raster_list_id}'
             driver = ogr.GetDriverByName("GPKG")
@@ -86,9 +86,21 @@ def main():
             target_layer.CreateField(fd)
             dst_field = 0
 
+            # Create a mask band that excludes the NoData value
+            nodata = band.GetNoDataValue()
+            if nodata is not None:
+                # Create a temporary dataset to hold the mask
+                drv = gdal.GetDriverByName('MEM')
+                mask_ds = drv.Create('', raster.RasterXSize, raster.RasterYSize, 1, gdal.GDT_Byte)
+                mask_band = mask_ds.GetRasterBand(1)
+
+                # Use raster calculator to create a mask: 1 for data pixels, 0 for nodata pixels
+                mask_band.WriteArray(
+                    (band.ReadAsArray() != nodata).astype(int))
+
             # Polygonize
             gdal.Polygonize(
-                band, None, target_layer, dst_field, [],
+                band, mask_band, target_layer, dst_field, [],
                 callback=progress_callback)
             target_layer = None
             target_vector = None
@@ -99,15 +111,19 @@ def main():
             line_gdf = gpd.read_file(WORK[country_id]['road_vector_path'])
 
             # Load the polygon vector layer (used for clipping)
-            polygon_gdf = gpd.read_file('path_to_your_polygon_layer.shp')
+            polygon_gdf = gpd.read_file(overlap_polygon_path)
 
+            if line_gdf.crs != polygon_gdf.crs:
+                print('reproject')
+                line_gdf = line_gdf.to_crs(polygon_gdf.crs)
+            print('do clip')
             # Perform the clipping operation
             clipped_lines = gpd.clip(line_gdf, polygon_gdf)
 
+            print('save')
             # Save the clipped output
-            clipped_lines.to_file('path_to_save_clipped_lines.shp')
-
-            return
+            clipped_lines.to_file(os.path.join(WORKING_DIR, f'{country_id}_{raster_list_id}.gpkg'))
+    print('all done')
 
 
 if __name__ == '__main__':
