@@ -19,6 +19,10 @@ WORK = {
             r"D:\repositories\wwf-sipa\workspace_postprocess_number_of_people_benefitting\working_dir\coastal_benefit_areas_idn_dem_10_IDN_restoration_service_overlap_count.tif",
             r"D:\repositories\wwf-sipa\workspace_postprocess_number_of_people_benefitting\working_dir\10_IDN_restoration_service_overlap_count_downstream_mask.tif",
             ],
+        'target_epsg': 23830,
+        'municipalities_path': (
+            r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg",
+            'NAME_1',),
     },
     'PH': {
         'road_vector_path': r"D:\repositories\wwf-sipa\data\infrastructure_polygons\PH_All_Roads_Merged.gpkg",
@@ -30,6 +34,10 @@ WORK = {
             r"D:\repositories\wwf-sipa\workspace_postprocess_number_of_people_benefitting\working_dir\coastal_benefit_areas_ph_dem_10_PH_restoration_service_overlap_count.tif",
             r"D:\repositories\wwf-sipa\workspace_postprocess_number_of_people_benefitting\working_dir\10_PH_restoration_service_overlap_count_downstream_mask.tif",
             ],
+        'target_epsg': 3121,
+        'municipalities_path': (
+            r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_gdam2.gpkg",
+            'NAME_2',),
     },
 }
 
@@ -126,5 +134,42 @@ def main():
     print('all done')
 
 
+def summarize_length_by_region(
+        original_line_vector_path, clipped_line_vector_path, target_epsg, summary_vector_path, summary_vector_field,
+        target_table_path):
+    with open(target_table_path, 'w') as table:
+        table.write('region name,beneficiary road length,total road length\n')
+        # Load the line vector layer
+
+        print('read files')
+        original_line_gdf = gpd.read_file(original_line_vector_path)
+        clipped_line_gdf = gpd.read_file(clipped_line_vector_path)
+        summary_gdf = gpd.read_file(summary_vector_path)
+        print(f'project to {target_epsg}')
+        clipped_line_gdf = clipped_line_gdf.to_crs(epsg=target_epsg)
+        original_line_gdf = original_line_gdf.to_crs(epsg=target_epsg)
+        summary_gdf = summary_gdf.to_crs(epsg=target_epsg)
+
+        for field_id in summary_gdf[summary_vector_field].unique():
+            print(f'clip {field_id}')
+            subset_gdf = summary_gdf[
+                summary_gdf[summary_vector_field] == field_id]
+            subset_road = gpd.clip(clipped_line_gdf, subset_gdf)
+            original_road = gpd.clip(original_line_gdf, subset_gdf)
+            table.write(f'{field_id},{subset_road.length.sum()/1000},{original_road.length.sum()/1000}\n')
+
+
 if __name__ == '__main__':
-    main()
+    for country_id in ['PH', 'IDN']:
+        for raster_list_id in ['conservation_rasters', 'restoration_rasters']:
+            road_vector_path = WORK[country_id]['road_vector_path']
+            clipped_road_vector_path = os.path.join(WORKING_DIR, f'{country_id}_{raster_list_id}.gpkg')
+            summary_vector_path, summary_vector_field = WORK[country_id]['municipalities_path']
+            target_table_path = os.path.join(
+                WORKING_DIR, f'{country_id}_{raster_list_id}_summary.csv')
+            summarize_length_by_region(
+                road_vector_path,
+                clipped_road_vector_path, WORK[country_id]['target_epsg'],
+                summary_vector_path, summary_vector_field,
+                target_table_path)
+    #main()
