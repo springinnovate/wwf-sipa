@@ -115,14 +115,12 @@ def main():
             gdal.GDT_Int32, [-1]),
         dependent_task_list=[clip_dem_task],
         ignore_path_list=[rasterized_vector_path],
-        target_path_list=[rasterized_vector_path],
         task_name='downstream intersection')
     rasterized_vector_task = task_graph.add_task(
         func=geoprocessing.rasterize,
         args=(args.vector_path, rasterized_vector_path),
         kwargs={'burn_values': [1]},
         dependent_task_list=[new_raster_task],
-        ignore_path_list=[rasterized_vector_path],
         target_path_list=[rasterized_vector_path],
         task_name=f'rasterize {rasterized_vector_path}')
 
