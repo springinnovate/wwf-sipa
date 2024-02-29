@@ -37,8 +37,8 @@ def main():
         '--buffer_window', type=float, required=True,
         help="Search an area around this many units of the raster path")
     args = parser.parse_args()
-    os.makedirs(args.working_dir, exist_ok=True)
     intermediate_dir = os.path.join(args.working_dir, 'intermediate_files')
+    os.makedirs(intermediate_dir, exist_ok=True)
     task_graph = taskgraph.TaskGraph(
         args.working_dir, 4,
         parallel_mode='process',
