@@ -38,9 +38,10 @@ def main():
         help="Search an area around this many units of the raster path")
     args = parser.parse_args()
     os.makedirs(args.working_dir, exist_ok=True)
+    intermediate_dir = os.path.join(args.working_dir, 'intermediate_files')
     task_graph = taskgraph.TaskGraph(
-        args.working_dir, 3,
-        parallel_mode='thread',
+        args.working_dir, 4,
+        parallel_mode='process',
         reporting_interval=10.0)
 
     # temp workspace
@@ -74,7 +75,7 @@ def main():
     LOGGER.debug(bounding_box)
 
     clipped_dem_path = os.path.join(
-        args.working_dir, 'clipped_dem.tif')
+        intermediate_dir, 'clipped_dem.tif')
     clip_dem_task = task_graph.add_task(
         func=geoprocessing.warp_raster,
         args=(
@@ -85,47 +86,57 @@ def main():
         task_name=f'clip {clipped_dem_path}')
 
     # fill pits in the dem
-    filled_dem_path = os.path.join(args.working_dir, 'filled_dem.tif')
+    filled_dem_path = os.path.join(intermediate_dir, 'filled_dem.tif')
     fill_dem_task = task_graph.add_task(
         func=routing.fill_pits,
         args=((clipped_dem_path, 1), filled_dem_path),
-        kwargs={'working_dir': args.working_dir},
+        kwargs={'working_dir': intermediate_dir},
         dependent_task_list=[clip_dem_task],
         target_path_list=[filled_dem_path],
         task_name='fill dem')
 
-    # D8 route the dem
-    d8_flow_dir_path = os.path.join(args.working_dir, 'd8_flow_dir.tif')
+    # mfd route the dem
+    mfd_flow_dir_path = os.path.join(intermediate_dir, 'mfd_flow_dir.tif')
     flow_dir_task = task_graph.add_task(
-        func=routing.flow_dir_d8,
-        args=((clipped_dem_path, 1), d8_flow_dir_path),
-        kwargs={'working_dir': args.working_dir},
+        func=routing.flow_dir_mfd,
+        args=((filled_dem_path, 1), mfd_flow_dir_path),
+        kwargs={'working_dir': intermediate_dir},
         dependent_task_list=[fill_dem_task],
-        task_name='flow dir d8')
+        target_path_list=[mfd_flow_dir_path],
+        task_name='flow dir mfd')
 
     # raster to mark the distance to the "channel"
     rasterized_vector_path = os.path.join(
-        args.working_dir, 'rasterized_vector.tif')
-    task_graph.add_task(
-        func=geoprocessing.new_raster_from_base(
+        intermediate_dir, 'rasterized_vector.tif')
+    new_raster_task = task_graph.add_task(
+        func=geoprocessing.new_raster_from_base,
+        args=(
             clipped_dem_path, rasterized_vector_path,
             gdal.GDT_Int32, [-1]),
+        dependent_task_list=[clip_dem_task],
         ignore_path_list=[rasterized_vector_path],
+        target_path_list=[rasterized_vector_path],
         task_name='downstream intersection')
+    rasterized_vector_task = task_graph.add_task(
+        func=geoprocessing.rasterize,
+        args=(args.vector_path, rasterized_vector_path),
+        kwargs={'burn_values': [1]},
+        dependent_task_list=[new_raster_task],
+        ignore_path_list=[rasterized_vector_path],
+        target_path_list=[rasterized_vector_path])
 
     downstream_intersection_mask_path = os.path.join(
-        args.working_dir, 'downstream_intersection.tif')
+        intermediate_dir, 'downstream_intersection.tif')
     distance_to_channel_task = task_graph.add_task(
-        func=routing.distance_to_channel_d8,
-        args=((d8_flow_dir_path, 1), (rasterized_vector_path, 1),
+        func=routing.distance_to_channel_mfd,
+        args=((mfd_flow_dir_path, 1), (rasterized_vector_path, 1),
               downstream_intersection_mask_path),
-        dependent_task_list=[flow_dir_task, fill_dem_task],
-        ignore_path_list=[rasterized_vector_path],
+        dependent_task_list=[flow_dir_task, rasterized_vector_task],
         target_path_list=[downstream_intersection_mask_path],
         task_name='distance to channel')
 
     clipped_raster_path = os.path.join(
-        args.working_dir, 'clipped_'+os.path.basename(args.raster_path))
+        intermediate_dir, 'clipped_'+os.path.basename(args.raster_path))
     clip_raster_task = task_graph.add_task(
         func=geoprocessing.warp_raster,
         args=(
@@ -140,7 +151,8 @@ def main():
     task_graph.add_task(
         func=geoprocessing.raster_calculator,
         args=(
-            [(clipped_raster_path, 1), (downstream_intersection_mask_path, 1)],
+            [(clipped_raster_path, 1), (downstream_intersection_mask_path, 1),
+             (raster_info['nodata'][0], 'raw')],
             _mask_op, upstream_masked_raster_path, raster_info['datatype'],
             raster_info['nodata'][0]),
         dependent_task_list=[clip_raster_task, distance_to_channel_task],
@@ -152,8 +164,10 @@ def main():
     task_graph.close()
 
 
-def _mask_op(base_array, mask_array):
-    return base_array & (mask_array > 0)
+def _mask_op(base_array, mask_array, nodata):
+    result = base_array.copy()
+    result[mask_array <= 0] = nodata
+    return result
 
 
 if __name__ == '__main__':
