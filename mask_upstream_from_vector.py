@@ -148,7 +148,8 @@ def main():
         task_name=f'clip {clipped_raster_path}')
 
     upstream_masked_raster_path = os.path.join(
-        args.working_dir, os.path.basename(os.path.normpath(args.working_dir)))
+        args.working_dir,
+        os.path.basename(os.path.normpath(args.working_dir))+'.tif')
     task_graph.add_task(
         func=geoprocessing.raster_calculator,
         args=(
