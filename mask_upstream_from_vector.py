@@ -123,7 +123,8 @@ def main():
         kwargs={'burn_values': [1]},
         dependent_task_list=[new_raster_task],
         ignore_path_list=[rasterized_vector_path],
-        target_path_list=[rasterized_vector_path])
+        target_path_list=[rasterized_vector_path],
+        task_name=f'rasterize {rasterized_vector_path}')
 
     downstream_intersection_mask_path = os.path.join(
         intermediate_dir, 'downstream_intersection.tif')
