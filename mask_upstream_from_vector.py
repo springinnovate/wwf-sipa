@@ -4,6 +4,8 @@ import logging
 import sys
 from ecoshard import taskgraph
 from ecoshard import geoprocessing
+from ecoshard.geoprocessing import routing
+from osgeo import gdal
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -35,6 +37,11 @@ def main():
         '--buffer_window', type=float, required=True,
         help="Search an area around this many units of the raster path")
     args = parser.parse_args()
+    os.makedirs(args.working_dir, exist_ok=True)
+    task_graph = taskgraph.TaskGraph(
+        args.working_dir, 3,
+        parallel_mode='thread',
+        reporting_interval=10.0)
 
     # temp workspace
     # clip the DEM to an intersection of the raster path and the buffer window
@@ -54,7 +61,6 @@ def main():
             dem_info['projection_wkt'] + '\n' +
             raster_info['projection_wkt'])
 
-    os.makedirs(args.working_dir, exist_ok=True)
     # warp the dem and the raster path to this bounding box
 
     # bounding box order is [minx, miny, maxx, maxy]
@@ -66,37 +72,88 @@ def main():
     bounding_box = geoprocessing.merge_bounding_box_list(
         bounding_box_list, 'intersection')
     LOGGER.debug(bounding_box)
-    # def warp_raster(
-    #     base_raster_path, target_pixel_size, target_raster_path,
-    #     resample_method, target_bb=None, base_projection_wkt=None,
-    #     target_projection_wkt=None, n_threads=None, vector_mask_options=None,
-    #     gdal_warp_options=None, working_dir=None,
-    #     output_type=gdal.GDT_Unknown,
-    #     raster_driver_creation_tuple=DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS,
-    #     osr_axis_mapping_strategy=DEFAULT_OSR_AXIS_MAPPING_STRATEGY):
+
+    clipped_dem_path = os.path.join(
+        args.working_dir, 'clipped_dem.tif')
+    clip_dem_task = task_graph.add_task(
+        func=geoprocessing.warp_raster,
+        args=(
+            args.dem_path, dem_info['pixel_size'], clipped_dem_path,
+            'near'),
+        kwargs={'target_bb': bounding_box},
+        target_path_list=[clipped_dem_path],
+        task_name=f'clip {clipped_dem_path}')
 
     # fill pits in the dem
-    # def fill_pits(
-    #     dem_raster_path_band, target_filled_dem_raster_path,
-    #     working_dir=None,
-    #     long long max_pixel_fill_count=-1,
-    #     single_outlet_tuple=None,
-    #     raster_driver_creation_tuple=DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS):
+    filled_dem_path = os.path.join(args.working_dir, 'filled_dem.tif')
+    fill_dem_task = task_graph.add_task(
+        func=routing.fill_pits,
+        args=((clipped_dem_path, 1), filled_dem_path),
+        kwargs={'working_dir': args.working_dir},
+        dependent_task_list=[clip_dem_task],
+        target_path_list=[filled_dem_path],
+        task_name='fill dem')
 
     # D8 route the dem
-    # def flow_dir_d8(
-    #     dem_raster_path_band, target_flow_dir_path,
-    #     working_dir=None,
-    #     raster_driver_creation_tuple=DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS):
+    d8_flow_dir_path = os.path.join(args.working_dir, 'd8_flow_dir.tif')
+    flow_dir_task = task_graph.add_task(
+        func=routing.flow_dir_d8,
+        args=((clipped_dem_path, 1), d8_flow_dir_path),
+        kwargs={'working_dir': args.working_dir},
+        dependent_task_list=[fill_dem_task],
+        task_name='flow dir d8')
 
     # raster to mark the distance to the "channel"
-    # def distance_to_channel_d8(
-    #     flow_dir_d8_raster_path_band, channel_raster_path_band,
-    #     target_distance_to_channel_raster_path,
-    #     weight_raster_path_band=None,
-    #     raster_driver_creation_tuple=DEFAULT_GTIFF_CREATION_TUPLE_OPTIONS):
+    rasterized_vector_path = os.path.join(
+        args.working_dir, 'rasterized_vector.tif')
+    task_graph.add_task(
+        func=geoprocessing.new_raster_from_base(
+            clipped_dem_path, rasterized_vector_path,
+            gdal.GDT_Int32, [-1]),
+        ignore_path_list=[rasterized_vector_path],
+        task_name='downstream intersection')
 
+    downstream_intersection_mask_path = os.path.join(
+        args.working_dir, 'downstream_intersection.tif')
+    distance_to_channel_task = task_graph.add_task(
+        func=routing.distance_to_channel_d8,
+        args=((d8_flow_dir_path, 1), (rasterized_vector_path, 1),
+              downstream_intersection_mask_path),
+        dependent_task_list=[flow_dir_task, fill_dem_task],
+        ignore_path_list=[rasterized_vector_path],
+        target_path_list=[downstream_intersection_mask_path],
+        task_name='distance to channel')
+
+    clipped_raster_path = os.path.join(
+        args.working_dir, 'clipped_'+os.path.basename(args.raster_path))
+    clip_raster_task = task_graph.add_task(
+        func=geoprocessing.warp_raster,
+        args=(
+            args.raster_path, dem_info['pixel_size'], clipped_raster_path,
+            'near'),
+        kwargs={'target_bb': bounding_box},
+        target_path_list=[clipped_raster_path],
+        task_name=f'clip {clipped_raster_path}')
+
+    upstream_masked_raster_path = os.path.join(
+        args.working_dir, os.path.basename(os.path.normpath(args.working_dir)))
+    task_graph.add_task(
+        func=geoprocessing.raster_calculator,
+        args=(
+            [(clipped_raster_path, 1), (downstream_intersection_mask_path, 1)],
+            _mask_op, upstream_masked_raster_path, raster_info['datatype'],
+            raster_info['nodata'][0]),
+        dependent_task_list=[clip_raster_task, distance_to_channel_task],
+        target_path_list=[upstream_masked_raster_path],
+        task_name='mask upstraem raster')
     # mask out the clipped raster_path as the result
+
+    task_graph.join()
+    task_graph.close()
+
+
+def _mask_op(base_array, mask_array):
+    return base_array & (mask_array > 0)
 
 
 if __name__ == '__main__':
