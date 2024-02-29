@@ -254,9 +254,6 @@ def merge_and_mask_raster(
 
     merged_raster_path = os.path.join(temp_dir, f'merged_{basename[5:]}.tif')
 
-    a_nodata = geoprocessing.get_raster_info(mask_a_path)['nodata'][0]
-    b_nodata = geoprocessing.get_raster_info(mask_b_path)['nodata'][0]
-
     def _merge_op(array_a, array_b):
         a_mask = array_a > 0
         b_mask = array_b > 0

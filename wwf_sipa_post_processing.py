@@ -27,6 +27,7 @@ MASK_SUBSET_DIR = os.path.join(RESULTS_DIR, 'mask_service_subsets')
 for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES, MASK_SUBSET_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
+
 def join_mask(mask_a_path, mask_b_path, joined_mask_path):
     """Intersect and a b into joined."""
     a_nodata = geoprocessing.get_raster_info(mask_a_path)['nodata'][0]
