@@ -324,8 +324,8 @@ def style_rasters(raster_paths, stack_vertical, cmap, min_percentile, max_percen
     plt.savefig(fig_path)
 
 
-def scale_op(raster_a_path, raster_b_path, target_path):
-    def _scale_op(array_a, array_b):
+def overlap_dspop_road_op(raster_a_path, raster_b_path, target_path):
+    def _overlap_dspop_road_op(array_a, array_b):
         result = array_a+2*array_b
         return result
 
@@ -337,42 +337,57 @@ def scale_op(raster_a_path, raster_b_path, target_path):
         [raster_a_path, raster_b_path], aligned_rasters, ['near']*2,
         pixel_size, 'intersection')
     geoprocessing.raster_calculator(
-        [(path, 1) for path in aligned_rasters], _scale_op, target_path,
+        [(path, 1) for path in aligned_rasters], _overlap_dspop_road_op, target_path,
         gdal.GDT_Int16, None, allow_different_blocksize=True)
 
 
-def overlap_op(task_graph, service_top_10_pair_path_list, target_path):
-    """Format of service_top_10_pair_path_list is
-        [service_a_dspop, service_a_road, service_b_dspop, service_b_road, ....]
+def overlap_combos_op(task_graph, overlap_combo_list, target_path):
+    """Format of overlap combos [[[service_a_subset, service_a_subset2..], threshold], ...]
     """
-    def _overlap_op(*array_list):
-        overlap_count = numpy.zeros(array_list[0].shape, dtype=int)
-        result = numpy.zeros(array_list[0].shape, dtype=int)
-        list_iter = iter(array_list)
-        for index, (service_a, service_b) in enumerate(
-                zip(list_iter, list_iter)):
-            service_index = index // 2 + 1 # we get pairs of services
-            valid_mask = (service_a > 0) | (service_b > 0)
-            result[valid_mask] = service_index
-            overlap_count[valid_mask] += 1
-        result[overlap_count > 1] = len(array_list)//2 + 2 # the 2 puts it over the top
+    def _overlap_combos_op(index_list, *array_list):
+        result = numpy.zeros(overlap_count.shape, dtype=int)
+        service_index = 1
+        local_index_list = index_list.copy()
+        next_service_index, overlap_threshold = local_index_list.pop(0)
+        for array_index, array in enumerate(array_list):
+            local_overlap = numpy.zeros(overlap_count.shape, dtype=int)
+            if array_index == next_service_index:
+                service_index += 1
+                try:
+                    next_service_index, overlap_threshold = local_index_list.pop(0)
+                except IndexError:
+                    # if index error, last one which is ok
+                    pass
+            valid_mask = array > 0
+            local_overlap[valid_mask] += 1
+        result[local_overlap >= overlap_threshold] = service_index
         return result
 
+    flat_path_list = [
+        path for path_list in overlap_combo_list
+        for index, path in enumerate(path_list)]
+    index_list = [(0, 0)]
+    for array_list, overlap_threshold in overlap_combo_list:
+        index_list.append(
+            (index_list[-1][0]+len(array_list)), overlap_threshold)
+    index_list.pop(0)
     aligned_rasters = [
         os.path.join(WORKSPACE_DIR, f'aligned_{index}_{os.path.basename(path)}')
-        for index, path in enumerate(service_top_10_pair_path_list)]
+        for index, path in enumerate(flat_path_list)]
+
     pixel_size = geoprocessing.get_raster_info(
-        service_top_10_pair_path_list[0])['pixel_size']
+        overlap_combo_list[0][0])['pixel_size']
     task_graph.add_task(
         func=geoprocessing.align_and_resize_raster_stack,
         args=(
-            service_top_10_pair_path_list, aligned_rasters, ['near']*len(aligned_rasters),
+            flat_path_list, aligned_rasters, ['near']*len(aligned_rasters),
             pixel_size, 'intersection'),
         target_path_list=aligned_rasters,
         task_name='alignining in overlap op')
     task_graph.join()
     geoprocessing.raster_calculator(
-        [(path, 1) for path in aligned_rasters], _overlap_op, target_path,
+        [(index_list, 'raw')] +
+        [(path, 1) for path in aligned_rasters], _overlap_combos_op, target_path,
         gdal.GDT_Int16, None, allow_different_blocksize=True)
 
 
@@ -411,57 +426,81 @@ def main():
         ('PH', 'restoration',),
     ]
 
-    all_services = [
-        'sediment',
-        'flood_mitigation',
-        'recharge',
-        'cv']
+    overlapping_services = [
+        (('sediment', 'flood_mitigation'), 2),
+        (('flood_mitigation', 'recharge'), 2),
+        (('sediment', 'flood_mitigation', 'recharge'), 2),
+        (('cv', 'flood_mitigation', 'recharge'), 3),
+        (('sediment', 'cv', 'recharge'), 3),
+        (('sediment', 'flood_mitigation', 'cv'), 3),
+        (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4),
+    ]
+
+    each_service = [
+        (('sediment',), 1),
+        (('flood_mitigation',), 1),
+        (('recharge',), 1),
+        (('cv',), 1),
+        (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4),
+        ]
 
     for country, scenario in top_10_percent_maps:
+        for service_set, service_set_title in [
+                (each_service, 'each_ecosystem_service'),
+                (overlapping_services, 'overlapping_services')]:
+            # Sediment and flood “Sediment retention and flood mitigation”
+            # Flood and recharge “Flood mitigation and water recharge”
+            # Recharge and sediment “Sediment retention and water recharge”
+            # Any three combos of overlap “Overlaps between three services”
+            # All four “Overlaps between all four services”
+            figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
+            overlap_sets = []
+            for service_tuple, overlap_threshold in overlapping_services:
+                service_subset = []
+                for service in service_tuple:
+                    dspop_road_overlap_path = os.path.join(WORKSPACE_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
+                    top_10th_percentile_service_dspop_path = os.path.join(root_dir, filenames[country][scenario][service]['top_10th_percentile_service_dspop'])
+                    if 'top_10th_percentile_service_road' in filenames[country][scenario][service]:
+                        top_10th_percentile_service_road_path = os.path.join(root_dir, filenames[country][scenario][service]['top_10th_percentile_service_road'])
+                        task_graph.add_task(
+                            func=overlap_dspop_road_op,
+                            args=(
+                                top_10th_percentile_service_dspop_path,
+                                top_10th_percentile_service_road_path,
+                                dspop_road_overlap_path),
+                            target_path_list=[dspop_road_overlap_path],
+                            task_name=f'dspop road {service} {country} {scenario}')
+                    else:
+                        # doesn't exist but we don't lose anything by just doing the dspop
+                        dspop_road_overlap_path = top_10th_percentile_service_dspop_path
+                    service_subset.append(dspop_road_overlap_path)
 
-        figure_title = 'Top 10% of priorities for each ecosystem service (scenario)'
+                overlap_sets.append((service_subset, overlap_threshold))
 
-        # Only sediment “Sediment retention” -
-        # Only flood “Flood mitigation”
-        # Only recharge “Water recharge”
-        # Only cv “Only coastal protection”
-        # Any overlap “Overlaps between services”
+            overlap_combo_service_path = os.path.join(
+                WORKSPACE_DIR, f'overlap_combos_top_10_{country}_{scenario}_{service_set_title}.tif')
 
-        top_10_percent_map_list = []
-        for service in all_services:
-            top_10_percent_map_list.append(os.path.join(root_dir, filenames[country][scenario][service]['top_10th_percentile_service_dspop']))
-            if 'top_10th_percentile_service_road' in filenames[country][scenario][service]:
-                top_10_percent_map_list.append(os.path.join(root_dir, filenames[country][scenario][service]['top_10th_percentile_service_road']))
-            else:
-                # doesn't exist but we don't lose anything by just doing the dspop
-                top_10_percent_map_list.append(top_10_percent_map_list[-1])
+            task_graph.add_task(
+                func=overlap_combos_op,
+                args=(
+                    task_graph,
+                    overlap_sets,
+                    overlap_combo_service_path),
+                target_path_list=[overlap_combo_service_path],
+                task_name=f'top 10% of combo priorities {country} {scenario}')
 
-        overlap_percentile_service_path = os.path.join(
-            WORKSPACE_DIR, f'overlap_top_10_{country}_{scenario}.tif')
-
-        task_graph.add_task(
-            func=overlap_op,
-            args=(
-                task_graph,
-                top_10_percent_map_list,
-                overlap_percentile_service_path),
-            target_path_list=[overlap_percentile_service_path],
-            task_name=f'top 10% of priorities {country} {scenario}')
-
-        figure_title = f'Top 10% of priorities for each ecosystem service ({scenario}) - {service}'
-        cm = overlap_colormap('5_element')
-        fig_size = 20
-        style_rasters(
-            [overlap_percentile_service_path],
-            country == 'IDN',
-            cm,
-            0, 100,
-            fig_size,
-            os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}.png'),
-            figure_title, [None], 100)
-        return
-
-
+            figure_title = f'Top 10% of priorities for {service_set_title} ({scenario}) - {service}'
+            cm = overlap_colormap('5_element')
+            fig_size = 20
+            style_rasters(
+                [overlap_combo_service_path],
+                country == 'IDN',
+                cm,
+                0, 100,
+                fig_size,
+                os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}.png'),
+                figure_title, [None], 100)
+            return
 
     four_panel_tuples = [
         ('sediment', 'PH', 'conservation_inf', 'Sediment retention (Conservation)'),
@@ -487,7 +526,7 @@ def main():
             combined_percentile_service_path = os.path.join(
                 WORKSPACE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
             task_graph.add_task(
-                func=scale_op,
+                func=overlap_dspop_road_op,
                 args=(
                     top_10th_percentile_service_dspop_path,
                     top_10th_percentile_service_road_path,
