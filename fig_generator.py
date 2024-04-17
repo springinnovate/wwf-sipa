@@ -214,14 +214,46 @@ def interpolated_colormap(cmap):
     return plt.get_cmap(cmap)
 
 
-def style_rasters(raster_paths, cmap, fig_path, figure_title):
+def calculate_figsize(aspect_ratio, grid_size, subplot_size, dpi):
+    rows, cols = grid_size
+    subplot_width, subplot_height = subplot_size
+
+    # Ensure the subplot height aligns with the desired aspect ratio
+    subplot_width = subplot_height * aspect_ratio
+
+    # Calculate total figure size in inches
+    total_width = cols * subplot_width
+    total_height = rows * subplot_height
+
+    return (total_width, total_height)
+
+
+def style_rasters(raster_paths, stack_vertical, cmap, fig_path, overall_title, subfigure_title_list):
+    for path in raster_paths:
+        if path is None:
+            continue
+        raster_info = geoprocessing.get_raster_info(path)
+        aspect_ratio = raster_info['raster_size'][0] / raster_info['raster_size'][1]
+        break
     dpi = 100
-    figsize = 20
-    fig, axs = plt.subplots(2, 2, figsize=(figsize, figsize))  # Set up a 2x2 grid of plots
-    n_pixels = figsize/2*dpi
+    #figsize = 20
+    subplot_size = (5, 5)
+    if stack_vertical:
+        rows = 4
+        columns = 1
+    else:
+        rows = 2
+        columns = 2
+    fig_width, fig_height = calculate_figsize(
+        aspect_ratio, (rows, columns), subplot_size, dpi)
+
+    fig, axs = plt.subplots(rows, columns, figsize=(fig_width, fig_height))  # Set up a 2x2 grid of plots
+    n_pixels = fig_width/2*dpi
     axs = axs.flatten()  # Flatten the 2D array of axes for easier iteration
 
     for idx, base_raster_path in enumerate(raster_paths):
+        if base_raster_path is None:
+            continue
         raster_info = geoprocessing.get_raster_info(base_raster_path)
         target_pixel_size = scale_pixel_size(raster_info['raster_size'], n_pixels, raster_info['pixel_size'])
         scaled_path = os.path.join(
@@ -257,11 +289,12 @@ def style_rasters(raster_paths, cmap, fig_path, figure_title):
         bounding_box = geoprocessing.get_raster_info(scaled_path)['bounding_box']
         extend_bb = [bounding_box[i] for i in (0, 2, 1, 3)]
 
-        axs[idx].set_title(root_filename(base_raster_path))
+        axs[idx].set_title(subfigure_title_list[idx], wrap=True)
         axs[idx].imshow(styled_array, extent=extend_bb, origin='upper')
         axs[idx].axis('off')  # Turn off axis labels
 
-    plt.tight_layout()
+    fig.suptitle(overall_title, fontsize=16)  # Set the overall title for the figure
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust the layout to make space for the overall title
     plt.savefig(fig_path)
 
 
@@ -301,8 +334,8 @@ def main():
     task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, -1)
     four_panel_tuples = [
         ('sediment', 'PH', 'conservation_inf', 'Sediment retention (Conservation)'),
-        ('flood_mitigation', 'IDN', 'conservation_inf', 'Flood mitigation (Conservation)'),
         ('sediment', 'IDN', 'conservation_inf', 'Sediment retention (Conservation)'),
+        ('flood_mitigation', 'IDN', 'conservation_inf', 'Flood mitigation (Conservation)'),
         ('flood_mitigation', 'PH', 'conservation_inf', 'Flood mitigation (Conservation)'),
         ('flood_mitigation', 'IDN', 'restoration', 'Flood mitigation (Restoration)'),
         ('sediment', 'IDN', 'restoration', 'Sediment retention (Restoration)'),
@@ -331,13 +364,27 @@ def main():
                 target_path_list=[combined_percentile_service_path],
                 task_name=f'combined service {service} {country} {scenario}')
 
+            fig_1_title = f'Biophysical supply of {service}'
+            fig_2_title = f'{service} for downstream people'
+            fig_3_title = f'{service} for downstream roads'
+            fig_4_title = f'Top 10% of priorities for {service} for downstream beneficiaries'
+
             style_rasters(
                 [diff_path,
                  service_dspop_path,
                  service_road_path,
-                 combined_percentile_service_path], 'turbo',
+                 combined_percentile_service_path],
+                country == 'IDN',
+                'turbo',
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
-                figure_title)
+                figure_title, [
+                    fig_1_title,
+                    fig_2_title,
+                    fig_3_title,
+                    fig_4_title,
+                    ])
+            print(f'done with {service}_{country}_{scenario}.png')
+            return
 
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
@@ -356,12 +403,24 @@ def main():
             if any([not os.path.exists(path) for path in [diff_path, service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
 
+            fig_1_title = 'Biophysical supply of water recharge'
+            fig_2_title = 'Water recharge for downstream people'
+            fig_3_title = None
+            fig_4_title = 'Top 10% of priorities'
+
             style_rasters(
                 [diff_path,
-                 service_dspop_path,
-                 top_10th_percentile_service_dspop_path], 'turbo',
+                 service_dspop_path, None,
+                 top_10th_percentile_service_dspop_path],
+                country == 'IDN',
+                'turbo',
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
-                figure_title)
+                figure_title, [
+                    fig_1_title,
+                    fig_2_title,
+                    fig_3_title,
+                    fig_4_title,
+                    ])
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
@@ -391,12 +450,25 @@ def main():
                     combined_percentile_service_path),
                 target_path_list=[combined_percentile_service_path],
                 task_name=f'combined service {service} {country} {scenario}')
+
+            fig_1_title = None
+            fig_2_title = 'Coastal protection for coastal people'
+            fig_3_title = 'Coastal protection for coastal roads'
+            fig_4_title = 'Top 10% of priorities for coastal protection for coastal beneficiaries'
+
             style_rasters(
-                [service_dspop_path,
+                [None, service_dspop_path,
                  service_road_path,
-                 combined_percentile_service_path], 'turbo',
+                 combined_percentile_service_path],
+                country == 'IDN',
+                'turbo',
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
-                figure_title)
+                figure_title, [
+                    fig_1_title,
+                    fig_2_title,
+                    fig_3_title,
+                    fig_4_title,
+                    ])
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
