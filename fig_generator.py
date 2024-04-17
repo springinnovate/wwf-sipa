@@ -1,3 +1,5 @@
+import csv
+import glob
 import logging
 import numpy
 import os
@@ -5,7 +7,16 @@ import sys
 
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
+from matplotlib.colors import LinearSegmentedColormap
 from osgeo import gdal
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+import numpy as np
+
+CUSTOM_STYLE_DIR = 'custom_styles'
+WORKING_DIR = 'raster_styler_working_dir'
+FIG_DIR = os.path.join(WORKING_DIR, 'fig_dir')
+os.makedirs(FIG_DIR, exist_ok=True)
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -135,35 +146,171 @@ filenames = {
     }
 }
 
+
+def read_raster_csv(file_path):
+    raster_dict = {}
+    with open(file_path, mode='r', newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        current_raster_name = ""
+        for i, row in enumerate(reader):
+            if i % 4 == 0:
+                current_raster_name = row[0]
+                raster_dict[current_raster_name] = {}
+            elif i % 4 == 1:
+                raster_dict[current_raster_name]['position'] = [float(x) for x in row[1:] if x != '']
+            elif i % 4 == 2:
+                raster_dict[current_raster_name]['color'] = [x for x in row[1:] if x != '']
+            elif i % 4 == 3:
+                raster_dict[current_raster_name]['transparency'] = [int(x) for x in row[1:]  if x != '']
+    return raster_dict
+
+
+def hex_to_rgba(hex_code, transparency):
+    hex_code = hex_code.lstrip('#')
+    rgb = tuple(int(hex_code[i:i+2], 16)/255.0 for i in (0, 2, 4))
+    alpha = transparency / 100  # Convert 0-100 scale to 0-1 scale
+    return rgb + (alpha,)
+
+
+CUSTOM_STYLES = {}
+for style_file_path in glob.glob(os.path.join(CUSTOM_STYLE_DIR, '*.csv')):
+    CUSTOM_STYLES.update(read_raster_csv(style_file_path))
+
+
+def interpolated_colormap(cmap_name, N=100):
+    try:
+        # Get the original colormap from matplotlib
+        original_cmap = plt.colormaps[cmap_name]
+    except:
+        # Handle custom colormap dictionary
+        custom_cmap_info = CUSTOM_STYLES[cmap_name]
+        positions = custom_cmap_info['position']
+        hex_colors = custom_cmap_info['color']
+        transparency = custom_cmap_info['transparency']
+
+        # Convert hex to RGBA format and include transparency
+        rgba_colors = [
+            hex_to_rgba(hex_colors[i], transparency[i])
+            for i in range(len(hex_colors))]
+
+        # positions are from 0..100 in the csv
+        original_cmap = LinearSegmentedColormap.from_list(
+            'custom_cmap', list(zip(np.array(positions)/100, rgba_colors)))
+
+    # Use linspace to get N interpolated colors from the original colormap
+    colors = original_cmap(np.linspace(0, 1, N))
+    # Create a new colormap from these colors
+    new_cmap = LinearSegmentedColormap.from_list(
+        cmap_name + "_interp", colors, N=N)
+    return new_cmap
+
+
+def root_filename(path):
+    return os.path.splitext(os.path.basename(path))[0]
+
+
+def interpolated_colormap(cmap):
+    # This function should create a matplotlib colormap based on your specifications
+    return plt.get_cmap(cmap)
+
+
+def style_rasters(raster_paths, cmap, fig_path, figure_title):
+    dpi = 100
+    figsize = 20
+    fig, axs = plt.subplots(2, 2, figsize=(figsize, figsize))  # Set up a 2x2 grid of plots
+    n_pixels = figsize/2*dpi
+    axs = axs.flatten()  # Flatten the 2D array of axes for easier iteration
+
+    for idx, base_raster_path in enumerate(raster_paths):
+        raster_info = geoprocessing.get_raster_info(base_raster_path)
+        target_pixel_size = scale_pixel_size(raster_info['raster_size'], n_pixels, raster_info['pixel_size'])
+        scaled_path = os.path.join(
+            WORKSPACE_DIR,
+            f'scaled_for_fig_{os.path.basename(base_raster_path)}')
+
+        LOGGER.info(f'scaling {scaled_path}')
+        geoprocessing.warp_raster(
+            base_raster_path, target_pixel_size, scaled_path,
+            'near')
+        LOGGER.info(f'scaled!')
+
+        base_array = gdal.OpenEx(scaled_path, gdal.OF_RASTER).ReadAsArray()
+
+        # Create a color gradient
+        cm = interpolated_colormap(cmap)
+        no_data_color = [0, 0, 0, 0]  # Assuming a black NoData color with full transparency
+
+        nodata = geoprocessing.get_raster_info(scaled_path)['nodata'][0]
+        nodata_mask = (base_array == nodata) | np.isnan(base_array)
+        styled_array = np.empty(base_array.shape + (4,), dtype=float)
+        valid_base_array = base_array[~nodata_mask]
+        #base_min, base_max = np.min(valid_base_array), np.max(valid_base_array)
+        base_min = np.percentile(valid_base_array, 2)
+        base_max = np.percentile(valid_base_array, 98)
+        LOGGER.debug(f'******{base_raster_path}: {base_min}, {base_max}')
+        normalized_array = (valid_base_array - base_min) / (base_max - base_min)
+
+        styled_array[~nodata_mask] = cm(normalized_array)
+        styled_array[nodata_mask] = no_data_color
+
+        # Define bounding box for each raster
+        bounding_box = geoprocessing.get_raster_info(scaled_path)['bounding_box']
+        extend_bb = [bounding_box[i] for i in (0, 2, 1, 3)]
+
+        axs[idx].set_title(root_filename(base_raster_path))
+        axs[idx].imshow(styled_array, extent=extend_bb, origin='upper')
+        axs[idx].axis('off')  # Turn off axis labels
+
+    plt.tight_layout()
+    plt.savefig(fig_path)
+
+
 def scale_op(raster_a_path, raster_b_path, target_path):
 
-    def _scale_op(array_a, array_b, nodata):
-        result = numpy.fill(array_a.shape, nodata)
-        valid_mask_a = (array_a != nodata)
-        result[valid_mask_a] = array_a[valid_mask_a]
-        valid_mask_b = (array_b != nodata)
-        result[valid_mask_b] += 2*array_a[valid_mask_b]
+    def _scale_op(array_a, array_b):
+        result = array_a+2*array_b
         return result
-    nodata = geoprocessing.get_raster_info(raster_a_path)['nodata'][0]
+
+    aligned_rasters = [
+        os.path.join(WORKSPACE_DIR, f'aligned_{os.path.basename(path)}')
+        for path in [raster_a_path, raster_b_path]]
+    pixel_size = geoprocessing.get_raster_info(raster_a_path)['pixel_size']
+    geoprocessing.align_and_resize_raster_stack(
+        [raster_a_path, raster_b_path], aligned_rasters, ['near']*2,
+        pixel_size, 'intersection')
     geoprocessing.raster_calculator(
-        [(raster_a_path, 1), (raster_b_path, 1)], _scale_op, target_path,
-        gdal.GDT_Int, nodata)
+        [(path, 1) for path in aligned_rasters], _scale_op, target_path,
+        gdal.GDT_Int16, None, allow_different_blocksize=True)
+
+
+def scale_pixel_size(dimensions, n_pixels, pixel_size):
+    x, y = dimensions
+
+    # Determine the scaling factor based on the larger dimension
+    if x > y and x > n_pixels:
+        scale_factor = x / n_pixels
+    elif y > x and y > n_pixels:
+        scale_factor = y / n_pixels
+    else:
+        scale_factor = 1
+
+    return (pixel_size[0]*scale_factor, pixel_size[1]*scale_factor)
 
 
 def main():
     task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, -1)
     four_panel_tuples = [
-        ('flood_mitigation', 'IDN', 'conservation_inf'),
-        ('sediment', 'IDN', 'conservation_inf'),
-        ('flood_mitigation', 'PH', 'conservation_inf'),
-        ('sediment', 'PH', 'conservation_inf'),
-        ('flood_mitigation', 'IDN', 'restoration'),
-        ('sediment', 'IDN', 'restoration'),
-        ('flood_mitigation', 'PH', 'restoration'),
-        ('sediment', 'PH', 'restoration'),
+        ('sediment', 'PH', 'conservation_inf', 'Sediment retention (Conservation)'),
+        ('flood_mitigation', 'IDN', 'conservation_inf', 'Flood mitigation (Conservation)'),
+        ('sediment', 'IDN', 'conservation_inf', 'Sediment retention (Conservation)'),
+        ('flood_mitigation', 'PH', 'conservation_inf', 'Flood mitigation (Conservation)'),
+        ('flood_mitigation', 'IDN', 'restoration', 'Flood mitigation (Restoration)'),
+        ('sediment', 'IDN', 'restoration', 'Sediment retention (Restoration)'),
+        ('flood_mitigation', 'PH', 'restoration', 'Flood mitigation (Restoration)'),
+        ('sediment', 'PH', 'restoration', 'Sediment retention (Restoration)'),
     ]
 
-    for service, country, scenario in four_panel_tuples:
+    for service, country, scenario, figure_title in four_panel_tuples:
         try:
             diff_path = os.path.join(root_dir, filenames[country][scenario][service]['diff'])
             service_dspop_path = os.path.join(root_dir, filenames[country][scenario][service]['service_dspop'])
@@ -183,41 +330,56 @@ def main():
                     combined_percentile_service_path),
                 target_path_list=[combined_percentile_service_path],
                 task_name=f'combined service {service} {country} {scenario}')
+
+            style_rasters(
+                [diff_path,
+                 service_dspop_path,
+                 service_road_path,
+                 combined_percentile_service_path], 'turbo',
+                os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
+                figure_title)
+
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
-
     three_panel_no_road_tuple = [
-        ('recharge', 'IDN', 'conservation_inf'),
-        ('recharge', 'PH', 'conservation_inf'),
-        ('recharge', 'PH', 'restoration'),
-        ('recharge', 'IDN', 'restoration'),
+        ('recharge', 'IDN', 'conservation_inf', 'Water recharge (Conservation)'),
+        ('recharge', 'PH', 'conservation_inf', 'Water recharge (Conservation)'),
+        ('recharge', 'PH', 'restoration', 'Water recharge (Restoration)'),
+        ('recharge', 'IDN', 'restoration', 'Water recharge (Restoration)'),
     ]
-    for service, country, scenario in three_panel_no_road_tuple:
+    for service, country, scenario, figure_title in three_panel_no_road_tuple:
         try:
             diff_path = os.path.join(root_dir, filenames[country][scenario][service]['diff'])
             service_dspop_path = os.path.join(root_dir, filenames[country][scenario][service]['service_dspop'])
             top_10th_percentile_service_dspop_path = os.path.join(root_dir, filenames[country][scenario][service]['top_10th_percentile_service_dspop'])
             if any([not os.path.exists(path) for path in [diff_path, service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
+
+            style_rasters(
+                [diff_path,
+                 service_dspop_path,
+                 top_10th_percentile_service_dspop_path], 'turbo',
+                os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
+                figure_title)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
 
     three_panel_no_diff_tuple = [
-        ('cv', 'IDN', 'conservation_inf'),
-        ('cv', 'PH', 'conservation_inf'),
-        ('cv', 'PH', 'restoration'),
-        ('cv', 'IDN', 'restoration'),
+        ('cv', 'IDN', 'conservation_inf', 'Coastal protection (Conservation)'),
+        ('cv', 'PH', 'conservation_inf', 'Coastal protection (Conservation)'),
+        ('cv', 'PH', 'restoration', 'Coastal protection (Restoration)'),
+        ('cv', 'IDN', 'restoration', 'Coastal protection (Restoration)'),
     ]
 
-    for service, country, scenario in three_panel_no_diff_tuple:
+    for service, country, scenario, figure_title in three_panel_no_diff_tuple:
         try:
             service_dspop_path = os.path.join(root_dir, filenames[country][scenario][service]['service_dspop'])
             service_road_path = os.path.join(root_dir, filenames[country][scenario][service]['service_road'])
             top_10th_percentile_service_dspop_path = os.path.join(root_dir, filenames[country][scenario][service]['top_10th_percentile_service_dspop'])
             top_10th_percentile_service_road_path = os.path.join(root_dir, filenames[country][scenario][service]['top_10th_percentile_service_road'])
-            if any([not os.path.exists(path) for path in [diff_path, service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
+            if any([not os.path.exists(path) for path in [service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
             combined_percentile_service_path = os.path.join(
                 WORKSPACE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
@@ -229,6 +391,12 @@ def main():
                     combined_percentile_service_path),
                 target_path_list=[combined_percentile_service_path],
                 task_name=f'combined service {service} {country} {scenario}')
+            style_rasters(
+                [service_dspop_path,
+                 service_road_path,
+                 combined_percentile_service_path], 'turbo',
+                os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
+                figure_title)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
