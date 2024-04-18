@@ -149,11 +149,11 @@ filenames = {
     }
 }
 
-
+SAMPLING_METHOD = 'near'
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
     '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
-    '7_element': [NODATA_COLOR, '#7fc97f','#beaed4','#fdc086','#ffff99','#386cb0','#e41a1c' ]
+    '7_element': [NODATA_COLOR, '#7fc97f','#beaed4','#fdc086','#ffff99', '#386cb0', '#f0027f', '#e41a1c' ]
 }
 
 
@@ -275,7 +275,7 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         LOGGER.info(f'scaling {scaled_path}')
         geoprocessing.warp_raster(
             base_raster_path, target_pixel_size, scaled_path,
-            'near')
+            SAMPLING_METHOD)
         LOGGER.info('scaled!')
 
         base_array = gdal.OpenEx(scaled_path, gdal.OF_RASTER).ReadAsArray()
@@ -307,7 +307,7 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         # Create a colorbar with labels for discrete categories
         # get the colors of the values, according to the
         # colormap used by imshow
-        values = np.unique(normalized_array.ravel())
+        values = numpy.linspace(0, 1, len(categories))
         print_colormap_colors(cmap, len(categories))
         colors = [cm(value) for value in values]
         LOGGER.debug(f'************************************* {values} {np.unique(valid_base_array.ravel())} {colors}')
@@ -331,7 +331,7 @@ def overlap_dspop_road_op(raster_a_path, raster_b_path, target_path):
         for path in [raster_a_path, raster_b_path]]
     pixel_size = geoprocessing.get_raster_info(raster_a_path)['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
-        [raster_a_path, raster_b_path], aligned_rasters, ['near']*2,
+        [raster_a_path, raster_b_path], aligned_rasters, [SAMPLING_METHOD]*2,
         pixel_size, 'intersection')
     geoprocessing.raster_calculator(
         [(path, 1) for path in aligned_rasters], _overlap_dspop_road_op, target_path,
@@ -383,7 +383,7 @@ def overlap_combos_op(task_graph, overlap_combo_list, target_path):
     task_graph.add_task(
         func=geoprocessing.align_and_resize_raster_stack,
         args=(
-            flat_path_list, aligned_rasters, ['near']*len(aligned_rasters),
+            flat_path_list, aligned_rasters, [SAMPLING_METHOD]*len(aligned_rasters),
             pixel_size, 'intersection'),
         target_path_list=aligned_rasters,
         task_name='alignining in overlap op')
@@ -449,8 +449,9 @@ def main():
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
+                (overlapping_services, 'overlapping_services'),
                 (each_service, 'each_ecosystem_service'),
-                (overlapping_services, 'overlapping_services')]:
+                ]:
             # Sediment and flood “Sediment retention and flood mitigation”
             # Flood and recharge “Flood mitigation and water recharge”
             # Recharge and sediment “Sediment retention and water recharge”
