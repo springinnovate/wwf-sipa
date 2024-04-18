@@ -5,6 +5,7 @@ import numpy
 import os
 import sys
 
+import matplotlib.patches as mpatches
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
 import matplotlib.colors as mcolors
@@ -149,12 +150,32 @@ filenames = {
     }
 }
 
+BASE_FONT_SIZE = 12
+GLOBAL_FIG_SIZE = 20
+GLOBAL_DPI = 100
 SAMPLING_METHOD = 'near'
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
     '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
     '7_element': [NODATA_COLOR, '#7fc97f','#beaed4','#fdc086','#ffff99', '#386cb0', '#f0027f', '#e41a1c' ]
 }
+
+
+def adjust_font_size(ax, fig, base_size):
+    fig_width, fig_height = fig.get_size_inches()
+    mean_dim = (fig_width + fig_height) / 2
+
+    # Scale font size based on figure dimensions
+    scaled_font_size = base_size * (mean_dim / 10)  # 10 is a normalization factor
+    ax.title.set_fontsize(scaled_font_size)
+
+def adjust_suptitle_fontsize(fig, base_size):
+    fig_width, fig_height = fig.get_size_inches()
+    mean_dim = (fig_width + fig_height) / 2
+
+    # Scale font size based on figure dimensions
+    scaled_font_size = base_size * (mean_dim / 10)  # Normalize based on an arbitrary value
+    return scaled_font_size
 
 
 def print_colormap_colors(cmap, num_samples):
@@ -302,21 +323,34 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         subfigure_title = subfigure_title_list[idx]
         if subfigure_title is not None:
             axs[idx].set_title(subfigure_title_list[idx], wrap=True)
-        im = axs[idx].imshow(styled_array, extent=extend_bb, origin='upper')
+            adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
+        axs[idx].imshow(styled_array, extent=extend_bb, origin='upper')
         axs[idx].axis('off')  # Turn off axis labels
-        # Create a colorbar with labels for discrete categories
-        # get the colors of the values, according to the
-        # colormap used by imshow
-        values = numpy.linspace(0, 1, len(categories))
-        print_colormap_colors(cmap, len(categories))
-        colors = [cm(value) for value in values]
-        LOGGER.debug(f'************************************* {values} {np.unique(valid_base_array.ravel())} {colors}')
-        # create a patch (proxy artist) for every color
-        patches = [mpatches.Patch(color=colors[i], label=categories[i] ) for i in range(len(values)) ]
-        # put those patched as legend-handles into the legend
-        plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
+        if categories is not None:
+            # Create a colorbar with labels for discrete categories
+            # get the colors of the values, according to the
+            # colormap used by imshow
+            values = numpy.linspace(0, 1, len(categories))
+            print_colormap_colors(cmap, len(categories))
+            colors = [cm(value) for value in values]
+            LOGGER.debug(f'************************************* {values} {np.unique(valid_base_array.ravel())} {colors}')
+            # create a patch (proxy artist) for every color
+            patches = [mpatches.Patch(color=colors[i], label=categories[i] ) for i in range(len(values)) ]
+            # put those patched as legend-handles into the legend
+            plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
 
-    fig.suptitle(overall_title, fontsize=16)  # Set the overall title for the figure
+            # Draw a box around the subplot
+        box = mpatches.FancyBboxPatch(
+            (0, 0), 1, 1, boxstyle="square,pad=0.1",
+            ec="black", fc="none", transform=axs[idx].transAxes,
+            lw=2, clip_on=False)
+        axs[idx].add_patch(box)
+
+    fontsize_for_suptitle = adjust_suptitle_fontsize(
+        fig, BASE_FONT_SIZE)
+    fig.suptitle(overall_title, fontsize=fontsize_for_suptitle)
+
+    adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust the layout to make space for the overall title
     plt.savefig(fig_path)
 
@@ -497,18 +531,15 @@ def main():
 
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario}) - {service}'
             cm = overlap_colormap(f'{len(overlap_sets)}_element')
-            fig_size = 20
             style_rasters(
                 [overlap_combo_service_path],
                 category_list,
                 country == 'IDN',
                 cm,
                 0, 100,
-                fig_size,
+                GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}.png'),
-                figure_title, [None], 100)
-            break
-        break
+                figure_title, [None], GLOBAL_DPI)
 
     four_panel_tuples = [
         ('sediment', 'PH', 'conservation_inf', 'Sediment retention (Conservation)'),
@@ -552,17 +583,19 @@ def main():
                  service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],
+                ['low', 'high'],
                 country == 'IDN',
-                'turbo',
+                plt.get_cmap('turbo'),
+                2, 98,
+                GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
                     fig_4_title,
-                    ])
+                    ], GLOBAL_DPI)
             print(f'done with {service}_{country}_{scenario}.png')
-            return
 
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
@@ -590,15 +623,18 @@ def main():
                 [diff_path,
                  service_dspop_path, None,
                  top_10th_percentile_service_dspop_path],
+                ['low', 'high'],
                 country == 'IDN',
-                'turbo',
+                plt.get_cmap('turbo'),
+                2, 98,
+                GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
                     fig_4_title,
-                    ])
+                    ], GLOBAL_DPI)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
@@ -620,8 +656,9 @@ def main():
                 LOGGER.error('missing!')
             combined_percentile_service_path = os.path.join(
                 WORKSPACE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
+
             task_graph.add_task(
-                func=scale_op,
+                func=overlap_dspop_road_op,
                 args=(
                     top_10th_percentile_service_dspop_path,
                     top_10th_percentile_service_road_path,
@@ -638,15 +675,18 @@ def main():
                 [None, service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],
+                ['low', 'high'],
                 country == 'IDN',
-                'turbo',
+                plt.get_cmap('turbo'),
+                2, 98,
+                GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
                     fig_4_title,
-                    ])
+                    ], GLOBAL_DPI)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
