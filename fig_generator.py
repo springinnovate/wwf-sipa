@@ -150,9 +150,10 @@ filenames = {
 }
 
 
+NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
-    '5_element': ['#ffffff', '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
-    '7_element': ['#7fc97f','#beaed4','#fdc086','#ffff99','#386cb0','#e41a1c' ]
+    '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
+    '7_element': [NODATA_COLOR, '#7fc97f','#beaed4','#fdc086','#ffff99','#386cb0','#e41a1c' ]
 }
 
 
