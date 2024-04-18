@@ -508,6 +508,7 @@ def main():
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}.png'),
                 figure_title, [None], 100)
             break
+        break
 
     four_panel_tuples = [
         ('sediment', 'PH', 'conservation_inf', 'Sediment retention (Conservation)'),
