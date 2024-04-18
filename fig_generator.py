@@ -7,9 +7,10 @@ import sys
 
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
+import matplotlib.colors as mcolors
 from matplotlib.colors import LinearSegmentedColormap
 from osgeo import gdal
-import matplotlib.colors as mcolors
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -25,6 +26,8 @@ logging.basicConfig(
         '%(asctime)s (%(relativeCreated)d) %(levelname)s %(name)s'
         ' [%(pathname)s.%(funcName)s:%(lineno)d] %(message)s'))
 LOGGER = logging.getLogger(__name__)
+logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
+logging.getLogger('PIL').setLevel(logging.ERROR)
 
 
 WORKSPACE_DIR = 'fig_generator_workspace'
@@ -148,8 +151,22 @@ filenames = {
 
 
 COLOR_LIST = {
-    '5_element': ['#aaaaaa', '#fdcdac', '#cbd5e8', '#e6f5c9', '#e6f5c9', '#984ea3'],
+    '5_element': ['#ffffff', '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
+    '7_element': ['#7fc97f','#beaed4','#fdc086','#ffff99','#386cb0','#e41a1c' ]
 }
+
+
+def print_colormap_colors(cmap, num_samples):
+    # Generate evenly spaced numbers between 0 and 1 to sample the colormap
+    sample_points = np.linspace(0, 1, num_samples)
+    colors = cmap(sample_points)  # Sample colors from the colormap
+
+    # Print each color as RGBA and as hexadecimal
+    for i, color in enumerate(colors):
+        # Normalize and convert RGBA color to hexadecimal, handling transparency
+        rgba_normalized = np.clip(color[:3], 0, 1)  # Ensure RGB values are within [0, 1]
+        hex_color = mcolors.rgb2hex(rgba_normalized)
+        print(f"Color {sample_points[i]} {i+1}: RGBA={color}, Hex={hex_color}")
 
 
 def overlap_colormap(version):
@@ -193,34 +210,6 @@ for style_file_path in glob.glob(os.path.join(CUSTOM_STYLE_DIR, '*.csv')):
     CUSTOM_STYLES.update(read_raster_csv(style_file_path))
 
 
-# def interpolated_colormap(cmap_name, N=100):
-#     try:
-#         # Get the original colormap from matplotlib
-#         original_cmap = plt.colormaps[cmap_name]
-#     except:
-#         # Handle custom colormap dictionary
-#         custom_cmap_info = CUSTOM_STYLES[cmap_name]
-#         positions = custom_cmap_info['position']
-#         hex_colors = custom_cmap_info['color']
-#         transparency = custom_cmap_info['transparency']
-
-#         # Convert hex to RGBA format and include transparency
-#         rgba_colors = [
-#             hex_to_rgba(hex_colors[i], transparency[i])
-#             for i in range(len(hex_colors))]
-
-#         # positions are from 0..100 in the csv
-#         original_cmap = LinearSegmentedColormap.from_list(
-#             'custom_cmap', list(zip(np.array(positions)/100, rgba_colors)))
-
-#     # Use linspace to get N interpolated colors from the original colormap
-#     colors = original_cmap(np.linspace(0, 1, N))
-#     # Create a new colormap from these colors
-#     new_cmap = LinearSegmentedColormap.from_list(
-#         cmap_name + "_interp", colors, N=N)
-#     return new_cmap
-
-
 def root_filename(path):
     return os.path.splitext(os.path.basename(path))[0]
 
@@ -244,7 +233,7 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size, dpi):
     return (total_width, total_height)
 
 
-def style_rasters(raster_paths, stack_vertical, cmap, min_percentile, max_percentile, fig_size, fig_path, overall_title, subfigure_title_list, dpi):
+def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile, max_percentile, fig_size, fig_path, overall_title, subfigure_title_list, dpi):
     single_raster_mode = len(raster_paths) == 1
     for path in raster_paths:
         if path is None:
@@ -263,10 +252,8 @@ def style_rasters(raster_paths, stack_vertical, cmap, min_percentile, max_percen
         rows = 2
         columns = 2
 
-
     fig_width, fig_height = calculate_figsize(
         aspect_ratio, (rows, columns), (fig_size, fig_size), dpi)
-
 
     fig, axs = plt.subplots(rows, columns, figsize=(fig_width, fig_height))  # Set up a 2x2 grid of plots
     n_pixels = fig_width/2*dpi
@@ -288,7 +275,7 @@ def style_rasters(raster_paths, stack_vertical, cmap, min_percentile, max_percen
         geoprocessing.warp_raster(
             base_raster_path, target_pixel_size, scaled_path,
             'near')
-        LOGGER.info(f'scaled!')
+        LOGGER.info('scaled!')
 
         base_array = gdal.OpenEx(scaled_path, gdal.OF_RASTER).ReadAsArray()
 
@@ -297,13 +284,11 @@ def style_rasters(raster_paths, stack_vertical, cmap, min_percentile, max_percen
         no_data_color = [0, 0, 0, 0]  # Assuming a black NoData color with full transparency
 
         nodata = geoprocessing.get_raster_info(scaled_path)['nodata'][0]
-        nodata_mask = (base_array == nodata) | np.isnan(base_array)
+        nodata_mask = ((base_array == nodata) | np.isnan(base_array))
         styled_array = np.empty(base_array.shape + (4,), dtype=float)
         valid_base_array = base_array[~nodata_mask]
-        #base_min, base_max = np.min(valid_base_array), np.max(valid_base_array)
         base_min = np.percentile(valid_base_array, min_percentile)
         base_max = np.percentile(valid_base_array, max_percentile)
-        LOGGER.debug(f'******{base_raster_path}: {base_min}, {base_max}')
         normalized_array = (valid_base_array - base_min) / (base_max - base_min)
 
         styled_array[~nodata_mask] = cm(normalized_array)
@@ -316,8 +301,19 @@ def style_rasters(raster_paths, stack_vertical, cmap, min_percentile, max_percen
         subfigure_title = subfigure_title_list[idx]
         if subfigure_title is not None:
             axs[idx].set_title(subfigure_title_list[idx], wrap=True)
-        axs[idx].imshow(styled_array, extent=extend_bb, origin='upper')
+        im = axs[idx].imshow(styled_array, extent=extend_bb, origin='upper')
         axs[idx].axis('off')  # Turn off axis labels
+        # Create a colorbar with labels for discrete categories
+        # get the colors of the values, according to the
+        # colormap used by imshow
+        values = np.unique(normalized_array.ravel())
+        print_colormap_colors(cmap, len(categories))
+        colors = [cm(value) for value in values]
+        LOGGER.debug(f'************************************* {values} {np.unique(valid_base_array.ravel())} {colors}')
+        # create a patch (proxy artist) for every color
+        patches = [mpatches.Patch(color=colors[i], label=categories[i] ) for i in range(len(values)) ]
+        # put those patched as legend-handles into the legend
+        plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
 
     fig.suptitle(overall_title, fontsize=16)  # Set the overall title for the figure
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust the layout to make space for the overall title
@@ -345,16 +341,19 @@ def overlap_combos_op(task_graph, overlap_combo_list, target_path):
     """Format of overlap combos [[[service_a_subset, service_a_subset2..], threshold], ...]
     """
     def _overlap_combos_op(index_list, *array_list):
-        result = numpy.zeros(overlap_count.shape, dtype=int)
+        result = numpy.zeros(array_list[0].shape, dtype=int)
         service_index = 1
         local_index_list = index_list.copy()
         next_service_index, overlap_threshold = local_index_list.pop(0)
+        local_overlap = numpy.zeros(result.shape, dtype=int)
         for array_index, array in enumerate(array_list):
-            local_overlap = numpy.zeros(overlap_count.shape, dtype=int)
             if array_index == next_service_index:
+                result[local_overlap >= overlap_threshold] = service_index
+                local_overlap = numpy.zeros(result.shape, dtype=int)
                 service_index += 1
                 try:
-                    next_service_index, overlap_threshold = local_index_list.pop(0)
+                    next_service_index, overlap_threshold = (
+                        local_index_list.pop(0))
                 except IndexError:
                     # if index error, last one which is ok
                     pass
@@ -363,20 +362,23 @@ def overlap_combos_op(task_graph, overlap_combo_list, target_path):
         result[local_overlap >= overlap_threshold] = service_index
         return result
 
+    LOGGER.debug(f'**************: {overlap_combo_list}')
     flat_path_list = [
-        path for path_list in overlap_combo_list
+        path for path_list, _ in overlap_combo_list
         for index, path in enumerate(path_list)]
     index_list = [(0, 0)]
     for array_list, overlap_threshold in overlap_combo_list:
         index_list.append(
-            (index_list[-1][0]+len(array_list)), overlap_threshold)
+            ((index_list[-1][0]+len(array_list)), overlap_threshold))
     index_list.pop(0)
     aligned_rasters = [
-        os.path.join(WORKSPACE_DIR, f'aligned_{index}_{os.path.basename(path)}')
+        os.path.join(
+            WORKSPACE_DIR,
+            f'aligned_{index}_{os.path.basename(path)}')
         for index, path in enumerate(flat_path_list)]
 
     pixel_size = geoprocessing.get_raster_info(
-        overlap_combo_list[0][0])['pixel_size']
+        overlap_combo_list[0][0][0])['pixel_size']
     task_graph.add_task(
         func=geoprocessing.align_and_resize_raster_stack,
         args=(
@@ -387,8 +389,8 @@ def overlap_combos_op(task_graph, overlap_combo_list, target_path):
     task_graph.join()
     geoprocessing.raster_calculator(
         [(index_list, 'raw')] +
-        [(path, 1) for path in aligned_rasters], _overlap_combos_op, target_path,
-        gdal.GDT_Int16, None, allow_different_blocksize=True)
+        [(path, 1) for path in aligned_rasters], _overlap_combos_op,
+        target_path, gdal.GDT_Int16, None, allow_different_blocksize=True)
 
 
 def scale_pixel_size(dimensions, n_pixels, pixel_size):
@@ -427,21 +429,21 @@ def main():
     ]
 
     overlapping_services = [
-        (('sediment', 'flood_mitigation'), 2),
-        (('flood_mitigation', 'recharge'), 2),
-        (('sediment', 'flood_mitigation', 'recharge'), 2),
-        (('cv', 'flood_mitigation', 'recharge'), 3),
-        (('sediment', 'cv', 'recharge'), 3),
-        (('sediment', 'flood_mitigation', 'cv'), 3),
-        (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4),
+        (('sediment', 'flood_mitigation'), 2, 'sed/flood'),
+        (('flood_mitigation', 'recharge'), 2, 'flood/recharge'),
+        (('sediment', 'flood_mitigation', 'recharge'), 2, 'sed/flood/recharge'),
+        (('cv', 'flood_mitigation', 'recharge'), 3, 'cv/flood/recharge'),
+        (('sediment', 'cv', 'recharge'), 3, 'sed/cv/recharge'),
+        (('sediment', 'flood_mitigation', 'cv'), 3, 'sed/flood/cv'),
+        (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4, 'sed/flood/recharge/cv'),
     ]
 
     each_service = [
-        (('sediment',), 1),
-        (('flood_mitigation',), 1),
-        (('recharge',), 1),
-        (('cv',), 1),
-        (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4),
+        (('sediment',), 1, "sediment"),
+        (('flood_mitigation',), 1, "flood"),
+        (('recharge',), 1, "recharge"),
+        (('cv',), 1, 'coastal v.'),
+        (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4, '> 1 service overlap'),
         ]
 
     for country, scenario in top_10_percent_maps:
@@ -455,8 +457,10 @@ def main():
             # All four “Overlaps between all four services”
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
-            for service_tuple, overlap_threshold in overlapping_services:
+            category_list = ['none']
+            for service_tuple, overlap_threshold, legend_category in service_set:
                 service_subset = []
+                category_list.append(legend_category)
                 for service in service_tuple:
                     dspop_road_overlap_path = os.path.join(WORKSPACE_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
                     top_10th_percentile_service_dspop_path = os.path.join(root_dir, filenames[country][scenario][service]['top_10th_percentile_service_dspop'])
@@ -490,10 +494,11 @@ def main():
                 task_name=f'top 10% of combo priorities {country} {scenario}')
 
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario}) - {service}'
-            cm = overlap_colormap('5_element')
+            cm = overlap_colormap(f'{len(overlap_sets)}_element')
             fig_size = 20
             style_rasters(
                 [overlap_combo_service_path],
+                category_list,
                 country == 'IDN',
                 cm,
                 0, 100,
