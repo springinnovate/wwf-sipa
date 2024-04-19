@@ -151,13 +151,13 @@ filenames = {
 }
 
 BASE_FONT_SIZE = 12
-GLOBAL_FIG_SIZE = 20
-GLOBAL_DPI = 100
-SAMPLING_METHOD = 'near'
+GLOBAL_FIG_SIZE = 15
+GLOBAL_DPI = 800
+SAMPLING_METHOD = 'average'
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
     '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
-    '7_element': [NODATA_COLOR, '#7fc97f','#beaed4','#fdc086','#ffff99', '#386cb0', '#f0027f', '#e41a1c' ]
+    '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c' ]
 }
 
 
@@ -236,12 +236,7 @@ def root_filename(path):
     return os.path.splitext(os.path.basename(path))[0]
 
 
-def interpolated_colormap(cmap):
-    # This function should create a matplotlib colormap based on your specifications
-    return plt.get_cmap(cmap)
-
-
-def calculate_figsize(aspect_ratio, grid_size, subplot_size, dpi):
+def calculate_figsize(aspect_ratio, grid_size, subplot_size):
     rows, cols = grid_size
     subplot_width, subplot_height = subplot_size
 
@@ -275,10 +270,10 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         columns = 2
 
     fig_width, fig_height = calculate_figsize(
-        aspect_ratio, (rows, columns), (fig_size, fig_size), dpi)
+        aspect_ratio, (rows, columns), (fig_size, fig_size))
 
     fig, axs = plt.subplots(rows, columns, figsize=(fig_width, fig_height))  # Set up a 2x2 grid of plots
-    n_pixels = fig_width/2*dpi
+    n_pixels = fig_width*dpi
     if not single_raster_mode:
         axs = axs.flatten()  # Flatten the 2D array of axes for easier iteration
     else:
@@ -309,9 +304,12 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         nodata_mask = ((base_array == nodata) | np.isnan(base_array))
         styled_array = np.empty(base_array.shape + (4,), dtype=float)
         valid_base_array = base_array[~nodata_mask]
-        base_min = np.percentile(valid_base_array, min_percentile)
-        base_max = np.percentile(valid_base_array, max_percentile)
-        normalized_array = (valid_base_array - base_min) / (base_max - base_min)
+        if categories is None:
+            base_min = np.percentile(valid_base_array, min_percentile)
+            base_max = np.percentile(valid_base_array, max_percentile)
+            normalized_array = (valid_base_array - base_min) / (base_max - base_min)
+        else:
+            normalized_array = valid_base_array / len(categories)
 
         styled_array[~nodata_mask] = cm(normalized_array)
         styled_array[nodata_mask] = no_data_color
@@ -352,7 +350,7 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
 
     adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust the layout to make space for the overall title
-    plt.savefig(fig_path)
+    plt.savefig(fig_path, dpi=dpi)
 
 
 def overlap_dspop_road_op(raster_a_path, raster_b_path, target_path):
@@ -397,7 +395,6 @@ def overlap_combos_op(task_graph, overlap_combo_list, target_path):
         result[local_overlap >= overlap_threshold] = service_index
         return result
 
-    LOGGER.debug(f'**************: {overlap_combo_list}')
     flat_path_list = [
         path for path_list, _ in overlap_combo_list
         for index, path in enumerate(path_list)]
@@ -453,38 +450,35 @@ def main():
     #     Any overlap “Overlaps between services”
 
     top_10_percent_maps = [
-        ('PH', 'conservation_inf',),
-        ('IDN', 'conservation_inf',),
-        ('IDN', 'conservation_inf',),
-        ('PH', 'conservation_inf',),
-        ('IDN', 'restoration',),
-        ('IDN', 'restoration',),
+        #('PH', 'conservation_inf',),
         ('PH', 'restoration',),
-        ('PH', 'restoration',),
+        #('IDN', 'conservation_inf',),
+        #('IDN', 'restoration',),
     ]
 
     overlapping_services = [
         (('sediment', 'flood_mitigation'), 2, 'sed/flood'),
         (('flood_mitigation', 'recharge'), 2, 'flood/recharge'),
-        (('sediment', 'flood_mitigation', 'recharge'), 2, 'sed/flood/recharge'),
+        (('sediment', 'flood_mitigation', 'recharge'), 3, 'sed/flood/recharge'),
         (('cv', 'flood_mitigation', 'recharge'), 3, 'cv/flood/recharge'),
         (('sediment', 'cv', 'recharge'), 3, 'sed/cv/recharge'),
         (('sediment', 'flood_mitigation', 'cv'), 3, 'sed/flood/cv'),
         (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4, 'sed/flood/recharge/cv'),
     ]
 
-    each_service = [
-        (('sediment',), 1, "sediment"),
-        (('flood_mitigation',), 1, "flood"),
-        (('recharge',), 1, "recharge"),
-        (('cv',), 1, 'coastal v.'),
-        (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4, '> 1 service overlap'),
-        ]
+    # each_service = [
+    #     (('sediment',), 1, "sediment"),
+    #     (('flood_mitigation',), 1, "flood"),
+    #     (('recharge',), 1, "recharge"),
+    #     (('cv',), 1, 'coastal v.'),
+    #     (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4, '> 1 service overlap'),
+    #     ]
+    each_service = []
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
                 (overlapping_services, 'overlapping_services'),
-                (each_service, 'each_ecosystem_service'),
+                #(each_service, 'each_ecosystem_service'),
                 ]:
             # Sediment and flood “Sediment retention and flood mitigation”
             # Flood and recharge “Flood mitigation and water recharge”
@@ -538,9 +532,9 @@ def main():
                 cm,
                 0, 100,
                 GLOBAL_FIG_SIZE,
-                os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}.png'),
+                os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI)
-
+    return
     four_panel_tuples = [
         ('sediment', 'PH', 'conservation_inf', 'Sediment retention (Conservation)'),
         ('sediment', 'IDN', 'conservation_inf', 'Sediment retention (Conservation)'),
