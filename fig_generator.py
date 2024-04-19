@@ -450,10 +450,10 @@ def main():
     #     Any overlap “Overlaps between services”
 
     top_10_percent_maps = [
-        #('PH', 'conservation_inf',),
+        ('PH', 'conservation_inf',),
         ('PH', 'restoration',),
-        #('IDN', 'conservation_inf',),
-        #('IDN', 'restoration',),
+        ('IDN', 'conservation_inf',),
+        ('IDN', 'restoration',),
     ]
 
     overlapping_services = [
@@ -466,19 +466,18 @@ def main():
         (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4, 'sed/flood/recharge/cv'),
     ]
 
-    # each_service = [
-    #     (('sediment',), 1, "sediment"),
-    #     (('flood_mitigation',), 1, "flood"),
-    #     (('recharge',), 1, "recharge"),
-    #     (('cv',), 1, 'coastal v.'),
-    #     (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4, '> 1 service overlap'),
-    #     ]
-    each_service = []
+    each_service = [
+        (('sediment',), 1, "sediment"),
+        (('flood_mitigation',), 1, "flood"),
+        (('recharge',), 1, "recharge"),
+        (('cv',), 1, 'coastal v.'),
+        (('sediment', 'flood_mitigation', 'recharge', 'cv'), 4, '> 1 service overlap'),
+        ]
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
                 (overlapping_services, 'overlapping_services'),
-                #(each_service, 'each_ecosystem_service'),
+                (each_service, 'each_ecosystem_service'),
                 ]:
             # Sediment and flood “Sediment retention and flood mitigation”
             # Flood and recharge “Flood mitigation and water recharge”
@@ -534,7 +533,7 @@ def main():
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI)
-    return
+
     four_panel_tuples = [
         ('sediment', 'PH', 'conservation_inf', 'Sediment retention (Conservation)'),
         ('sediment', 'IDN', 'conservation_inf', 'Sediment retention (Conservation)'),
