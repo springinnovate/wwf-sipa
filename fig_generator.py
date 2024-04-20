@@ -522,7 +522,7 @@ def main():
                 target_path_list=[overlap_combo_service_path],
                 task_name=f'top 10% of combo priorities {country} {scenario}')
 
-            figure_title = f'Top 10% of priorities for {service_set_title} ({scenario}) - {service}'
+            figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
             cm = overlap_colormap(f'{len(overlap_sets)}_element')
             style_rasters(
                 [overlap_combo_service_path],
