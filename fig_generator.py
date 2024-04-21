@@ -281,6 +281,7 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
 
     for idx, base_raster_path in enumerate(raster_paths):
         if base_raster_path is None:
+            axs[idx].axis('off')
             continue
         raster_info = geoprocessing.get_raster_info(base_raster_path)
         target_pixel_size = scale_pixel_size(raster_info['raster_size'], n_pixels, raster_info['pixel_size'])
@@ -337,12 +338,12 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
             # put those patched as legend-handles into the legend
             plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
 
-            # Draw a box around the subplot
-        box = mpatches.FancyBboxPatch(
-            (0, 0), 1, 1, boxstyle="square,pad=0.1",
-            ec="black", fc="none", transform=axs[idx].transAxes,
-            lw=2, clip_on=False)
-        axs[idx].add_patch(box)
+        # Draw a box around the subplot
+        # box = mpatches.FancyBboxPatch(
+        #     (0, 0), 1, 1, boxstyle="square,pad=0.1",
+        #     ec="black", fc="none", transform=axs[idx].transAxes,
+        #     lw=2, clip_on=False)
+        # axs[idx].add_patch(box)
 
     fontsize_for_suptitle = adjust_suptitle_fontsize(
         fig, BASE_FONT_SIZE)
@@ -351,6 +352,7 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
     adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust the layout to make space for the overall title
     plt.savefig(fig_path, dpi=dpi)
+    plt.close(fig)
 
 
 def overlap_dspop_road_op(raster_a_path, raster_b_path, target_path):
