@@ -17,14 +17,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyproj
 
-CUSTOM_STYLE_DIR = 'custom_styles'
-WORKING_DIR = 'raster_styler_working_dir'
-FIG_DIR = os.path.join(WORKING_DIR, 'rendered_figures')
-ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
-OVERLAP_DIR = os.spth.join(WORKING_DIR, 'overlap_rasters')
-for dir_path in [WORKING_DIR, FIG_DIR, ALGINED_DIR, OVERLAP_DIR]:
-    os.makedirs(dir_path, exist_ok=True)
-
 logging.basicConfig(
     level=logging.DEBUG,
     stream=sys.stdout,
@@ -35,7 +27,27 @@ LOGGER = logging.getLogger(__name__)
 logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 logging.getLogger('PIL').setLevel(logging.ERROR)
 
-root_dir = r'D:\repositories\wwf-sipa\post_processing_results_no_road_recharge'
+CUSTOM_STYLE_DIR = 'custom_styles'
+WORKING_DIR = 'fig_generator_dir'
+FIG_DIR = os.path.join(WORKING_DIR, 'rendered_figures')
+ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
+OVERLAP_DIR = os.spth.join(WORKING_DIR, 'overlap_rasters')
+SCALED_DIR = os.path.join(WORKING_DIR, 'scaled_rasters')
+COMBINED_SERVICE_DIR = os.path.join(WORKING_DIR, 'combined_services')
+for dir_path in [WORKING_DIR, FIG_DIR, ALGINED_DIR, OVERLAP_DIR]:
+    os.makedirs(dir_path, exist_ok=True)
+
+ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_no_road_recharge'
+
+BASE_FONT_SIZE = 12
+GLOBAL_FIG_SIZE = 5
+GLOBAL_DPI = 100
+SAMPLING_METHOD = 'average'
+NODATA_COLOR = '#ffffff'
+COLOR_LIST = {
+    '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
+    '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c']
+}
 
 FLOOD_MITIGATION_SERVICE = 'flood mitigation'
 RECHARGE_SERVICE = 'recharge'
@@ -159,16 +171,6 @@ FILENAMES = {
     }
 }
 
-BASE_FONT_SIZE = 12
-GLOBAL_FIG_SIZE = 15
-GLOBAL_DPI = 400
-SAMPLING_METHOD = 'average'
-NODATA_COLOR = '#ffffff'
-COLOR_LIST = {
-    '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
-    '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c' ]
-}
-
 
 def adjust_font_size(ax, fig, base_size):
     fig_width, fig_height = fig.get_size_inches()
@@ -177,6 +179,7 @@ def adjust_font_size(ax, fig, base_size):
     # Scale font size based on figure dimensions
     scaled_font_size = base_size * (mean_dim / 10)  # 10 is a normalization factor
     ax.title.set_fontsize(scaled_font_size)
+
 
 def adjust_suptitle_fontsize(fig, base_size):
     fig_width, fig_height = fig.get_size_inches()
@@ -225,13 +228,13 @@ def read_raster_csv(file_path):
             elif i % 4 == 2:
                 raster_dict[current_raster_name]['color'] = [x for x in row[1:] if x != '']
             elif i % 4 == 3:
-                raster_dict[current_raster_name]['transparency'] = [int(x) for x in row[1:]  if x != '']
+                raster_dict[current_raster_name]['transparency'] = [int(x) for x in row[1:] if x != '']
     return raster_dict
 
 
 def hex_to_rgba(hex_code, transparency):
     hex_code = hex_code.lstrip('#')
-    rgb = tuple(int(hex_code[i:i+2], 16)/255.0 for i in (0, 2, 4))
+    rgb = tuple(int(hex_code[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
     alpha = transparency / 100  # Convert 0-100 scale to 0-1 scale
     return rgb + (alpha,)
 
@@ -295,7 +298,7 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         raster_info = geoprocessing.get_raster_info(base_raster_path)
         target_pixel_size = scale_pixel_size(raster_info['raster_size'], n_pixels, raster_info['pixel_size'])
         scaled_path = os.path.join(
-            WORKSPACE_DIR,
+            SCALED_DIR,
             f'scaled_for_fig_{os.path.basename(base_raster_path)}')
 
         LOGGER.info(f'scaling {scaled_path}')
@@ -341,11 +344,8 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
             values = numpy.linspace(0, 1, len(categories))
             print_colormap_colors(cmap, len(categories))
             colors = [cm(value) for value in values]
-            LOGGER.debug(f'************************************* {values} {np.unique(valid_base_array.ravel())} {colors}')
-            # create a patch (proxy artist) for every color
-            patches = [mpatches.Patch(color=colors[i], label=categories[i] ) for i in range(len(values)) ]
-            # put those patched as legend-handles into the legend
-            plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
+            patches = [mpatches.Patch(color=colors[i], label=categories[i]) for i in range(len(values))]
+            plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 
     fontsize_for_suptitle = adjust_suptitle_fontsize(
         fig, BASE_FONT_SIZE)
@@ -363,7 +363,7 @@ def overlap_dspop_road_op(raster_a_path, raster_b_path, target_path):
         return result
 
     aligned_rasters = [
-        os.path.join(WORKSPACE_DIR, f'aligned_{os.path.basename(path)}')
+        os.path.join(ALGINED_DIR, f'aligned_{os.path.basename(path)}')
         for path in [raster_a_path, raster_b_path]]
     pixel_size = geoprocessing.get_raster_info(raster_a_path)['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
@@ -371,7 +371,7 @@ def overlap_dspop_road_op(raster_a_path, raster_b_path, target_path):
         pixel_size, 'intersection')
     geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_rasters], _overlap_dspop_road_op, target_path,
-        gdal.GDT_Int16, None, allow_different_blocksize=True)
+        gdal.GDT_Int16, 0, allow_different_blocksize=True)
 
 
 def overlap_combos_op(task_graph, overlap_combo_list, target_path):
@@ -409,7 +409,7 @@ def overlap_combos_op(task_graph, overlap_combo_list, target_path):
     index_list.pop(0)
     aligned_rasters = [
         os.path.join(
-            WORKSPACE_DIR,
+            ALGINED_DIR,
             f'aligned_{index}_{os.path.basename(path)}')
         for index, path in enumerate(flat_path_list)]
 
@@ -424,8 +424,8 @@ def overlap_combos_op(task_graph, overlap_combo_list, target_path):
         task_name='alignining in overlap op')
     task_graph.join()
     geoprocessing.single_thread_raster_calculator(
-        [(index_list, 'raw')] +
-        [(path, 1) for path in aligned_rasters], _overlap_combos_op,
+        [(index_list, 'raw')] + [
+            (path, 1) for path in aligned_rasters], _overlap_combos_op,
         target_path, gdal.GDT_Int16, None, allow_different_blocksize=True)
 
 
@@ -444,14 +444,7 @@ def scale_pixel_size(dimensions, n_pixels, pixel_size):
 
 
 def main():
-    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, -1)
-
-    # First map(s) [for each scenario, country] - Title: “Top 10% of priorities for each ecosystem service (Conservation)” “Top 10% of priorities for each ecosystem service (Restoration)”
-    #     Only sediment “Sediment retention”
-    #     Only flood “Flood mitigation”
-    #     Only recharge “Water recharge”
-    #     Only cv “Only coastal protection”
-    #     Any overlap “Overlaps between services”
+    task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
 
     top_10_percent_maps = [
         ('PH', CONSERVATION_SCENARIO,),
@@ -461,8 +454,6 @@ def main():
     ]
 
     overlapping_services = [
-
-
         ((SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, 'sed/flood'),
         ((FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 2, 'flood/recharge'),
         ((SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 2, 'cv/other'), # TODO: not like this, do CV and 1 other
@@ -486,11 +477,6 @@ def main():
                 (overlapping_services, 'overlapping services'),
                 (each_service, 'each ecosystem service'),
                 ]:
-            # Sediment and flood “Sediment retention and flood mitigation”
-            # Flood and recharge “Flood mitigation and water recharge”
-            # Recharge and sediment “Sediment retention and water recharge”
-            # Any three combos of overlap “Overlaps between three services”
-            # All four “Overlaps between all four services”
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
             category_list = ['none']
@@ -498,10 +484,10 @@ def main():
                 service_subset = []
                 category_list.append(legend_category)
                 for service in service_tuple:
-                    dspop_road_overlap_path = os.path.join(WORKSPACE_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
-                    top_10th_percentile_service_dspop_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
+                    dspop_road_overlap_path = os.path.join(OVERLAP_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
+                    top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
                     if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
-                        top_10th_percentile_service_road_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
+                        top_10th_percentile_service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
                         task_graph.add_task(
                             func=overlap_dspop_road_op,
                             args=(
@@ -518,7 +504,7 @@ def main():
                 overlap_sets.append((service_subset, overlap_threshold))
 
             overlap_combo_service_path = os.path.join(
-                WORKSPACE_DIR, f'overlap_combos_top_10_{country}_{scenario}_{service_set_title}.tif')
+                OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{service_set_title}.tif')
 
             task_graph.add_task(
                 func=overlap_combos_op,
@@ -554,16 +540,16 @@ def main():
 
     for service, country, scenario, figure_title in four_panel_tuples:
         try:
-            diff_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['diff'])
-            service_dspop_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['service_dspop'])
-            service_road_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['service_road'])
-            top_10th_percentile_service_dspop_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
-            top_10th_percentile_service_road_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
+            diff_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['diff'])
+            service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_dspop'])
+            service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_road'])
+            top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
+            top_10th_percentile_service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
             if any([not os.path.exists(path) for path in [diff_path, service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
 
             combined_percentile_service_path = os.path.join(
-                WORKSPACE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
+                COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
             task_graph.add_task(
                 func=overlap_dspop_road_op,
                 args=(
@@ -593,8 +579,7 @@ def main():
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
-                    fig_4_title,
-                    ], GLOBAL_DPI)
+                    fig_4_title,], GLOBAL_DPI)
             print(f'done with {service}_{country}_{scenario}.png')
 
         except Exception:
@@ -608,9 +593,9 @@ def main():
     ]
     for service, country, scenario, figure_title in three_panel_no_road_tuple:
         try:
-            diff_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['diff'])
-            service_dspop_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['service_dspop'])
-            top_10th_percentile_service_dspop_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
+            diff_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['diff'])
+            service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_dspop'])
+            top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
             if any([not os.path.exists(path) for path in [diff_path, service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
 
@@ -633,8 +618,7 @@ def main():
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
-                    fig_4_title,
-                    ], GLOBAL_DPI)
+                    fig_4_title,], GLOBAL_DPI)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
@@ -648,10 +632,10 @@ def main():
 
     for service, country, scenario, figure_title in three_panel_no_diff_tuple:
         try:
-            service_dspop_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['service_dspop'])
-            service_road_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['service_road'])
-            top_10th_percentile_service_dspop_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
-            top_10th_percentile_service_road_path = os.path.join(root_dir, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
+            service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_dspop'])
+            service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_road'])
+            top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
+            top_10th_percentile_service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
             if any([not os.path.exists(path) for path in [service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
             combined_percentile_service_path = os.path.join(
@@ -685,8 +669,7 @@ def main():
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
-                    fig_4_title,
-                    ], GLOBAL_DPI)
+                    fig_4_title,], GLOBAL_DPI)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
