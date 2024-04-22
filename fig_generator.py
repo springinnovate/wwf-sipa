@@ -31,7 +31,7 @@ CUSTOM_STYLE_DIR = 'custom_styles'
 WORKING_DIR = 'fig_generator_dir'
 FIG_DIR = os.path.join(WORKING_DIR, 'rendered_figures')
 ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
-OVERLAP_DIR = os.spth.join(WORKING_DIR, 'overlap_rasters')
+OVERLAP_DIR = os.path.join(WORKING_DIR, 'overlap_rasters')
 SCALED_DIR = os.path.join(WORKING_DIR, 'scaled_rasters')
 COMBINED_SERVICE_DIR = os.path.join(WORKING_DIR, 'combined_services')
 for dir_path in [WORKING_DIR, FIG_DIR, ALGINED_DIR, OVERLAP_DIR]:
@@ -47,6 +47,7 @@ NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
     '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
     '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c']
+    '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c']
 }
 
 FLOOD_MITIGATION_SERVICE = 'flood mitigation'
