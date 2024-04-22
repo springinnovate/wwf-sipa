@@ -329,40 +329,23 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         styled_array[~nodata_mask] = cm(normalized_array)
         styled_array[nodata_mask] = no_data_color
 
-        # Define bounding box for each raster
-        bounding_box = geoprocessing.get_raster_info(scaled_path)['bounding_box']
-        extend_bb = [bounding_box[i] for i in (0, 2, 1, 3)]
-
         subfigure_title = subfigure_title_list[idx]
         if subfigure_title is not None:
             axs[idx].set_title(subfigure_title_list[idx], wrap=True)
             adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
         axs[idx].imshow(styled_array, origin='upper')
-        #axs[idx].imshow(styled_array, extent=extend_bb, origin='upper')
         axs[idx].axis('off')  # Turn off axis labels
         if categories is not None:
-            # Create a colorbar with labels for discrete categories
-            # get the colors of the values, according to the
-            # colormap used by imshow
             values = numpy.linspace(0, 1, len(categories))
             print_colormap_colors(cmap, len(categories))
             colors = [cm(value) for value in values]
 
             fig_width, fig_height = fig.get_size_inches()
-            legend_width = fig_width * 0.1
-            legend_height = fig_height * 0.1
-            scale_transform = Bbox.from_bounds(0, 0, legend_width, legend_height)
             patches = [mpatches.Patch(color=colors[i], label=categories[i]) for i in range(len(values))]
             axs[idx].legend(
-                fontsize=adjust_suptitle_fontsize(fig, BASE_FONT_SIZE),
+                fontsize=adjust_suptitle_fontsize(fig, BASE_FONT_SIZE * 0.75),
                 handles=patches,
                 loc='upper right')
-            # plt.legend(
-            #     fontsize=adjust_suptitle_fontsize(fig, BASE_FONT_SIZE),
-            #     handles=patches,
-            #     bbox_to_anchor=scale_transform,
-            #     loc='upper left', borderaxespad=0.0,
-            #     bbox_transform=axs[idx].transAxes)
 
     fontsize_for_suptitle = adjust_suptitle_fontsize(
         fig, BASE_FONT_SIZE)
@@ -370,7 +353,6 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
 
     adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust the layout to make space for the overall title
-    plt.grid(True)
     plt.savefig(fig_path, dpi=dpi)
     plt.close(fig)
 
@@ -392,8 +374,22 @@ def overlap_dspop_road_op(raster_a_path, raster_b_path, unique_prefix, target_pa
         gdal.GDT_Int16, 0, allow_different_blocksize=True)
 
 
-def overlap_combos_op(task_graph, overlap_combo_list, target_path):
-    """Format of overlap combos [[[service_a_subset, service_a_subset2..], threshold], ...]
+def list_to_unique_and_index(flat_path_list):
+    unique_dict = {}
+    index_list = []
+    unique_list = []
+
+    for path in flat_path_list:
+        if path not in unique_dict:
+            unique_dict[path] = len(unique_list)
+            unique_list.append(path)
+        index_list.append(unique_dict[path])
+    return unique_list, index_list
+
+def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
+    """
+        overlap_combo_list - [(required raster list), (optional raster lsit),
+            threshold for how many optional needed]
     """
     def _overlap_combos_op(index_list, *array_list):
         result = numpy.zeros(array_list[0].shape, dtype=int)
@@ -418,32 +414,40 @@ def overlap_combos_op(task_graph, overlap_combo_list, target_path):
         return result
 
     flat_path_list = [
-        path for path_list, _ in overlap_combo_list
-        for index, path in enumerate(path_list)]
-    index_list = [(0, 0)]
-    for array_list, overlap_threshold in overlap_combo_list:
+        path
+        for required_path_list, optional_path_list, _ in overlap_combo_list
+        for path_list in [required_path_list, optional_path_list]
+        for index, path in enumerate(path_list)
+        ]
+
+    unique_path_list, flat_path_to_unique_list = list_to_unique_and_index(
+        flat_path_list)
+
+    for required_path_list, optional_path_list, overlap_threshold in overlap_combo_list:
         index_list.append(
-            ((index_list[-1][0]+len(array_list)), overlap_threshold))
+            (index_list[-1][0]+len(required_path_list)+len(optional_path_list), overlap_threshold))
     index_list.pop(0)
     aligned_rasters = [
         os.path.join(
             ALGINED_DIR,
-            f'aligned_{index}_{os.path.basename(path)}')
-        for index, path in enumerate(flat_path_list)]
+            f'aligned_{prefix}_{os.path.basename(path)}')
+        for path in unique_path_list]
 
     pixel_size = geoprocessing.get_raster_info(
         overlap_combo_list[0][0][0])['pixel_size']
     task_graph.add_task(
         func=geoprocessing.align_and_resize_raster_stack,
         args=(
-            flat_path_list, aligned_rasters, [SAMPLING_METHOD]*len(aligned_rasters),
+            flat_path_list, aligned_rasters,
+            [SAMPLING_METHOD]*len(aligned_rasters),
             pixel_size, 'intersection'),
         target_path_list=aligned_rasters,
         task_name='alignining in overlap op')
     task_graph.join()
     geoprocessing.single_thread_raster_calculator(
         [(index_list, 'raw')] + [
-            (path, 1) for path in aligned_rasters], _overlap_combos_op,
+            (aligned_rasters[index], 1)
+            for index in flat_path_to_unique_list], _overlap_combos_op,
         target_path, gdal.GDT_Int16, None, allow_different_blocksize=True)
 
 
@@ -472,14 +476,14 @@ def main():
     ]
 
     overlapping_services = [
-        ((SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, 'sed/flood'),
-        ((FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 2, 'flood/recharge'),
-        ((SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 2, 'cv/other'), # TODO: not like this, do CV and 1 other
-        ((SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'sed/flood/recharge'),
-        ((CV_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'cv/flood/recharge'),
-        ((SEDIMENT_SERVICE, CV_SERVICE, RECHARGE_SERVICE), 3, 'sed/cv/recharge'),
-        ((SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, CV_SERVICE), 3, 'sed/flood/cv'),
-        ((SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 4, 'sed/flood/recharge/cv'),
+        ((,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, 'sed/flood'),
+        ((,), (FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 2, 'flood/recharge'),
+        ((CV_SERVICE,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 1, 'cv/at least one other service'),
+        ((,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'sed/flood/recharge'),
+        ((,), (CV_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'cv/flood/recharge'),
+        ((,), (SEDIMENT_SERVICE, CV_SERVICE, RECHARGE_SERVICE), 3, 'sed/cv/recharge'),
+        ((,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, CV_SERVICE), 3, 'sed/flood/cv'),
+        ((,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 4, 'sed/flood/recharge/cv'),
     ]
 
     each_service = [
@@ -498,13 +502,14 @@ def main():
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
             category_list = ['none']
-            for service_tuple, overlap_threshold, legend_category in service_set:
+            for required_service_tuple, optional_service_tuple, overlap_threshold, legend_category in service_set:
                 service_subset = []
                 category_list.append(legend_category)
                 for service in service_tuple:
                     dspop_road_overlap_path = os.path.join(OVERLAP_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
                     top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
                     if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
+                        # combine road and dspop if road exists
                         top_10th_percentile_service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
                         task_graph.add_task(
                             func=overlap_dspop_road_op,
@@ -520,7 +525,7 @@ def main():
                         dspop_road_overlap_path = top_10th_percentile_service_dspop_path
                     service_subset.append(dspop_road_overlap_path)
 
-                overlap_sets.append((service_subset, overlap_threshold))
+                overlap_sets.append((required_service_tuple, optional_service_tuple, overlap_threshold))
 
             overlap_combo_service_path = os.path.join(
                 OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{service_set_title}.tif')
@@ -530,6 +535,7 @@ def main():
                 args=(
                     task_graph,
                     overlap_sets,
+                    f'{country}_{senario}',
                     overlap_combo_service_path),
                 target_path_list=[overlap_combo_service_path],
                 task_name=f'top 10% of combo priorities {country} {scenario}')
@@ -545,7 +551,7 @@ def main():
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI)
-    return
+        return
 
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
