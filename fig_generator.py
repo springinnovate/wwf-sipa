@@ -11,6 +11,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from osgeo import gdal
 from osgeo import osr
 from pyproj import Transformer
+from matplotlib.transforms import Bbox
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -34,20 +35,20 @@ ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
 OVERLAP_DIR = os.path.join(WORKING_DIR, 'overlap_rasters')
 SCALED_DIR = os.path.join(WORKING_DIR, 'scaled_rasters')
 COMBINED_SERVICE_DIR = os.path.join(WORKING_DIR, 'combined_services')
-for dir_path in [WORKING_DIR, FIG_DIR, ALGINED_DIR, OVERLAP_DIR]:
+for dir_path in [WORKING_DIR, FIG_DIR, ALGINED_DIR, OVERLAP_DIR, SCALED_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_no_road_recharge'
 
 BASE_FONT_SIZE = 12
-GLOBAL_FIG_SIZE = 5
-GLOBAL_DPI = 100
-SAMPLING_METHOD = 'average'
+GLOBAL_FIG_SIZE = 10
+GLOBAL_DPI = 400
+SAMPLING_METHOD = 'near'
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
     '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
-    '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c']
-    '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c']
+    '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c'],
+    '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c'],
 }
 
 FLOOD_MITIGATION_SERVICE = 'flood mitigation'
@@ -336,7 +337,8 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         if subfigure_title is not None:
             axs[idx].set_title(subfigure_title_list[idx], wrap=True)
             adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
-        axs[idx].imshow(styled_array, extent=extend_bb, origin='upper')
+        axs[idx].imshow(styled_array, origin='upper')
+        #axs[idx].imshow(styled_array, extent=extend_bb, origin='upper')
         axs[idx].axis('off')  # Turn off axis labels
         if categories is not None:
             # Create a colorbar with labels for discrete categories
@@ -345,8 +347,22 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
             values = numpy.linspace(0, 1, len(categories))
             print_colormap_colors(cmap, len(categories))
             colors = [cm(value) for value in values]
+
+            fig_width, fig_height = fig.get_size_inches()
+            legend_width = fig_width * 0.1
+            legend_height = fig_height * 0.1
+            scale_transform = Bbox.from_bounds(0, 0, legend_width, legend_height)
             patches = [mpatches.Patch(color=colors[i], label=categories[i]) for i in range(len(values))]
-            plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+            axs[idx].legend(
+                fontsize=adjust_suptitle_fontsize(fig, BASE_FONT_SIZE),
+                handles=patches,
+                loc='upper right')
+            # plt.legend(
+            #     fontsize=adjust_suptitle_fontsize(fig, BASE_FONT_SIZE),
+            #     handles=patches,
+            #     bbox_to_anchor=scale_transform,
+            #     loc='upper left', borderaxespad=0.0,
+            #     bbox_transform=axs[idx].transAxes)
 
     fontsize_for_suptitle = adjust_suptitle_fontsize(
         fig, BASE_FONT_SIZE)
@@ -354,6 +370,7 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
 
     adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust the layout to make space for the overall title
+    plt.grid(True)
     plt.savefig(fig_path, dpi=dpi)
     plt.close(fig)
 
@@ -475,8 +492,8 @@ def main():
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
-                (overlapping_services, 'overlapping services'),
-                (each_service, 'each ecosystem service'),
+                #(overlapping_services, 'overlapping services'),
+                #(each_service, 'each ecosystem service'),
                 ]:
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
