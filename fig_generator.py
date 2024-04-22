@@ -375,13 +375,13 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
     plt.close(fig)
 
 
-def overlap_dspop_road_op(raster_a_path, raster_b_path, target_path):
+def overlap_dspop_road_op(raster_a_path, raster_b_path, unique_prefix, target_path):
     def _overlap_dspop_road_op(array_a, array_b):
-        result = array_a+2*array_b
+        result = array_a + (2 * array_b)
         return result
 
     aligned_rasters = [
-        os.path.join(ALGINED_DIR, f'aligned_{os.path.basename(path)}')
+        os.path.join(ALGINED_DIR, f'aligned_{unique_prefix}_{os.path.basename(path)}')
         for path in [raster_a_path, raster_b_path]]
     pixel_size = geoprocessing.get_raster_info(raster_a_path)['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
@@ -492,8 +492,8 @@ def main():
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
-                #(overlapping_services, 'overlapping services'),
-                #(each_service, 'each ecosystem service'),
+                (overlapping_services, 'overlapping services'),
+                (each_service, 'each ecosystem service'),
                 ]:
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
@@ -511,6 +511,7 @@ def main():
                             args=(
                                 top_10th_percentile_service_dspop_path,
                                 top_10th_percentile_service_road_path,
+                                f'top10_{country}_{scenario}',
                                 dspop_road_overlap_path),
                             target_path_list=[dspop_road_overlap_path],
                             task_name=f'dspop road {service} {country} {scenario}')
@@ -544,6 +545,7 @@ def main():
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI)
+    return
 
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
@@ -573,6 +575,7 @@ def main():
                 args=(
                     top_10th_percentile_service_dspop_path,
                     top_10th_percentile_service_road_path,
+                    f'fourpanel_{service}_{country}_{scenario}',
                     combined_percentile_service_path),
                 target_path_list=[combined_percentile_service_path],
                 task_name=f'combined service {service} {country} {scenario}')
@@ -657,13 +660,14 @@ def main():
             if any([not os.path.exists(path) for path in [service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
             combined_percentile_service_path = os.path.join(
-                WORKSPACE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
+                COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
 
             task_graph.add_task(
                 func=overlap_dspop_road_op,
                 args=(
                     top_10th_percentile_service_dspop_path,
                     top_10th_percentile_service_road_path,
+                    f'3panel_{service}_{country}_{scenario}',
                     combined_percentile_service_path),
                 target_path_list=[combined_percentile_service_path],
                 task_name=f'combined service {service} {country} {scenario}')
