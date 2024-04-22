@@ -392,16 +392,33 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
             threshold for how many optional needed]
     """
     def _overlap_combos_op(index_list, *array_list):
+        '''index_list = [(index_for_next_optional, index_fo_next_required, threshold)]'''
         result = numpy.zeros(array_list[0].shape, dtype=int)
         service_index = 1
         local_index_list = index_list.copy()
-        next_service_index, overlap_threshold = local_index_list.pop(0)
+        next_optional_index, next_required_index, overlap_threshold = local_index_list.pop(0)
+        reqired_mode = True
         local_overlap = numpy.zeros(result.shape, dtype=int)
+        required_valid_overlap = numpy.ones(result.shape, dtype=bool)
         for array_index, array in enumerate(array_list):
+            if required_mode and (array_index != next_optional_index):
+                local_overlap_mask = (local_overlap > 0)
+                required_valid_overlap &= required_valid_overlap
+                continue
+            elif reqired_mode and (array_index == next_optional_index):
+                reqired_mode = False
+                continue
+
+            valid_mask = array > 0
+            local_overlap[valid_mask] += 1
             if array_index == next_service_index:
-                result[local_overlap >= overlap_threshold] = service_index
-                local_overlap = numpy.zeros(result.shape, dtype=int)
+                result[
+                    required_valid_overlap &
+                    (local_overlap >= overlap_threshold)] = service_index
+                local_overlap[:] = 0
                 service_index += 1
+                reqired_mode = True
+                required_valid_overlap[:] = True
                 try:
                     next_service_index, overlap_threshold = (
                         local_index_list.pop(0))
@@ -410,7 +427,9 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
                     pass
             valid_mask = array > 0
             local_overlap[valid_mask] += 1
-        result[local_overlap >= overlap_threshold] = service_index
+        result[
+            required_valid_overlap &
+            (local_overlap >= overlap_threshold)] = service_index
         return result
 
     flat_path_list = [
@@ -424,8 +443,10 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         flat_path_list)
 
     for required_path_list, optional_path_list, overlap_threshold in overlap_combo_list:
-        index_list.append(
-            (index_list[-1][0]+len(required_path_list)+len(optional_path_list), overlap_threshold))
+        index_list.append((
+            index_list[-1][0]+len(required_path_list),
+            index_list[-1][0]+len(required_path_list)+len(optional_path_list),
+            overlap_threshold))
     index_list.pop(0)
     aligned_rasters = [
         os.path.join(
