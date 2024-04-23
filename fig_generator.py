@@ -11,7 +11,6 @@ from matplotlib.colors import LinearSegmentedColormap
 from osgeo import gdal
 from osgeo import osr
 from pyproj import Transformer
-from matplotlib.transforms import Bbox
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -397,36 +396,32 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         service_index = 1
         local_index_list = index_list.copy()
         next_optional_index, next_required_index, overlap_threshold = local_index_list.pop(0)
-        reqired_mode = True
         local_overlap = numpy.zeros(result.shape, dtype=int)
         required_valid_overlap = numpy.ones(result.shape, dtype=bool)
-        for array_index, array in enumerate(array_list):
-            if required_mode and (array_index != next_optional_index):
-                local_overlap_mask = (local_overlap > 0)
-                required_valid_overlap &= required_valid_overlap
-                continue
-            elif reqired_mode and (array_index == next_optional_index):
-                reqired_mode = False
-                continue
+        # [([(0, 2, 2), (2, 4, 2), (5, 8, 1), (8, 11, 3), (11, 14, 3), (14, 17, 3), (17, 20, 3), (20, 24, 4)]
 
-            valid_mask = array > 0
-            local_overlap[valid_mask] += 1
-            if array_index == next_service_index:
-                result[
-                    required_valid_overlap &
-                    (local_overlap >= overlap_threshold)] = service_index
-                local_overlap[:] = 0
-                service_index += 1
-                reqired_mode = True
-                required_valid_overlap[:] = True
-                try:
-                    next_service_index, overlap_threshold = (
+        for array_index, array in enumerate(array_list):
+            if (array_index < next_optional_index):
+                local_overlap_mask = (array > 0)
+                required_valid_overlap &= local_overlap_mask
+            else:
+                # we're in optional mask territory
+                if array_index == next_required_index:
+                    # process this next
+                    result[
+                        required_valid_overlap &
+                        (local_overlap >= overlap_threshold)] = service_index
+                    local_overlap[:] = 0
+                    service_index += 1
+                    next_optional_index, next_required_index, overlap_threshold = (
                         local_index_list.pop(0))
-                except IndexError:
-                    # if index error, last one which is ok
-                    pass
-            valid_mask = array > 0
-            local_overlap[valid_mask] += 1
+                    if (array_index < next_optional_index):
+                        local_overlap_mask = (array > 0)
+                        required_valid_overlap &= local_overlap_mask
+                    else:
+                        required_valid_overlap[:] = True
+                valid_mask = array > 0
+                local_overlap[valid_mask] += 1
         result[
             required_valid_overlap &
             (local_overlap >= overlap_threshold)] = service_index
@@ -437,16 +432,19 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         for required_path_list, optional_path_list, _ in overlap_combo_list
         for path_list in [required_path_list, optional_path_list]
         for index, path in enumerate(path_list)
-        ]
+    ]
 
     unique_path_list, flat_path_to_unique_list = list_to_unique_and_index(
         flat_path_list)
 
+    index_list = [(0, 0, 0)]  # just to initialize, it's dropped later
+    next_offset = 0
     for required_path_list, optional_path_list, overlap_threshold in overlap_combo_list:
         index_list.append((
-            index_list[-1][0]+len(required_path_list),
-            index_list[-1][0]+len(required_path_list)+len(optional_path_list),
+            next_offset+len(required_path_list),
+            next_offset+len(required_path_list)+len(optional_path_list),
             overlap_threshold))
+        next_offset = index_list[-1][1]
     index_list.pop(0)
     aligned_rasters = [
         os.path.join(
@@ -455,16 +453,17 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         for path in unique_path_list]
 
     pixel_size = geoprocessing.get_raster_info(
-        overlap_combo_list[0][0][0])['pixel_size']
+        flat_path_list[0])['pixel_size']
     task_graph.add_task(
         func=geoprocessing.align_and_resize_raster_stack,
         args=(
-            flat_path_list, aligned_rasters,
-            [SAMPLING_METHOD]*len(aligned_rasters),
+            unique_path_list, aligned_rasters,
+            [SAMPLING_METHOD] * len(unique_path_list),
             pixel_size, 'intersection'),
         target_path_list=aligned_rasters,
         task_name='alignining in overlap op')
     task_graph.join()
+
     geoprocessing.single_thread_raster_calculator(
         [(index_list, 'raw')] + [
             (aligned_rasters[index], 1)
@@ -508,11 +507,11 @@ def main():
     ]
 
     each_service = [
-        ((SEDIMENT_SERVICE,), 1, "sediment"),
-        ((FLOOD_MITIGATION_SERVICE,), 1, "flood"),
-        ((RECHARGE_SERVICE,), 1, "recharge"),
-        ((CV_SERVICE,), 1, 'coastal v.'),
-        ((SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 4, '> 1 service overlap'),
+        ((), (SEDIMENT_SERVICE,), 1, "sediment"),
+        ((), (FLOOD_MITIGATION_SERVICE,), 1, "flood"),
+        ((), (RECHARGE_SERVICE,), 1, "recharge"),
+        ((), (CV_SERVICE,), 1, 'coastal v'),
+        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 2, '> 1 service overlap'),
         ]
 
     for country, scenario in top_10_percent_maps:
