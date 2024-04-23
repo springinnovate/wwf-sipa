@@ -497,14 +497,14 @@ def main():
     ]
 
     overlapping_services = [
-        ((,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, 'sed/flood'),
-        ((,), (FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 2, 'flood/recharge'),
+        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, 'sed/flood'),
+        ((), (FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 2, 'flood/recharge'),
         ((CV_SERVICE,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 1, 'cv/at least one other service'),
-        ((,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'sed/flood/recharge'),
-        ((,), (CV_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'cv/flood/recharge'),
-        ((,), (SEDIMENT_SERVICE, CV_SERVICE, RECHARGE_SERVICE), 3, 'sed/cv/recharge'),
-        ((,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, CV_SERVICE), 3, 'sed/flood/cv'),
-        ((,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 4, 'sed/flood/recharge/cv'),
+        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'sed/flood/recharge'),
+        ((), (CV_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'cv/flood/recharge'),
+        ((), (SEDIMENT_SERVICE, CV_SERVICE, RECHARGE_SERVICE), 3, 'sed/cv/recharge'),
+        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, CV_SERVICE), 3, 'sed/flood/cv'),
+        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 4, 'sed/flood/recharge/cv'),
     ]
 
     each_service = [
@@ -518,35 +518,40 @@ def main():
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
                 (overlapping_services, 'overlapping services'),
-                (each_service, 'each ecosystem service'),
-                ]:
+                (each_service, 'each ecosystem service'),]:
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
             category_list = ['none']
             for required_service_tuple, optional_service_tuple, overlap_threshold, legend_category in service_set:
-                service_subset = []
+                required_service_subset = []
+                optional_service_subset = []
                 category_list.append(legend_category)
-                for service in service_tuple:
-                    dspop_road_overlap_path = os.path.join(OVERLAP_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
-                    top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
-                    if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
-                        # combine road and dspop if road exists
-                        top_10th_percentile_service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
-                        task_graph.add_task(
-                            func=overlap_dspop_road_op,
-                            args=(
-                                top_10th_percentile_service_dspop_path,
-                                top_10th_percentile_service_road_path,
-                                f'top10_{country}_{scenario}',
-                                dspop_road_overlap_path),
-                            target_path_list=[dspop_road_overlap_path],
-                            task_name=f'dspop road {service} {country} {scenario}')
-                    else:
-                        # doesn't exist but we don't lose anything by just doing the dspop
-                        dspop_road_overlap_path = top_10th_percentile_service_dspop_path
-                    service_subset.append(dspop_road_overlap_path)
 
-                overlap_sets.append((required_service_tuple, optional_service_tuple, overlap_threshold))
+                for service_tuple, service_subset in [
+                        (required_service_tuple, required_service_subset),
+                        (optional_service_tuple, optional_service_subset)]:
+                    for service in service_tuple:
+                        # loop through all the services, they always have a dspop and some of them have a roads, if roads then combine
+                        dspop_road_overlap_path = os.path.join(OVERLAP_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
+                        top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
+                        if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
+                            # combine road and dspop if road exists
+                            top_10th_percentile_service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
+                            task_graph.add_task(
+                                func=overlap_dspop_road_op,
+                                args=(
+                                    top_10th_percentile_service_dspop_path,
+                                    top_10th_percentile_service_road_path,
+                                    f'top10_{country}_{scenario}',
+                                    dspop_road_overlap_path),
+                                target_path_list=[dspop_road_overlap_path],
+                                task_name=f'dspop road {service} {country} {scenario}')
+                        else:
+                            # doesn't exist but we don't lose anything by just doing the dspop
+                            dspop_road_overlap_path = top_10th_percentile_service_dspop_path
+                        service_subset.append(dspop_road_overlap_path)
+
+                overlap_sets.append((required_service_subset, optional_service_subset, overlap_threshold))
 
             overlap_combo_service_path = os.path.join(
                 OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{service_set_title}.tif')
@@ -556,7 +561,7 @@ def main():
                 args=(
                     task_graph,
                     overlap_sets,
-                    f'{country}_{senario}',
+                    f'{country}_{scenario}',
                     overlap_combo_service_path),
                 target_path_list=[overlap_combo_service_path],
                 task_name=f'top 10% of combo priorities {country} {scenario}')
