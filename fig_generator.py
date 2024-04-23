@@ -14,6 +14,7 @@ from pyproj import Transformer
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import numpy as np
 import pyproj
 
@@ -39,6 +40,8 @@ for dir_path in [WORKING_DIR, FIG_DIR, ALGINED_DIR, OVERLAP_DIR, SCALED_DIR]:
 
 ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_no_road_recharge'
 
+LOW_PERCENTILE = 5
+HIGH_PERCENTILE = 95
 BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
 GLOBAL_DPI = 400
@@ -263,7 +266,7 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
     return (total_width, total_height)
 
 
-def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile, max_percentile, fig_size, fig_path, overall_title, subfigure_title_list, dpi):
+def style_rasters(raster_paths, categories, stack_vertical, color_map, min_percentile, max_percentile, fig_size, fig_path, overall_title, subfigure_title_list, dpi):
     single_raster_mode = len(raster_paths) == 1
     for path in raster_paths:
         if path is None:
@@ -311,24 +314,24 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         base_array = gdal.OpenEx(scaled_path, gdal.OF_RASTER).ReadAsArray()
 
         # Create a color gradient
-        cm = interpolated_colormap(cmap)
+        color_map = interpolated_colormap(color_map)
         no_data_color = [0, 0, 0, 0]  # Assuming a black NoData color with full transparency
 
         nodata = geoprocessing.get_raster_info(scaled_path)['nodata'][0]
-        nodata_mask = ((base_array == nodata) | np.isnan(base_array))
+        nodata_mask = ((base_array == nodata) | np.isnan(base_array)) | (base_array == 0)
         styled_array = np.empty(base_array.shape + (4,), dtype=float)
         valid_base_array = base_array[~nodata_mask]
-        if categories is None:
-            sorted_array = np.sort(valid_base_array)
-            min_index = int(np.floor(0.05 * len(sorted_array)))
-            max_index = int(np.floor(0.95 * len(sorted_array)))
-            base_min = sorted_array[min_index]
-            base_max = sorted_array[max_index]
-            normalized_array = (valid_base_array - base_min) / (base_max - base_min)
-        else:
-            normalized_array = valid_base_array / len(categories)
+        base_min = np.percentile(valid_base_array, min_percentile)
+        base_max = np.percentile(valid_base_array, max_percentile)
+        norm = mcolors.Normalize(vmin=base_min, vmax=base_max)
+        sm = cm.ScalarMappable(cmap=color_map, norm=norm)
+        styled_array[~nodata_mask] = sm.to_rgba(valid_base_array)
 
-        styled_array[~nodata_mask] = cm(normalized_array)
+        # scaled_base_array = (
+        #     (valid_base_array - base_min) / (base_max - base_min))
+        # styled_array[~nodata_mask] = cm(scaled_base_array)
+
+        # Create a Normalize object
         styled_array[nodata_mask] = no_data_color
 
         subfigure_title = subfigure_title_list[idx]
@@ -339,9 +342,8 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         axs[idx].axis('off')  # Turn off axis labels
         if categories is not None:
             values = numpy.linspace(0, 1, len(categories))
-            print_colormap_colors(cmap, len(categories))
-            colors = [cm(value) for value in values]
-
+            print_colormap_colors(color_map, len(categories))
+            colors = [color_map(value) for value in values]
             fig_width, fig_height = fig.get_size_inches()
             patches = [mpatches.Patch(color=colors[i], label=categories[i]) for i in range(len(values))]
             axs[idx].legend(
@@ -519,8 +521,8 @@ def main():
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
-                #(overlapping_services, 'overlapping services'),
-                #(each_service, 'each ecosystem service'),
+                (overlapping_services, 'overlapping services'),
+                (each_service, 'each ecosystem service'),
                 ]:
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
@@ -570,12 +572,12 @@ def main():
                 task_name=f'top 10% of combo priorities {country} {scenario}')
 
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
-            cm = overlap_colormap(f'{len(overlap_sets)}_element')
+            color_map = overlap_colormap(f'{len(overlap_sets)}_element')
             style_rasters(
                 [overlap_combo_service_path],
                 category_list,
                 country == 'IDN',
-                cm,
+                color_map,
                 0, 100,
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
@@ -619,18 +621,16 @@ def main():
             fig_3_title = f'{service} for downstream roads'
             fig_4_title = f'Top 10% of priorities for {service} for downstream beneficiaries'
 
-            low_percentile = 5
-            high_percentile = 95
             style_rasters(
                 [diff_path,
                  service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],
-                [f'{low_percentile}th percentile',
-                 f'{high_percentile}th percentile'],
+                [f'{LOW_PERCENTILE}th percentile',
+                 f'{HIGH_PERCENTILE}th percentile'],
                 country == 'IDN',
                 plt.get_cmap('turbo'),
-                low_percentile, high_percentile,
+                LOW_PERCENTILE, HIGH_PERCENTILE,
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
@@ -643,7 +643,7 @@ def main():
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
-        return
+
     three_panel_no_road_tuple = [
         (RECHARGE_SERVICE, 'IDN', CONSERVATION_SCENARIO, 'Water recharge (Conservation)'),
         (RECHARGE_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Water recharge (Conservation)'),
@@ -667,10 +667,11 @@ def main():
                 [diff_path,
                  service_dspop_path, None,
                  top_10th_percentile_service_dspop_path],
-                ['low', 'high'],
+                [f'{LOW_PERCENTILE}th percentile',
+                 f'{HIGH_PERCENTILE}th percentile'],
                 country == 'IDN',
                 plt.get_cmap('turbo'),
-                2, 98,
+                LOW_PERCENTILE, HIGH_PERCENTILE,
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
@@ -719,10 +720,11 @@ def main():
                 [None, service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],
-                ['low', 'high'],
+                [f'{LOW_PERCENTILE}th percentile',
+                 f'{HIGH_PERCENTILE}th percentile'],
                 country == 'IDN',
                 plt.get_cmap('turbo'),
-                2, 98,
+                LOW_PERCENTILE, HIGH_PERCENTILE,
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
@@ -734,6 +736,11 @@ def main():
             LOGGER.error(f'{service} {country} {scenario}')
             raise
 
+    task_graph.close()
+    task_graph.join()
+    return
+
+    # TODO: still do the analysis
     # How much do services overlap with each other? Which one overlaps the least?
     # Need to know:
 
@@ -760,8 +767,6 @@ def main():
         # Area of overlap between the top 10% overlap map and each service’s
         # top_10th_percentile_service_dspop or _road
 
-    task_graph.close()
-    task_graph.join()
 
 
 def calculate_pixel_area_km2(base_raster_path, target_epsg):
