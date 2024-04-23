@@ -319,8 +319,11 @@ def style_rasters(raster_paths, categories, stack_vertical, cmap, min_percentile
         styled_array = np.empty(base_array.shape + (4,), dtype=float)
         valid_base_array = base_array[~nodata_mask]
         if categories is None:
-            base_min = np.percentile(valid_base_array, min_percentile)
-            base_max = np.percentile(valid_base_array, max_percentile)
+            sorted_array = np.sort(valid_base_array)
+            min_index = int(np.floor(0.05 * len(sorted_array)))
+            max_index = int(np.floor(0.95 * len(sorted_array)))
+            base_min = sorted_array[min_index]
+            base_max = sorted_array[max_index]
             normalized_array = (valid_base_array - base_min) / (base_max - base_min)
         else:
             normalized_array = valid_base_array / len(categories)
@@ -516,8 +519,9 @@ def main():
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
-                (overlapping_services, 'overlapping services'),
-                (each_service, 'each ecosystem service'),]:
+                #(overlapping_services, 'overlapping services'),
+                #(each_service, 'each ecosystem service'),
+                ]:
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
             category_list = ['none']
@@ -576,7 +580,6 @@ def main():
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI)
-        return
 
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
@@ -616,15 +619,18 @@ def main():
             fig_3_title = f'{service} for downstream roads'
             fig_4_title = f'Top 10% of priorities for {service} for downstream beneficiaries'
 
+            low_percentile = 5
+            high_percentile = 95
             style_rasters(
                 [diff_path,
                  service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],
-                ['low', 'high'],
+                [f'{low_percentile}th percentile',
+                 f'{high_percentile}th percentile'],
                 country == 'IDN',
                 plt.get_cmap('turbo'),
-                2, 98,
+                low_percentile, high_percentile,
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
@@ -637,6 +643,7 @@ def main():
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
+        return
     three_panel_no_road_tuple = [
         (RECHARGE_SERVICE, 'IDN', CONSERVATION_SCENARIO, 'Water recharge (Conservation)'),
         (RECHARGE_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Water recharge (Conservation)'),
