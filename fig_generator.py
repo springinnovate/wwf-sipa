@@ -1,9 +1,11 @@
 import csv
 import glob
+import itertools
 import logging
 import numpy
 import os
 import sys
+from pathlib import Path
 
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
@@ -11,10 +13,10 @@ from matplotlib.colors import LinearSegmentedColormap
 from osgeo import gdal
 from osgeo import osr
 from pyproj import Transformer
+import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import numpy as np
 import pyproj
 
@@ -27,6 +29,7 @@ logging.basicConfig(
 LOGGER = logging.getLogger(__name__)
 logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 logging.getLogger('PIL').setLevel(logging.ERROR)
+logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 
 CUSTOM_STYLE_DIR = 'custom_styles'
 WORKING_DIR = 'fig_generator_dir'
@@ -35,13 +38,17 @@ ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
 OVERLAP_DIR = os.path.join(WORKING_DIR, 'overlap_rasters')
 SCALED_DIR = os.path.join(WORKING_DIR, 'scaled_rasters')
 COMBINED_SERVICE_DIR = os.path.join(WORKING_DIR, 'combined_services')
-for dir_path in [WORKING_DIR, FIG_DIR, ALGINED_DIR, OVERLAP_DIR, SCALED_DIR]:
+COARSE_CV_SERVICE_DIR = os.path.join(WORKING_DIR, 'coarse_cv_service')
+for dir_path in [
+        WORKING_DIR, FIG_DIR, ALGINED_DIR, OVERLAP_DIR, SCALED_DIR,
+        COARSE_CV_SERVICE_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_no_road_recharge'
 
-LOW_PERCENTILE = 5
-HIGH_PERCENTILE = 95
+CV_COARSEN_SCALE = 20
+LOW_PERCENTILE = 10
+HIGH_PERCENTILE = 90
 BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
 GLOBAL_DPI = 400
@@ -49,6 +56,7 @@ SAMPLING_METHOD = 'near'
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
     '1_element': [NODATA_COLOR, '#e41a1c'],
+    '3_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086'],
     '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
     '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c'],
     '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c'],
@@ -66,112 +74,112 @@ FILENAMES = {
     'PH': {
         RESTORATION_SCENARIO: {
             FLOOD_MITIGATION_SERVICE: {
-                'diff': 'diff_flood_mitigation_PH_restoration.tif',
-                'service_dspop': 'service_dspop_flood_mitigation_PH_restoration.tif',
-                'service_road': 'service_road_flood_mitigation_PH_restoration.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_flood_mitigation_PH_restoration.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_flood_mitigation_PH_restoration.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_flood_mitigation_PH_restoration.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_flood_mitigation_PH_restoration.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_flood_mitigation_PH_restoration.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_flood_mitigation_PH_restoration.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_flood_mitigation_PH_restoration.tif'),
             },
             RECHARGE_SERVICE: {
-                'diff': 'diff_recharge_PH_restoration.tif',
-                'service_dspop': 'service_dspop_recharge_PH_restoration.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_recharge_PH_restoration.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_recharge_PH_restoration.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_recharge_PH_restoration.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_recharge_PH_restoration.tif'),
             },
             SEDIMENT_SERVICE: {
-                'diff': 'diff_sediment_PH_restoration.tif',
-                'service_dspop': 'service_dspop_sediment_PH_restoration.tif',
-                'service_road': 'service_road_sediment_PH_restoration.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_sediment_PH_restoration.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_sediment_PH_restoration.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_sediment_PH_restoration.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_sediment_PH_restoration.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_sediment_PH_restoration.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_sediment_PH_restoration.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_sediment_PH_restoration.tif'),
             },
             CV_SERVICE: {
-                'service_dspop': 'service_dspop_cv_ph_restoration_result.tif',
-                'service_road': 'service_road_cv_ph_restoration_result.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_cv_ph_restoration_result.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_cv_ph_restoration_result.tif',
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_cv_ph_restoration_result.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_cv_ph_restoration_result.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_cv_ph_restoration_result.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_ph_restoration_result.tif'),
             },
         },
         CONSERVATION_SCENARIO: {
             FLOOD_MITIGATION_SERVICE: {
-                'diff': 'diff_flood_mitigation_PH_conservation_inf.tif',
-                'service_dspop': 'service_dspop_flood_mitigation_PH_conservation_inf.tif',
-                'service_road': 'service_road_flood_mitigation_PH_conservation_inf.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_flood_mitigation_PH_conservation_inf.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_flood_mitigation_PH_conservation_inf.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_flood_mitigation_PH_conservation_inf.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_flood_mitigation_PH_conservation_inf.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_flood_mitigation_PH_conservation_inf.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_flood_mitigation_PH_conservation_inf.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_flood_mitigation_PH_conservation_inf.tif'),
             },
             RECHARGE_SERVICE: {
-                'diff': 'diff_recharge_PH_conservation_inf.tif',
-                'service_dspop': 'service_dspop_recharge_PH_conservation_inf.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_recharge_PH_conservation_inf.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_recharge_PH_conservation_inf.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_recharge_PH_conservation_inf.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_recharge_PH_conservation_inf.tif'),
             },
             SEDIMENT_SERVICE: {
-                'diff': 'diff_sediment_PH_conservation_inf.tif',
-                'service_dspop': 'service_dspop_sediment_PH_conservation_inf.tif',
-                'service_road': 'service_road_sediment_PH_conservation_inf.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_sediment_PH_conservation_inf.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_sediment_PH_conservation_inf.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_sediment_PH_conservation_inf.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_sediment_PH_conservation_inf.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_sediment_PH_conservation_inf.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_sediment_PH_conservation_inf.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_sediment_PH_conservation_inf.tif'),
             },
             CV_SERVICE: {
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_cv_ph_conservation_inf_result.tif',
-                'service_dspop': 'service_dspop_cv_ph_conservation_inf_result.tif',
-                'service_road': 'service_road_cv_ph_conservation_inf_result.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_cv_ph_conservation_inf_result.tif',
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_cv_ph_conservation_inf_result.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_cv_ph_conservation_inf_result.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_cv_ph_conservation_inf_result.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_ph_conservation_inf_result.tif'),
             },
         }
     },
     'IDN': {
         RESTORATION_SCENARIO: {
             FLOOD_MITIGATION_SERVICE: {
-                'diff': 'diff_flood_mitigation_IDN_restoration.tif',
-                'service_dspop': 'service_dspop_flood_mitigation_IDN_restoration.tif',
-                'service_road': 'service_road_flood_mitigation_IDN_restoration.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_flood_mitigation_IDN_restoration.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_flood_mitigation_IDN_restoration.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_flood_mitigation_IDN_restoration.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_flood_mitigation_IDN_restoration.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_flood_mitigation_IDN_restoration.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_flood_mitigation_IDN_restoration.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_flood_mitigation_IDN_restoration.tif'),
             },
             RECHARGE_SERVICE: {
-                'diff': 'diff_recharge_IDN_restoration.tif',
-                'service_dspop': 'service_dspop_recharge_IDN_restoration.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_recharge_IDN_restoration.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_recharge_IDN_restoration.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_recharge_IDN_restoration.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_recharge_IDN_restoration.tif'),
             },
             SEDIMENT_SERVICE: {
-                'diff': 'diff_sediment_IDN_restoration.tif',
-                'service_dspop': 'service_dspop_sediment_IDN_restoration.tif',
-                'service_road': 'service_road_sediment_IDN_restoration.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_sediment_IDN_restoration.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_sediment_IDN_restoration.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_sediment_IDN_restoration.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_sediment_IDN_restoration.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_sediment_IDN_restoration.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_sediment_IDN_restoration.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_sediment_IDN_restoration.tif'),
             },
             CV_SERVICE: {
-                'service_dspop': 'service_dspop_cv_idn_restoration_result.tif',
-                'service_road': 'service_road_cv_idn_restoration_result.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_cv_idn_restoration_result.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_cv_idn_restoration_result.tif',
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_cv_idn_restoration_result.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_cv_idn_restoration_result.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_cv_idn_restoration_result.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_idn_restoration_result.tif'),
             },
         },
         CONSERVATION_SCENARIO: {
             FLOOD_MITIGATION_SERVICE: {
-                'diff': 'diff_flood_mitigation_IDN_conservation_inf.tif',
-                'service_dspop': 'service_dspop_flood_mitigation_IDN_conservation_inf.tif',
-                'service_road': 'service_road_flood_mitigation_IDN_conservation_inf.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_flood_mitigation_IDN_conservation_inf.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_flood_mitigation_IDN_conservation_inf.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_flood_mitigation_IDN_conservation_inf.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_flood_mitigation_IDN_conservation_inf.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_flood_mitigation_IDN_conservation_inf.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_flood_mitigation_IDN_conservation_inf.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_flood_mitigation_IDN_conservation_inf.tif'),
             },
             RECHARGE_SERVICE: {
-                'diff': 'diff_recharge_IDN_conservation_inf.tif',
-                'service_dspop': 'service_dspop_recharge_IDN_conservation_inf.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_recharge_IDN_conservation_inf.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_recharge_IDN_conservation_inf.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_recharge_IDN_conservation_inf.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_recharge_IDN_conservation_inf.tif'),
             },
             SEDIMENT_SERVICE: {
-                'diff': 'diff_sediment_IDN_conservation_inf.tif',
-                'service_dspop': 'service_dspop_sediment_IDN_conservation_inf.tif',
-                'service_road': 'service_road_sediment_IDN_conservation_inf.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_sediment_IDN_conservation_inf.tif',
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_sediment_IDN_conservation_inf.tif',
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_sediment_IDN_conservation_inf.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_sediment_IDN_conservation_inf.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_sediment_IDN_conservation_inf.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_sediment_IDN_conservation_inf.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_sediment_IDN_conservation_inf.tif'),
             },
             CV_SERVICE: {
-                'top_10th_percentile_service_dspop': 'top_10th_percentile_service_dspop_cv_idn_conservation_inf_result.tif',
-                'service_dspop': 'service_dspop_cv_idn_conservation_inf_result.tif',
-                'service_road': 'service_road_cv_idn_conservation_inf_result.tif',
-                'top_10th_percentile_service_road': 'top_10th_percentile_service_road_cv_idn_conservation_inf_result.tif',
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_cv_idn_conservation_inf_result.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_cv_idn_conservation_inf_result.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_cv_idn_conservation_inf_result.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_idn_conservation_inf_result.tif'),
             },
         }
     }
@@ -268,7 +276,11 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
     return (total_width, total_height)
 
 
-def style_rasters(raster_paths, categories, stack_vertical, color_map, percentile_or_categorical, fig_size, fig_path, overall_title, subfigure_title_list, dpi):
+def style_rasters(raster_paths, category_list, stack_vertical, color_map_or_list, percentile_or_categorical, fig_size, fig_path, overall_title, subfigure_title_list, dpi):
+    if not isinstance(color_map_or_list, list):
+        colormap_list = [color_map_or_list] * len(raster_paths)
+    else:
+        colormap_list = color_map_or_list
     single_raster_mode = len(raster_paths) == 1
     for path in raster_paths:
         if path is None:
@@ -297,7 +309,7 @@ def style_rasters(raster_paths, categories, stack_vertical, color_map, percentil
     else:
         axs = [axs]
 
-    for idx, base_raster_path in enumerate(raster_paths):
+    for idx, (base_raster_path, categories, color_map) in enumerate(zip(raster_paths, category_list, colormap_list)):
         if base_raster_path is None:
             axs[idx].axis('off')
             continue
@@ -371,6 +383,7 @@ def overlap_dspop_road_op(raster_a_path, raster_b_path, unique_prefix, target_pa
     aligned_rasters = [
         os.path.join(ALGINED_DIR, f'aligned_{unique_prefix}_{os.path.basename(path)}')
         for path in [raster_a_path, raster_b_path]]
+    LOGGER.debug(f'for {raster_a_path} does it exist: {os.path.exists(raster_a_path)}')
     pixel_size = geoprocessing.get_raster_info(raster_a_path)['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
         [raster_a_path, raster_b_path], aligned_rasters, [SAMPLING_METHOD]*2,
@@ -392,21 +405,42 @@ def list_to_unique_and_index(flat_path_list):
         index_list.append(unique_dict[path])
     return unique_list, index_list
 
+
 def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
     """
         overlap_combo_list - [(required raster list), (optional raster lsit),
             threshold for how many optional needed]
     """
+    flat_path_list = [
+        path
+        for required_path_list, optional_path_list, _ in overlap_combo_list
+        for path_list in [required_path_list, optional_path_list]
+        for index, path in enumerate(path_list)
+    ]
+
+    unique_path_list, flat_path_to_unique_list = list_to_unique_and_index(
+        flat_path_list)
+    aligned_rasters = [
+        os.path.join(
+            ALGINED_DIR,
+            f'aligned_{prefix}_{os.path.basename(path)}')
+        for path in unique_path_list]
+
+    aligned_path_band_list = [
+        (aligned_rasters[index], 1)
+        for index in flat_path_to_unique_list]
+
     def _overlap_combos_op(index_list, *array_list):
         '''index_list = [(index_for_next_optional, index_fo_next_required, threshold)]'''
         result = numpy.zeros(array_list[0].shape, dtype=int)
         service_index = 1
         local_index_list = index_list.copy()
-        next_optional_index, next_required_index, overlap_threshold = local_index_list.pop(0)
+        next_optional_index, next_required_index, overlap_threshold = (
+            local_index_list.pop(0))
         local_overlap = numpy.zeros(result.shape, dtype=int)
         required_valid_overlap = numpy.ones(result.shape, dtype=bool)
-
-        for array_index, array in enumerate(array_list):
+        local_max_overlap = 0
+        for array_index, (array, array_path) in enumerate(zip(array_list, aligned_path_band_list)):
             if (array_index < next_optional_index):
                 local_overlap_mask = (array > 0)
                 required_valid_overlap &= local_overlap_mask
@@ -418,30 +452,24 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
                         required_valid_overlap &
                         (local_overlap >= overlap_threshold)] = service_index
                     local_overlap[:] = 0
+                    local_max_overlap = 0
                     service_index += 1
                     next_optional_index, next_required_index, overlap_threshold = (
                         local_index_list.pop(0))
                     if (array_index < next_optional_index):
                         local_overlap_mask = (array > 0)
-                        required_valid_overlap &= local_overlap_mask
+                        required_valid_overlap = local_overlap_mask
+                        continue
                     else:
                         required_valid_overlap[:] = True
                 valid_mask = array > 0
                 local_overlap[valid_mask] += 1
+                local_max_overlap += 1
         result[
             required_valid_overlap &
             (local_overlap >= overlap_threshold)] = service_index
         return result
 
-    flat_path_list = [
-        path
-        for required_path_list, optional_path_list, _ in overlap_combo_list
-        for path_list in [required_path_list, optional_path_list]
-        for index, path in enumerate(path_list)
-    ]
-
-    unique_path_list, flat_path_to_unique_list = list_to_unique_and_index(
-        flat_path_list)
 
     index_list = [(0, 0, 0)]  # just to initialize, it's dropped later
     next_offset = 0
@@ -452,14 +480,10 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
             overlap_threshold))
         next_offset = index_list[-1][1]
     index_list.pop(0)
-    aligned_rasters = [
-        os.path.join(
-            ALGINED_DIR,
-            f'aligned_{prefix}_{os.path.basename(path)}')
-        for path in unique_path_list]
 
     pixel_size = geoprocessing.get_raster_info(
         flat_path_list[0])['pixel_size']
+
     task_graph.add_task(
         func=geoprocessing.align_and_resize_raster_stack,
         args=(
@@ -470,10 +494,10 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         task_name='alignining in overlap op')
     task_graph.join()
 
+    combined_index_raster_path_list = (
+        [(index_list, 'raw')] + aligned_path_band_list)
     geoprocessing.single_thread_raster_calculator(
-        [(index_list, 'raw')] + [
-            (aligned_rasters[index], 1)
-            for index in flat_path_to_unique_list], _overlap_combos_op,
+        combined_index_raster_path_list, _overlap_combos_op,
         target_path, gdal.GDT_Int16, None, allow_different_blocksize=True)
 
 
@@ -491,9 +515,34 @@ def scale_pixel_size(dimensions, n_pixels, pixel_size):
     return (pixel_size[0]*scale_factor, pixel_size[1]*scale_factor)
 
 
+def subtract_paths(base_path, full_path):
+    base = Path(base_path).resolve()
+    full = Path(full_path).resolve()
+    return full.relative_to(base)
+
+
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
-
+    # coarsen CV so it shows up better
+    for country, scenario in itertools.product(
+            ['IDN', 'PH'], [RESTORATION_SCENARIO, CONSERVATION_SCENARIO]):
+        cv_set = FILENAMES[country][scenario][CV_SERVICE]
+        for key, base_raster_path in cv_set.items():
+            coarsened_raster_path = os.path.join(
+                COARSE_CV_SERVICE_DIR, os.path.basename(base_raster_path))
+            base_pixel_size = numpy.array(
+                geoprocessing.get_raster_info(
+                    base_raster_path)['pixel_size'])
+            task_graph.add_task(
+                func=geoprocessing.warp_raster,
+                args=(
+                    base_raster_path, tuple(base_pixel_size * CV_COARSEN_SCALE),
+                    coarsened_raster_path, 'max'),
+                target_path_list=[coarsened_raster_path],
+                task_name=f'coarsening CV for {key}')
+            FILENAMES[country][scenario][CV_SERVICE][key] = (
+                coarsened_raster_path)
+    task_graph.join()
     top_10_percent_maps = [
         ('PH', CONSERVATION_SCENARIO,),
         ('PH', RESTORATION_SCENARIO,),
@@ -502,7 +551,6 @@ def main():
     ]
 
     overlapping_services = [
-        #((CV_SERVICE,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 1, 'debug cv overlap required'),
         ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, 'sed/flood'),
         ((), (FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 2, 'flood/recharge'),
         ((), (SEDIMENT_SERVICE, RECHARGE_SERVICE), 2, 'sed/recharge'),
@@ -520,12 +568,12 @@ def main():
         ((), (RECHARGE_SERVICE,), 1, "recharge"),
         ((), (CV_SERVICE,), 1, 'coastal v'),
         ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 2, '> 1 service overlap'),
-        ]
+    ]
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
-                (overlapping_services, 'overlapping services'),
                 (each_service, 'each ecosystem service'),
+                (overlapping_services, 'overlapping services'),
                 ]:
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
@@ -541,10 +589,10 @@ def main():
                     for service in service_tuple:
                         # loop through all the services, they always have a dspop and some of them have a roads, if roads then combine
                         dspop_road_overlap_path = os.path.join(OVERLAP_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
-                        top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
+                        top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
                         if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
                             # combine road and dspop if road exists
-                            top_10th_percentile_service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
+                            top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
                             task_graph.add_task(
                                 func=overlap_dspop_road_op,
                                 args=(
@@ -573,12 +621,13 @@ def main():
                     overlap_combo_service_path),
                 target_path_list=[overlap_combo_service_path],
                 task_name=f'top 10% of combo priorities {country} {scenario}')
+            LOGGER.debug(overlap_combo_service_path)
 
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
             color_map = overlap_colormap(f'{len(overlap_sets)}_element')
             style_rasters(
                 [overlap_combo_service_path],
-                category_list,
+                [category_list],
                 country == 'IDN',
                 color_map,
                 'categorical',
@@ -599,11 +648,11 @@ def main():
 
     for service, country, scenario, figure_title in four_panel_tuples:
         try:
-            diff_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['diff'])
-            service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_dspop'])
-            service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_road'])
-            top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
-            top_10th_percentile_service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
+            diff_path = FILENAMES[country][scenario][service]['diff']
+            service_dspop_path = FILENAMES[country][scenario][service]['service_dspop']
+            service_road_path = FILENAMES[country][scenario][service]['service_road']
+            top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
+            top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
             if any([not os.path.exists(path) for path in [diff_path, service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
 
@@ -629,10 +678,15 @@ def main():
                  service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],
-                [f'{LOW_PERCENTILE}th percentile',
-                 f'{HIGH_PERCENTILE}th percentile'],
+                [[f'{LOW_PERCENTILE}th percentile',
+                 f'{HIGH_PERCENTILE}th percentile']] * 3 +
+                ['benefiting roads only', 'benefiting people only',
+                 'benefiting both'],
                 country == 'IDN',
-                plt.get_cmap('turbo'),
+                [plt.get_cmap('turbo'),
+                 plt.get_cmap('turbo'),
+                 plt.get_cmap('turbo'),
+                 overlap_colormap('3_element')],
                 (LOW_PERCENTILE, HIGH_PERCENTILE),
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
@@ -655,9 +709,9 @@ def main():
     ]
     for service, country, scenario, figure_title in three_panel_no_road_tuple:
         try:
-            diff_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['diff'])
-            service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_dspop'])
-            top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
+            diff_path = FILENAMES[country][scenario][service]['diff']
+            service_dspop_path = FILENAMES[country][scenario][service]['service_dspop']
+            top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
             if any([not os.path.exists(path) for path in [diff_path, service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
 
@@ -670,10 +724,15 @@ def main():
                 [diff_path,
                  service_dspop_path, None,
                  top_10th_percentile_service_dspop_path],
-                [f'{LOW_PERCENTILE}th percentile',
-                 f'{HIGH_PERCENTILE}th percentile'],
+                [[f'{LOW_PERCENTILE}th percentile',
+                 f'{HIGH_PERCENTILE}th percentile']] * 3 +
+                ['benefiting roads only', 'benefiting people only',
+                 'benefiting both'],
                 country == 'IDN',
-                plt.get_cmap('turbo'),
+                [plt.get_cmap('turbo'),
+                 plt.get_cmap('turbo'),
+                 plt.get_cmap('turbo'),
+                 overlap_colormap('3_element'),],
                 (LOW_PERCENTILE, HIGH_PERCENTILE),
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
@@ -695,10 +754,10 @@ def main():
 
     for service, country, scenario, figure_title in three_panel_no_diff_tuple:
         try:
-            service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_dspop'])
-            service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['service_road'])
-            top_10th_percentile_service_dspop_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop'])
-            top_10th_percentile_service_road_path = os.path.join(ROOT_DATA_DIR, FILENAMES[country][scenario][service]['top_10th_percentile_service_road'])
+            service_dspop_path = FILENAMES[country][scenario][service]['service_dspop']
+            service_road_path = FILENAMES[country][scenario][service]['service_road']
+            top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
+            top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
             if any([not os.path.exists(path) for path in [service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
                 LOGGER.error('missing!')
             combined_percentile_service_path = os.path.join(
@@ -723,10 +782,15 @@ def main():
                 [None, service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],
-                [f'{LOW_PERCENTILE}th percentile',
-                 f'{HIGH_PERCENTILE}th percentile'],
+                [[f'{LOW_PERCENTILE}th percentile',
+                 f'{HIGH_PERCENTILE}th percentile']] * 3 +
+                ['benefiting roads only', 'benefiting people only',
+                 'benefiting both'],
                 country == 'IDN',
-                plt.get_cmap('turbo'),
+                [plt.get_cmap('turbo'),
+                 plt.get_cmap('turbo'),
+                 plt.get_cmap('turbo'),
+                 overlap_colormap('3_element'),],
                 (LOW_PERCENTILE, HIGH_PERCENTILE),
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
@@ -739,9 +803,6 @@ def main():
             LOGGER.error(f'{service} {country} {scenario}')
             raise
 
-    task_graph.close()
-    task_graph.join()
-    return
 
     # TODO: still do the analysis
     # How much do services overlap with each other? Which one overlaps the least?
@@ -770,6 +831,17 @@ def main():
         # Area of overlap between the top 10% overlap map and each service’s
         # top_10th_percentile_service_dspop or _road
 
+    country_list = ['PH', 'IDN']
+    scenario_list = [CONSERVATION_SCENARIO, RESTORATION_SCENARIO]
+    service_list = [SEDIMENT_SERVICE, RECHARGE_SERVICE, FLOOD_MITIGATION_SERVICE, CV_SERVICE]
+
+    for country, scenario, service in itertools.product(
+            country_list, scenario_list, service_list):
+        pass
+
+    task_graph.close()
+    task_graph.join()
+    return
 
 
 def calculate_pixel_area_km2(base_raster_path, target_epsg):
