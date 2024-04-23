@@ -48,9 +48,11 @@ GLOBAL_DPI = 400
 SAMPLING_METHOD = 'near'
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
+    '1_element': [NODATA_COLOR, '#e41a1c'],
     '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
     '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c'],
     '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c'],
+    '9_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#666666', '#e41a1c'],
 }
 
 FLOOD_MITIGATION_SERVICE = 'flood mitigation'
@@ -266,7 +268,7 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
     return (total_width, total_height)
 
 
-def style_rasters(raster_paths, categories, stack_vertical, color_map, min_percentile, max_percentile, fig_size, fig_path, overall_title, subfigure_title_list, dpi):
+def style_rasters(raster_paths, categories, stack_vertical, color_map, percentile_or_categorical, fig_size, fig_path, overall_title, subfigure_title_list, dpi):
     single_raster_mode = len(raster_paths) == 1
     for path in raster_paths:
         if path is None:
@@ -321,17 +323,17 @@ def style_rasters(raster_paths, categories, stack_vertical, color_map, min_perce
         nodata_mask = ((base_array == nodata) | np.isnan(base_array)) | (base_array == 0)
         styled_array = np.empty(base_array.shape + (4,), dtype=float)
         valid_base_array = base_array[~nodata_mask]
-        base_min = np.percentile(valid_base_array, min_percentile)
-        base_max = np.percentile(valid_base_array, max_percentile)
+        if percentile_or_categorical == 'categorical':
+            base_min = 0
+            base_max = len(categories)
+        else:
+            min_percentile, max_percentile = percentile_or_categorical
+            base_min = np.percentile(valid_base_array, min_percentile)
+            base_max = np.percentile(valid_base_array, max_percentile)
         norm = mcolors.Normalize(vmin=base_min, vmax=base_max)
         sm = cm.ScalarMappable(cmap=color_map, norm=norm)
         styled_array[~nodata_mask] = sm.to_rgba(valid_base_array)
 
-        # scaled_base_array = (
-        #     (valid_base_array - base_min) / (base_max - base_min))
-        # styled_array[~nodata_mask] = cm(scaled_base_array)
-
-        # Create a Normalize object
         styled_array[nodata_mask] = no_data_color
 
         subfigure_title = subfigure_title_list[idx]
@@ -356,7 +358,7 @@ def style_rasters(raster_paths, categories, stack_vertical, color_map, min_perce
     fig.suptitle(overall_title, fontsize=fontsize_for_suptitle)
 
     adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust the layout to make space for the overall title
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(fig_path, dpi=dpi)
     plt.close(fig)
 
@@ -403,7 +405,6 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         next_optional_index, next_required_index, overlap_threshold = local_index_list.pop(0)
         local_overlap = numpy.zeros(result.shape, dtype=int)
         required_valid_overlap = numpy.ones(result.shape, dtype=bool)
-        # [([(0, 2, 2), (2, 4, 2), (5, 8, 1), (8, 11, 3), (11, 14, 3), (14, 17, 3), (17, 20, 3), (20, 24, 4)]
 
         for array_index, array in enumerate(array_list):
             if (array_index < next_optional_index):
@@ -501,8 +502,10 @@ def main():
     ]
 
     overlapping_services = [
+        #((CV_SERVICE,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 1, 'debug cv overlap required'),
         ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, 'sed/flood'),
         ((), (FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 2, 'flood/recharge'),
+        ((), (SEDIMENT_SERVICE, RECHARGE_SERVICE), 2, 'sed/recharge'),
         ((CV_SERVICE,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 1, 'cv/at least one other service'),
         ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'sed/flood/recharge'),
         ((), (CV_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'cv/flood/recharge'),
@@ -578,7 +581,7 @@ def main():
                 category_list,
                 country == 'IDN',
                 color_map,
-                0, 100,
+                'categorical',
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI)
@@ -630,7 +633,7 @@ def main():
                  f'{HIGH_PERCENTILE}th percentile'],
                 country == 'IDN',
                 plt.get_cmap('turbo'),
-                LOW_PERCENTILE, HIGH_PERCENTILE,
+                (LOW_PERCENTILE, HIGH_PERCENTILE),
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
@@ -671,7 +674,7 @@ def main():
                  f'{HIGH_PERCENTILE}th percentile'],
                 country == 'IDN',
                 plt.get_cmap('turbo'),
-                LOW_PERCENTILE, HIGH_PERCENTILE,
+                (LOW_PERCENTILE, HIGH_PERCENTILE),
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
@@ -724,7 +727,7 @@ def main():
                  f'{HIGH_PERCENTILE}th percentile'],
                 country == 'IDN',
                 plt.get_cmap('turbo'),
-                LOW_PERCENTILE, HIGH_PERCENTILE,
+                (LOW_PERCENTILE, HIGH_PERCENTILE),
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
