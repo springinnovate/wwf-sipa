@@ -1,3 +1,4 @@
+from pathlib import Path
 import csv
 import glob
 import itertools
@@ -5,20 +6,18 @@ import logging
 import numpy
 import os
 import sys
-from pathlib import Path
 
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
 from matplotlib.colors import LinearSegmentedColormap
 from osgeo import gdal
 from osgeo import osr
-from pyproj import Transformer
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
-import pyproj
+import pandas
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -51,7 +50,7 @@ LOW_PERCENTILE = 10
 HIGH_PERCENTILE = 90
 BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
-GLOBAL_DPI = 400
+GLOBAL_DPI = 800
 SAMPLING_METHOD = 'near'
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
@@ -69,6 +68,8 @@ SEDIMENT_SERVICE = 'sediment'
 CV_SERVICE = 'coastal vulnerability'
 RESTORATION_SCENARIO = 'restoration'
 CONSERVATION_SCENARIO = 'conservation'
+EACH_ECOSYSTEM_SERVICE_ID = 'each ecosystem service'
+OVERLAPPING_SERVICES_ID = 'overlapping services'
 
 FILENAMES = {
     'PH': {
@@ -375,6 +376,22 @@ def style_rasters(raster_paths, category_list, stack_vertical, color_map_or_list
     plt.close(fig)
 
 
+def intersection_op(raster_a_path, raster_b_path, target_path):
+    def _and(array_a, array_b):
+        return (array_a > 0) & (array_b > 0)
+
+    aligned_rasters = [
+        os.path.join(ALGINED_DIR, f'aligned_{os.path.basename(path)}')
+        for path in [raster_a_path, raster_b_path]]
+    pixel_size = geoprocessing.get_raster_info(raster_a_path)['pixel_size']
+    geoprocessing.align_and_resize_raster_stack(
+        [raster_a_path, raster_b_path], aligned_rasters, [SAMPLING_METHOD]*2,
+        pixel_size, 'intersection')
+    geoprocessing.single_thread_raster_calculator(
+        [(path, 1) for path in aligned_rasters], _and, target_path,
+        gdal.GDT_Int16, 0, allow_different_blocksize=True)
+
+
 def overlap_dspop_road_op(raster_a_path, raster_b_path, unique_prefix, target_path):
     def _overlap_dspop_road_op(array_a, array_b):
         result = array_a + (2 * array_b)
@@ -521,8 +538,167 @@ def subtract_paths(base_path, full_path):
     return full.relative_to(base)
 
 
+def do_analyses(task_graph):
+    # TODO: still do the analysis
+    # How much do services overlap with each other? Which one overlaps the least?
+    # Need to know:
+
+    ph_epsg_projection = 3121
+    ph_vector_path = "data/admin_boundaries/PH_outline.gpkg"
+
+    idn_epsg_projection = 23830
+    idn_vector_path = "data/admin_boundaries/IDN_outline.gpkg"
+
+    scenario_service_tuples = list(itertools.product(
+        [CONSERVATION_SCENARIO, RESTORATION_SCENARIO],
+        [SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE,
+         RECHARGE_SERVICE, CV_SERVICE]))
+
+    result_df = pandas.DataFrame()
+
+    for country, vector_path, projection_epsg in [
+            ('PH', ph_vector_path, ph_epsg_projection),
+            ('IDN', idn_vector_path, idn_epsg_projection)]:
+        # (2) Total area of the country
+        country_area_km2 = calculate_vector_area_km2(vector_path, projection_epsg)
+
+        # How much do services overlap with each other? Which one overlaps the least?
+        # Need to know (for each scenario, conservation and restoration; for each country)
+        # Each service:
+
+        # I: (4*2*2) Total area of each service’s top_10th_percentile_service_dspop or _road
+        for scenario, service in scenario_service_tuples:
+            # loop through all the services, they always have a dspop and some of them have a roads, if roads then combine
+            dspop_road_overlap_path = os.path.join(OVERLAP_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
+            top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
+            dspop_road_id = 'dspop/road'
+            if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
+                # combine road and dspop if road exists
+                top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
+                task_graph.add_task(
+                    func=overlap_dspop_road_op,
+                    args=(
+                        top_10th_percentile_service_dspop_path,
+                        top_10th_percentile_service_road_path,
+                        f'top10_{country}_{scenario}',
+                        dspop_road_overlap_path),
+                    target_path_list=[dspop_road_overlap_path],
+                    task_name=f'dspop road {service} {country} {scenario}')
+            else:
+                # doesn't exist but we don't lose anything by just doing the dspop
+                dspop_road_overlap_path = top_10th_percentile_service_dspop_path
+                dspop_road_id = 'dspop'
+            # TODO: reproject dspop_road_overlap_path, then sum nonzero pixels
+            service_area_km2 = calculate_pixel_area_km2(
+                dspop_road_overlap_path, projection_epsg)
+            row_data = {
+                'country': country,
+                'country area km^2': country_area_km2,
+                'scenario': scenario,
+                'service': service,
+                'summary': f'top 10th percentile {dspop_road_id} km^2',
+                'value': service_area_km2,
+                'source_file': dspop_road_overlap_path,
+            }
+            row_df = pandas.DataFrame([row_data])
+            result_df = pandas.concat([result_df, row_df], ignore_index=True)
+
+        # This is panel 4 on the 4 panel displays right now the ugly colored one (combined beneficiary map, where those maps = non-zero)
+        # E.g., cv_IDN_conservation_inf
+        # II: (4*2*2) Area where each service’s beneficiaries overlap (subset of the above)
+            combined_percentile_service_path = os.path.join(
+                COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
+            task_graph.add_task(
+                func=overlap_dspop_road_op,
+                args=(
+                    top_10th_percentile_service_dspop_path,
+                    top_10th_percentile_service_road_path,
+                    f'fourpanel_{service}_{country}_{scenario}',
+                    combined_percentile_service_path),
+                target_path_list=[combined_percentile_service_path],
+                task_name=f'combined service {service} {country} {scenario}')
+
+            service_area_km2 = calculate_pixel_area_km2(
+                combined_percentile_service_path, projection_epsg)
+            row_data = {
+                'country': country,
+                'country area km^2': country_area_km2,
+                'scenario': scenario,
+                'service': service,
+                'summary': 'top 10th percentile combined beneficiaries km^2',
+                'value': service_area_km2,
+                'source_file': combined_percentile_service_path,
+            }
+            row_df = pandas.DataFrame([row_data])
+            result_df = pandas.concat([result_df, row_df], ignore_index=True)
+
+            # Each service [sediment, recharge, flood, cv] vs overlap of all services:
+            # (4*2*2) Area of overlap between the top 10% overlap map (IV, not III) and each service’s top_10th_percentile_service_dspop or _road - if all services overlap AND a service exists, then consider that one
+
+            # count area of these overlaps:
+            overlap_combo_service_path = os.path.join(
+                OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{OVERLAPPING_SERVICES_ID}.tif')
+            dspop_road_overlap_path
+            service_vs_overlap_path = os.path.join(
+                OVERLAP_DIR, f'{country}_{scenario}_{service}_overlapped_{OVERLAPPING_SERVICES_ID}.tif')
+
+            task_graph.add_task(
+                func=intersection_op,
+                args=(
+                    dspop_road_overlap_path, overlap_combo_service_path,
+                    service_vs_overlap_path),
+                target_path_list=[service_vs_overlap_path],
+                task_name=(
+                    f'overlap combos {country} {scenario} '
+                    f'{OVERLAPPING_SERVICES_ID}'))
+
+            service_area_km2 = calculate_pixel_area_km2(
+                service_vs_overlap_path, projection_epsg)
+            row_data = {
+                'country': country,
+                'country area km^2': country_area_km2,
+                'scenario': scenario,
+                'service': service,
+                'summary': r'coverage of service top 10% on top 10% overlapping services',
+                'value': service_area_km2,
+                'source_file': service_vs_overlap_path,
+            }
+            row_df = pandas.DataFrame([row_data])
+            result_df = pandas.concat([result_df, row_df], ignore_index=True)
+
+        # In panel 4 on the 4 panel displays, where those maps = 3
+        # All services:
+        # III: (2*2) Total area of top 10% solutions overlap map =
+        # Total solution - any service anywhere and also all the overlaps
+        # IV: (2*2) Area of top 10% solutions overlap (combined services, i.e. single panel fig) =
+        # Where just the overlaps are, not where any of the services have their top 10% but don’t overlap with other services
+        # E.g., top_10p_overlap_IDN_conservation_inf_each_ecosystem_service_400
+
+        for each_or_other in [EACH_ECOSYSTEM_SERVICE_ID, OVERLAPPING_SERVICES_ID]:
+            for scenario in [RESTORATION_SCENARIO, CONSERVATION_SCENARIO]:
+                overlap_combo_service_path = os.path.join(
+                    OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{each_or_other}.tif')
+                service_area_km2 = calculate_pixel_area_km2(
+                    overlap_combo_service_path)
+                row_data = {
+                    'country': country,
+                    'country area km^2': country_area_km2,
+                    'scenario': scenario,
+                    'summary': f'top 10th percentile {each_or_other} km^2',
+                    'value': service_area_km2,
+                    'source_file': overlap_combo_service_path,
+                }
+                row_df = pandas.DataFrame([row_data])
+                result_df = pandas.concat([result_df, row_df], ignore_index=True)
+
+    result_df.to_csv('analysis.csv', index=False, na_rep='')
+    LOGGER.debug('finished analysis, exitin')
+    sys.exit()
+
+
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
+    do_analyses(task_graph)
     # coarsen CV so it shows up better
     for country, scenario in itertools.product(
             ['IDN', 'PH'], [RESTORATION_SCENARIO, CONSERVATION_SCENARIO]):
@@ -572,8 +748,8 @@ def main():
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
-                (each_service, 'each ecosystem service'),
-                (overlapping_services, 'overlapping services'),
+                (each_service, EACH_ECOSYSTEM_SERVICE_ID),
+                (overlapping_services, OVERLAPPING_SERVICES_ID),
                 ]:
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
@@ -679,9 +855,10 @@ def main():
                  service_road_path,
                  combined_percentile_service_path],
                 [[f'{LOW_PERCENTILE}th percentile',
+                  '50th percentile',
                  f'{HIGH_PERCENTILE}th percentile']] * 3 +
-                ['benefiting roads only', 'benefiting people only',
-                 'benefiting both'],
+                [['none', 'benefiting roads only', 'benefiting people only',
+                 'benefiting both']],
                 country == 'IDN',
                 [plt.get_cmap('turbo'),
                  plt.get_cmap('turbo'),
@@ -725,9 +902,10 @@ def main():
                  service_dspop_path, None,
                  top_10th_percentile_service_dspop_path],
                 [[f'{LOW_PERCENTILE}th percentile',
+                  '50th percentile',
                  f'{HIGH_PERCENTILE}th percentile']] * 3 +
-                ['benefiting roads only', 'benefiting people only',
-                 'benefiting both'],
+                [['none', 'benefiting roads only', 'benefiting people only',
+                 'benefiting both']],
                 country == 'IDN',
                 [plt.get_cmap('turbo'),
                  plt.get_cmap('turbo'),
@@ -783,9 +961,10 @@ def main():
                  service_road_path,
                  combined_percentile_service_path],
                 [[f'{LOW_PERCENTILE}th percentile',
+                  '50th percentile',
                  f'{HIGH_PERCENTILE}th percentile']] * 3 +
-                ['benefiting roads only', 'benefiting people only',
-                 'benefiting both'],
+                [['none', 'benefiting roads only', 'benefiting people only',
+                 'benefiting both']],
                 country == 'IDN',
                 [plt.get_cmap('turbo'),
                  plt.get_cmap('turbo'),
@@ -803,42 +982,6 @@ def main():
             LOGGER.error(f'{service} {country} {scenario}')
             raise
 
-
-    # TODO: still do the analysis
-    # How much do services overlap with each other? Which one overlaps the least?
-    # Need to know:
-
-    ph_epsg_projection = 3121
-    ph_vector_path = "data/admin_boundaries/PH_outline.gpkg"
-
-    idn_epsg_projection = 23830
-    idn_vector_path = "data/admin_boundaries/IDN_outline.gpkg"
-
-    for projection_epsg, vector_path in [
-            (ph_epsg_projection, ph_vector_path),
-            (idn_epsg_projection, idn_vector_path)]:
-        # Total area of the country
-        area_km2 = calculate_vector_area_km2(vector_path, projection_epsg)
-        # Total area of top 10% solutions overlap map
-        # 'top_10p_overlap_IDN_restoration_overlapping_services_400.png'
-        # 'top_10p_overlap_IDN_conservation_inf_each_ecosystem_service_400.png'
-        # 'top_10p_overlap_IDN_conservation_inf_overlapping_services_400.png'
-        # 'top_10p_overlap_IDN_restoration_each_ecosystem_service_400.png'
-        # Total area of each service’s top_10th_percentile_service_dspop or _road
-        # Area of top 10% solutions overlap = 3, 5, 6
-        # Area where each service’s panel D map is = 3
-        # top_10th_percentile_service_dspop_[service]_[country]_[scenario]
-        # Area of overlap between the top 10% overlap map and each service’s
-        # top_10th_percentile_service_dspop or _road
-
-    country_list = ['PH', 'IDN']
-    scenario_list = [CONSERVATION_SCENARIO, RESTORATION_SCENARIO]
-    service_list = [SEDIMENT_SERVICE, RECHARGE_SERVICE, FLOOD_MITIGATION_SERVICE, CV_SERVICE]
-
-    for country, scenario, service in itertools.product(
-            country_list, scenario_list, service_list):
-        pass
-
     task_graph.close()
     task_graph.join()
     return
@@ -849,9 +992,16 @@ def calculate_pixel_area_km2(base_raster_path, target_epsg):
     target_srs = osr.SpatialReference()
     target_srs.ImportFromEPSG(target_epsg)
 
+    LOGGER.debug(f'about to warp {base_raster_path} to epsg:{target_epsg}')
     reprojected_raster = gdal.Warp(
-        '', source_raster, format='MEM', dstSRS=target_srs)
+        '',
+        source_raster,
+        format='MEM',
+        dstSRS=target_srs)
     reprojected_band = reprojected_raster.GetRasterBand(1)
+    nodata = reprojected_band.GetNoDataValue()
+    LOGGER.debug(f'nodata value is {nodata}')
+    LOGGER.debug(f'read warped {base_raster_path}')
     reprojected_data = reprojected_band.ReadAsArray()
     reprojected_geotransform = reprojected_raster.GetGeoTransform()
     reprojected_pixel_width, reprojected_pixel_height = (
@@ -859,27 +1009,30 @@ def calculate_pixel_area_km2(base_raster_path, target_epsg):
 
     # Calculate the area of pixels with values > 1
     pixel_area = reprojected_pixel_width * reprojected_pixel_height
-    count = (reprojected_data > 0).sum()
+    LOGGER.debug(f'sum it up')
+    count = ((reprojected_data > 0) & (reprojected_data != nodata)).sum()
     total_area = count * pixel_area / 1e6  # covert to km2
 
+    LOGGER.debug(f'total area of {base_raster_path}: {total_area}km2')
     return total_area
 
 
 def calculate_vector_area_km2(vector_path, target_epsg):
     source = gdal.OpenEx(vector_path, gdal.OF_VECTOR)
     layer = source.GetLayer()
-    target_srs = pyproj.CRS(f'EPSG:{target_epsg}')
     source_srs = layer.GetSpatialRef()
-    transformer = Transformer.from_crs(source_srs, target_srs, always_xy=True)
-    area_km2 = 0
+    target_srs = osr.SpatialReference()
+    target_srs.ImportFromEPSG(target_epsg)
+    transformer = osr.CoordinateTransformation(source_srs, target_srs)
+    total_area_km2 = 0  # Initialize total area in square kilometers
 
     for feature in layer:
         geom = feature.GetGeometryRef()
-        geom.Transform(transformer.transform)
+        geom.Transform(transformer)
         area_m2 = geom.GetArea()
-        area_km2 = area_m2 / 1e6
+        total_area_km2 += area_m2 / 1e6
 
-    return area_km2
+    return total_area_km2
 
 
 if __name__ == '__main__':
