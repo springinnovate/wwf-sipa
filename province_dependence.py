@@ -4,6 +4,7 @@ import os
 import sys
 import time
 
+from ecoshard.geoprocessing.geoprocessing_core import DEFAULT_OSR_AXIS_MAPPING_STRATEGY
 from ecoshard.geoprocessing import routing
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
@@ -21,7 +22,7 @@ logging.basicConfig(
 LOGGER = logging.getLogger(__name__)
 logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 logging.getLogger('PIL').setLevel(logging.ERROR)
-logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
+logging.getLogger('ecoshard.taskgraph').setLevel(logging.DEBUG)
 logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 
 IDN_PROViNCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg"
@@ -42,12 +43,21 @@ IDN_ROAD_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\infrastructure_polygons\I
 WORKSPACE_DIR = 'province_depedence_workspace'
 MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
 SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
-for dir_path in [WORKSPACE_DIR, MASK_DIR, SERVICE_DIR]:
+ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
+for dir_path in [WORKSPACE_DIR, MASK_DIR, SERVICE_DIR, ALIGNED_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 
 def basefilename(path):
     return os.path.basename(os.path.splitext(path)[0])
+
+
+def rasterize(vector_path, fid, base_raster_path, target_raster_path):
+    geoprocessing.new_raster_from_base(
+        base_raster_path, target_raster_path, gdal.GDT_Float32, [0])
+    geoprocessing.rasterize(
+        vector_path, target_raster_path,
+        burn_values=[1], where_clause=f"FID = '{fid}'")
 
 
 def mask_raster(base_raster_path, mask_raster_path, target_raster_path):
@@ -67,13 +77,14 @@ def mask_raster(base_raster_path, mask_raster_path, target_raster_path):
 
 def calculate_sum_over_mask(base_raster_path, mask_raster_path):
     running_sum = 0
-    for base_array, mask_array in zip(
-            geoprocessing.iterblocks(
-                (base_raster_path, 1), skip_sparse=True),
-            geoprocessing.iterblocks(
-                (mask_raster_path, 1), skip_sparse=True)):
-        running_sum += base_raster_path[
-            (mask_raster_path > 0) & (base_raster_path > 0)]
+    mask_raster = gdal.OpenEx(
+        mask_raster_path, gdal.OF_RASTER | gdal.GA_ReadOnly)
+    mask_band = mask_raster.GetRasterBand(1)
+    for offset_dict, base_array in geoprocessing.iterblocks(
+            (base_raster_path, 1), skip_sparse=True):
+        mask_array = mask_band.ReadAsArray(**offset_dict)
+        running_sum += numpy.sum(
+            base_array[(mask_array > 0) & (base_array > 0)])
     return running_sum
 
 
@@ -109,33 +120,29 @@ def calculate_pixel_area_km2(base_raster_path, target_epsg):
 
 def clip_and_calculate_length_in_km(
         poly_vector_path, line_vector_path, fid_value, epsg_projection):
-    poly_vector = gdal.OpenEx(poly_vector_path, gdal.GA_VECTOR)
+    poly_vector = gdal.OpenEx(poly_vector_path, gdal.OF_VECTOR)
     poly_layer = poly_vector.GetLayer()
     poly_layer.SetAttributeFilter(f"FID = '{fid_value}'")
-    poly_feature = poly_layer.GetNextFeature()
-    poly_geometry = poly_feature.GetGeometryRef()
 
-    line_vector = gdal.OpenEx(line_vector_path, gdal.GA_VECTOR)
+    line_vector = gdal.OpenEx(line_vector_path, gdal.OF_VECTOR)
     line_layer = line_vector.GetLayer()
 
-    clipped_roads_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
-    clipped_roads_layer = clipped_roads_mem.CreateLayer('clipped_roads')
+    clipped_lines_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
+    clipped_lines_layer = clipped_lines_mem.CreateLayer('clipped_roads')
 
     target_projection = osr.SpatialReference()
     target_projection.ImportFromEPSG(epsg_projection)
+    target_projection.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
 
-    line_layer.Clip(poly_geometry, clipped_roads_layer)
-    transform = osr.CoordinateTransformation(
-        clipped_roads_layer.GetSpatialRef(), target_projection)
+    line_layer.Clip(poly_layer, clipped_lines_layer)
+
+    transform = osr.CreateCoordinateTransformation(
+        line_layer.GetSpatialRef(), target_projection)
     total_length = 0
-    for line_feature in clipped_roads_layer:
+    for line_feature in clipped_lines_layer:
         geometry = line_feature.GetGeometryRef()
         geometry.Transform(transform)
         total_length += geometry.Length() / 1000  # convert to km
-
-    poly_vector = None
-    line_vector = None
-    clipped_roads_mem = None
 
     return total_length
 
@@ -145,7 +152,7 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     line_layer = line_ds.GetLayer()
 
     mask_raster = gdal.OpenEx(
-        mask_raster_path, gdal.GA_RASTER | gdal.OF_ReadOnly)
+        mask_raster_path, gdal.OF_RASTER | gdal.GA_ReadOnly)
     mask_band = mask_raster.GetRasterBand()
     mask_band.WriteArray(mask_band.ReadAsArray() > 0)
     projection = mask_raster.GetProjection()
@@ -176,7 +183,7 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
         line_geometry = line_feature.GetGeometryRef()
         line_geometry.Transform(transform)
         for raster_feature in raster_layer:
-            if raster_feature.GetValue('value') <= 0:
+            if raster_feature.GetField('value') <= 0:
                 continue
             raster_geometry = raster_feature.GetGeometryRef()
             raster_geometry.Transform(transform)
@@ -206,7 +213,7 @@ def main():
          province_vector_path,
          province_name_key,
          epsg_projection,
-         pop_raster_path,
+         unaligned_pop_raster_path,
          road_vector_path) in [
             ('IDN',
              IDN_DEM_PATH,
@@ -223,6 +230,7 @@ def main():
              PH_POP_RASTER_PATH,
              PH_ROAD_VECTOR_PATH)]:
         flow_dir_path = os.path.join(WORKSPACE_DIR, basefilename(dem_path) + '.tif')
+        global_base_raster_info = geoprocessing.get_raster_info(dem_path)
         routing_task = task_graph.add_task(
             func=routing.flow_dir_mfd,
             args=((dem_path, 1), flow_dir_path),
@@ -240,7 +248,7 @@ def main():
         dem_pixel_size = abs(
             geoprocessing.get_raster_info(dem_path)['pixel_size'][0])
         simplified_vector_path = os.path.join(
-            WORKSPACE_DIR, f'simple_{basefilename(province_vector_path)}.tif')
+            WORKSPACE_DIR, f'simple_{basefilename(province_vector_path)}.gpkg')
         simplify_vector_task = task_graph.add_task(
             func=geoprocessing.reproject_vector,
             args=(
@@ -253,41 +261,42 @@ def main():
             ignore_path_list=[province_vector_path, simplified_vector_path],
             task_name=f'simplify {province_vector_path}')
 
+        pop_raster_path = os.path.join(
+            ALIGNED_DIR, os.path.basename(unaligned_pop_raster_path))
+        align_pop_layer_task = task_graph.add_task(
+            func=geoprocessing.warp_raster,
+            args=(
+                unaligned_pop_raster_path, global_base_raster_info['pixel_size'],
+                pop_raster_path, 'near'),
+            kwargs={
+                'target_bb': global_base_raster_info['bounding_box'],
+                'target_projection_wkt': global_base_raster_info['projection_wkt'],
+                'working_dir': WORKSPACE_DIR,
+                'raster_driver_creation_tuple': ('GTIFF', (
+                    'TILED=YES', 'BIGTIFF=YES', 'COMPRESS=LZW',
+                    'BLOCKXSIZE=256', 'BLOCKYSIZE=256', 'SPARSE_OK=TRUE'))
+            },
+            target_path_list=[pop_raster_path],
+            task_name=f'align pop layer {pop_raster_path}')
+
         simplify_vector_task.join()
         vector = gdal.OpenEx(
-            simplified_vector_path, gdal.OF_RASTER | gdal.GA_ReadOnly)
-        layer = vector.getLayer()
+            simplified_vector_path, gdal.OF_VECTOR | gdal.GA_ReadOnly)
+        layer = vector.GetLayer()
         for feature in layer:
             province_fid = feature.GetFID()
-            province_name = feature.GetValue(province_name_key)
+            province_name = feature.GetField(province_name_key)
             province_mask_path = os.path.join(MASK_DIR, f'{province_name}.tif')
 
-            new_raster_task = task_graph.add_task(
-                func=geoprocessing.new_raster_from_base,
-                args=(dem_path, province_mask_path, gdal.GDT_Float32, [0]),
-                target_path_list=[province_mask_path],
-                ignore_path_list=[province_mask_path],
-                kwargs={
-                    'raster_driver_creation_tuple': ('GTIFF', (
-                        'TILED=YES', 'BIGTIFF=YES', 'COMPRESS=LZW',
-                        'BLOCKXSIZE=256', 'BLOCKYSIZE=256', 'SPARSE_OK=TRUE'))
-                },
-                task_name=f'make mask for {province_mask_path}')
-
             rasterize_province_task = task_graph.add_task(
-                func=geoprocessing.rasterize,
+                func=rasterize,
                 args=(
                     simplified_vector_path,
+                    province_fid,
+                    dem_path,
                     province_mask_path),
-                kwargs={
-                    'burn_values': None,
-                    'where_clause': f"FID = '{province_fid}'",
-                    'raster_driver_creation_tuple': ('GTIFF', (
-                        'TILED=YES', 'BIGTIFF=YES', 'COMPRESS=LZW',
-                        'BLOCKXSIZE=256', 'BLOCKYSIZE=256', 'SPARSE_OK=TRUE'))
-                },
-                dependent_task_list=[
-                    simplify_vector_task, routing_task, new_raster_task],
+                ignore_path_list=[simplified_vector_path],
+                dependent_task_list=[simplify_vector_task],
                 target_path_list=[province_mask_path],
                 task_name=f'masking {province_name}')
 
@@ -303,7 +312,8 @@ def main():
             pop_count_task = task_graph.add_task(
                 func=calculate_sum_over_mask,
                 args=(province_mask_path, pop_raster_path),
-                dependent_task_list=[rasterize_province_task],
+                dependent_task_list=[
+                    rasterize_province_task, align_pop_layer_task],
                 store_result=True,
                 task_name=f'calculate pope in {province_name}')
 
@@ -318,8 +328,26 @@ def main():
                 task_name=f'road length for {province_fid}')
 
             for scenario in SCENARIO_LIST:
-
                 # TODO: check what's here i was doing it global before so files etc are wrong
+                service_raster_path = os.path.join(
+                    ALIGNED_DIR,
+                    f'{country_id}_{province_name}_{scenario}_top10_aligned.tif')
+                align_service_raster_task = task_graph.add_task(
+                    func=geoprocessing.warp_raster,
+                    args=(
+                        TOP10_SERVICE_COVERAGE_RASTERS[(country_id, scenario)],
+                        global_base_raster_info['pixel_size'],
+                        service_raster_path, 'near'),
+                    kwargs={
+                        'target_bb': global_base_raster_info['bounding_box'],
+                        'target_projection_wkt': global_base_raster_info['projection_wkt'],
+                        'working_dir': WORKSPACE_DIR,
+                        'raster_driver_creation_tuple': ('GTIFF', (
+                            'TILED=YES', 'BIGTIFF=YES', 'COMPRESS=LZW',
+                            'BLOCKXSIZE=256', 'BLOCKYSIZE=256', 'SPARSE_OK=TRUE'))
+                    },
+                    target_path_list=[service_raster_path],
+                    task_name=f'align service layer {service_raster_path}')
 
                 # mask TOP10_SERVICE to the current province
                 masked_service_raster_path = os.path.join(
@@ -328,10 +356,11 @@ def main():
                 mask_service_task = task_graph.add_task(
                     func=mask_raster,
                     args=(
-                        TOP10_SERVICE_COVERAGE_RASTERS[(country_id, scenario)],
+                        service_raster_path,
                         province_mask_path,
                         masked_service_raster_path),
-                    dependent_task_list=[rasterize_province_task],
+                    dependent_task_list=[
+                        rasterize_province_task, align_service_raster_task],
                     target_path_list=[masked_service_raster_path],
                     task_name=f'masking service {province_name} {scenario}')
 
@@ -394,7 +423,9 @@ def main():
                 local_ds_service_pop_count_task = task_graph.add_task(
                     func=calculate_sum_over_mask,
                     args=(local_downstream_coverage_raster_path, pop_raster_path),
-                    dependent_task_list=[local_downstream_service_area_task],
+                    dependent_task_list=[
+                        local_downstream_service_area_task,
+                        align_pop_layer_task],
                     store_result=True,
                     task_name=f'calculate people in {local_downstream_coverage_raster_path}')
 
