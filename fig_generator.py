@@ -679,7 +679,7 @@ def do_analyses(task_graph):
                 overlap_combo_service_path = os.path.join(
                     OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{each_or_other}.tif')
                 service_area_km2 = calculate_pixel_area_km2(
-                    overlap_combo_service_path)
+                    overlap_combo_service_path, projection_epsg)
                 row_data = {
                     'country': country,
                     'country area km^2': country_area_km2,
