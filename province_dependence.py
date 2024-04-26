@@ -22,7 +22,7 @@ LOGGER = logging.getLogger(__name__)
 logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
-
+logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 
 IDN_PROViNCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg"
 PH_PROViNCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_adm1.gpkg"
@@ -222,7 +222,7 @@ def main():
              PH_EPSG_PROJECTION,
              PH_POP_RASTER_PATH,
              PH_ROAD_VECTOR_PATH)]:
-        flow_dir_path = os.path.join(WORKSPACE_DIR, basefilename(dem_path))
+        flow_dir_path = os.path.join(WORKSPACE_DIR, basefilename(dem_path) + '.tif')
         routing_task = task_graph.add_task(
             func=routing.flow_dir_mfd,
             args=((dem_path, 1), flow_dir_path),
