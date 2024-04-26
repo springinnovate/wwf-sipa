@@ -606,29 +606,39 @@ def do_analyses(task_graph):
         # This is panel 4 on the 4 panel displays right now the ugly colored one (combined beneficiary map, where those maps = non-zero)
         # E.g., cv_IDN_conservation_inf
         # II: (4*2*2) Area where each service’s beneficiaries overlap (subset of the above)
-            combined_percentile_service_path = os.path.join(
-                COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
-            task_graph.add_task(
-                func=overlap_dspop_road_op,
-                args=(
-                    top_10th_percentile_service_dspop_path,
-                    top_10th_percentile_service_road_path,
-                    f'fourpanel_{service}_{country}_{scenario}',
-                    combined_percentile_service_path),
-                target_path_list=[combined_percentile_service_path],
-                task_name=f'combined service {service} {country} {scenario}')
+            if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
+                combined_percentile_service_path = os.path.join(
+                    COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
+                task_graph.add_task(
+                    func=intersection_op,
+                    args=(
+                        top_10th_percentile_service_dspop_path,
+                        top_10th_percentile_service_road_path,
+                        combined_percentile_service_path),
+                    target_path_list=[combined_percentile_service_path],
+                    task_name=f'combined service {service} {country} {scenario}')
 
-            service_area_km2 = calculate_pixel_area_km2(
-                combined_percentile_service_path, projection_epsg)
-            row_data = {
-                'country': country,
-                'country area km^2': country_area_km2,
-                'scenario': scenario,
-                'service': service,
-                'summary': 'top 10th percentile combined beneficiaries km^2',
-                'value': service_area_km2,
-                'source_file': combined_percentile_service_path,
-            }
+                service_area_km2 = calculate_pixel_area_km2(
+                    combined_percentile_service_path, projection_epsg)
+                row_data = {
+                    'country': country,
+                    'country area km^2': country_area_km2,
+                    'scenario': scenario,
+                    'service': service,
+                    'summary': 'top 10th percentile combined beneficiaries km^2',
+                    'value': service_area_km2,
+                    'source_file': combined_percentile_service_path,
+                }
+            else:
+                row_data = {
+                    'country': country,
+                    'country area km^2': country_area_km2,
+                    'scenario': scenario,
+                    'service': service,
+                    'summary': 'top 10th percentile combined beneficiaries km^2',
+                    'value': 'no roads',
+                    'source_file': combined_percentile_service_path,
+                }
             row_df = pandas.DataFrame([row_data])
             result_df = pandas.concat([result_df, row_df], ignore_index=True)
 

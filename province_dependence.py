@@ -48,6 +48,48 @@ for dir_path in [WORKSPACE_DIR, MASK_DIR, SERVICE_DIR, ALIGNED_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 
+def _make_logger_callback(message):
+    """Build a timed logger callback that prints ``message`` replaced.
+
+    Args:
+        message (string): a string that expects 2 placement %% variables,
+            first for % complete from ``df_complete``, second from
+            ``p_progress_arg[0]``.
+
+    Return:
+        Function with signature:
+            logger_callback(df_complete, psz_message, p_progress_arg)
+
+    """
+    def logger_callback(df_complete, _, p_progress_arg):
+        """Argument names come from the GDAL API for callbacks."""
+        try:
+            current_time = time.time()
+            if ((current_time - logger_callback.last_time) > 5.0 or
+                    (df_complete == 1.0 and
+                     logger_callback.total_time >= 5.0)):
+                # In some multiprocess applications I was encountering a
+                # ``p_progress_arg`` of None. This is unexpected and I suspect
+                # was an issue for some kind of GDAL race condition. So I'm
+                # guarding against it here and reporting an appropriate log
+                # if it occurs.
+                if p_progress_arg:
+                    LOGGER.info(message, df_complete * 100, p_progress_arg[0])
+                else:
+                    LOGGER.info(message, df_complete * 100, '')
+                logger_callback.last_time = current_time
+                logger_callback.total_time += current_time
+        except AttributeError:
+            logger_callback.last_time = time.time()
+            logger_callback.total_time = 0.0
+        except Exception:
+            LOGGER.exception("Unhandled error occurred while logging "
+                             "progress.  df_complete: %s, p_progress_arg: %s",
+                             df_complete, p_progress_arg)
+
+    return logger_callback
+
+
 def basefilename(path):
     return os.path.basename(os.path.splitext(path)[0])
 
@@ -148,18 +190,25 @@ def clip_and_calculate_length_in_km(
 
 
 def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_projection):
-    line_ds = ogr.Open(line_vector_path)
-    line_layer = line_ds.GetLayer()
-
     mask_raster = gdal.OpenEx(
         mask_raster_path, gdal.OF_RASTER | gdal.GA_ReadOnly)
-    mask_band = mask_raster.GetRasterBand()
-    mask_band.WriteArray(mask_band.ReadAsArray() > 0)
-    projection = mask_raster.GetProjection()
+    mask_projection = osr.SpatialReference(mask_raster.GetProjection())
+    mask_band = mask_raster.GetRasterBand(1)
+
+    mask_array = mask_band.ReadAsArray() > 0
+    mem_raster = gdal.GetDriverByName('MEM').Create(
+        '', mask_band.XSize, mask_band.YSize, 1, gdal.GDT_Byte)
+
+    mem_raster.SetGeoTransform(mask_raster.GetGeoTransform())
+    mem_raster.SetProjection(mask_raster.GetProjection())
+    mem_band = mem_raster.GetRasterBand(1)
+    mem_band.WriteArray(mask_array.astype(numpy.uint8))
+    mem_band.FlushCache()
 
     raster_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
+    #raster_mem = ogr.GetDriverByName('GPKG').CreateDataSource('temp.gpkg')
     raster_layer = raster_mem.CreateLayer(
-        'raster', srs=ogr.osr.SpatialReference(projection),
+        'raster', srs=mask_projection,
         geom_type=ogr.wkbPolygon)
     raster_field = ogr.FieldDefn("value", ogr.OFTInteger)
     raster_layer.CreateField(raster_field)
@@ -169,27 +218,38 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     start_time = time.time()
     # Polygonize(Band srcBand, Band maskBand, Layer outLayer, int iPixValField, char ** options=None, GDALProgressFunc callback=0, void * callback_data=None) -> int"""
     gdal.Polygonize(
-        mask_raster.GetRasterBand(1), None, raster_layer, 0, [], callback=None)
+        mem_band, None, raster_layer, 0, [], callback=None)
+    raster_layer.SetAttributeFilter("value = 1")
     LOGGER.debug(
         f'done converting {mask_raster_path} to polygon in '
         f'{time.time()-start_time:.2f}s')
 
     target_projection = osr.SpatialReference()
-    target_projection.ImportFromWkt(epsg_projection)
-    transform = osr.CoordinateTransformation(projection, target_projection)
+    target_projection.ImportFromEPSG(epsg_projection)
+    target_projection.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
+    transform = osr.CreateCoordinateTransformation(
+        mask_projection, target_projection)
+
+    clipped_lines_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
+    clipped_lines_layer = clipped_lines_mem.CreateLayer('clipped_roads')
+
+    line_vector = gdal.OpenEx(line_vector_path, gdal.OF_VECTOR)
+    line_layer = line_vector.GetLayer()
+    LOGGER.debug(f'clipping {line_vector_path} to polygon')
+    start_time = time.time()
+
+    line_layer.Clip(
+        raster_layer, clipped_lines_layer, callback=_make_logger_callback(
+            "clipping line set %.1f%% complete %s"))
+    LOGGER.debug(
+        f'done clippping {clipped_lines_layer} to polygon in '
+        f'{time.time()-start_time:.2f}s')
 
     total_length = 0
-    for line_feature in line_layer:
-        line_geometry = line_feature.GetGeometryRef()
-        line_geometry.Transform(transform)
-        for raster_feature in raster_layer:
-            if raster_feature.GetField('value') <= 0:
-                continue
-            raster_geometry = raster_feature.GetGeometryRef()
-            raster_geometry.Transform(transform)
-            if line_geometry.Intersects(raster_geometry):
-                clipped_geometry = line_geometry.Intersection(raster_geometry)
-                total_length += clipped_geometry.Length()
+    for index, line_feature in enumerate(clipped_lines_layer):
+        line_feature.Transform(transform)
+        #line_geometry = line_feature.GetGeometryRef()
+        total_length += line_feature.Length()
 
     total_length_km = total_length / 1000
     return total_length_km
@@ -378,7 +438,7 @@ def main():
                 downstream_coverage_task = task_graph.add_task(
                     func=routing.flow_accumulation_mfd,
                     args=(
-                        flow_dir_path,
+                        (flow_dir_path, 1),
                         global_downstream_coverage_raster_path),
                     kwargs={
                         'weight_raster_path_band': (
