@@ -43,7 +43,7 @@ PH_POP_RASTER_PATH = r"D:\repositories\wwf-sipa\data\pop\phl_ppp_2020.tif"
 PH_ROAD_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\infrastructure_polygons\PH_All_Roads_Merged.gpkg"
 IDN_ROAD_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg"
 
-WORKSPACE_DIR = 'province_depedence_workspace'
+WORKSPACE_DIR = 'province_dependence_workspace'
 MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
 SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
 ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
@@ -353,9 +353,7 @@ def main():
             simplified_vector_path, gdal.OF_VECTOR | gdal.GA_ReadOnly)
         layer = vector.GetLayer()
 
-
         align_service_raster_task_lookup = {}
-        service_raster_path_lookup = {}
 
         for index, feature in enumerate(layer):
             province_fid = feature.GetFID()
@@ -523,6 +521,7 @@ def main():
 
                 row_data = {
                     'country': country_id,
+                    'scenario': scenario,
                     'province name': province_name,
                     'province_area': province_area_task.get(),
                     'pop count': pop_count_task.get(),
@@ -543,9 +542,6 @@ def main():
                 row_df = pandas.DataFrame([row_data])
                 analysis_df[scenario] = pandas.concat(
                     [analysis_df[scenario], row_df], ignore_index=True)
-                break
-            if index > 1:
-                break
         # country ends here
         for scenario, dataframe in analysis_df.items():
             dataframe.to_csv(
@@ -662,9 +658,6 @@ def main():
             downstream_road_coverage_df.to_csv(
                 f'downstream_road_coverage_{country_id}_{scenario}.csv',
                 index_label='source')
-            break
-        break
-
     task_graph.join()
     task_graph.close()
 
