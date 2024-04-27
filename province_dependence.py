@@ -1,4 +1,5 @@
 """What are the upstream/downstream dependancies between provinces?"""
+import itertools
 import logging
 import os
 import sys
@@ -11,7 +12,9 @@ from ecoshard import taskgraph
 from osgeo import gdal
 from osgeo import ogr
 from osgeo import osr
+import collections
 import numpy
+import pandas
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -44,7 +47,10 @@ WORKSPACE_DIR = 'province_depedence_workspace'
 MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
 SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
 ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
-for dir_path in [WORKSPACE_DIR, MASK_DIR, SERVICE_DIR, ALIGNED_DIR]:
+DOWNSTREAM_COVERAGE_DIR = os.path.join(WORKSPACE_DIR, 'downstream_rasters')
+for dir_path in [
+        WORKSPACE_DIR, MASK_DIR, SERVICE_DIR, ALIGNED_DIR,
+        DOWNSTREAM_COVERAGE_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 
@@ -109,9 +115,9 @@ def mask_raster(base_raster_path, mask_raster_path, target_raster_path):
         result[valid_mask] = array[valid_mask]
         return result
 
-    geoprocessing.raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(base_raster_path, 1), (mask_raster_path, 1)], _mask_raster,
-        target_raster_path, gdal.GDT_Float32, None, skip_sparse=True,
+        target_raster_path, gdal.GDT_Float32, None,
         raster_driver_creation_tuple=('GTIFF', (
             'TILED=YES', 'BIGTIFF=YES', 'COMPRESS=LZW',
             'BLOCKXSIZE=256', 'BLOCKYSIZE=256', 'SPARSE_OK=TRUE')))
@@ -247,9 +253,9 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
 
     total_length = 0
     for index, line_feature in enumerate(clipped_lines_layer):
-        line_feature.Transform(transform)
-        #line_geometry = line_feature.GetGeometryRef()
-        total_length += line_feature.Length()
+        line_geometry = line_feature.GetGeometryRef()
+        line_geometry.Transform(transform)
+        total_length += line_geometry.Length()
 
     total_length_km = total_length / 1000
     return total_length_km
@@ -266,8 +272,9 @@ TOP10_SERVICE_COVERAGE_RASTERS = {
 
 
 def main():
-    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, -1)
-
+    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count())
+    analysis_df = collections.defaultdict(
+        lambda: pandas.DataFrame())
     for (country_id,
          dem_path,
          province_vector_path,
@@ -275,20 +282,20 @@ def main():
          epsg_projection,
          unaligned_pop_raster_path,
          road_vector_path) in [
-            ('IDN',
-             IDN_DEM_PATH,
-             IDN_PROViNCE_VECTOR_PATH,
-             'NAME_1',
-             IDN_EPSG_PROJECTION,
-             IDN_POP_RASTER_PATH,
-             IDN_ROAD_VECTOR_PATH),
             ('PH',
              PH_DEM_PATH,
              PH_PROViNCE_VECTOR_PATH,
              'ADM1_EN',
              PH_EPSG_PROJECTION,
              PH_POP_RASTER_PATH,
-             PH_ROAD_VECTOR_PATH)]:
+             PH_ROAD_VECTOR_PATH),
+            ('IDN',
+             IDN_DEM_PATH,
+             IDN_PROViNCE_VECTOR_PATH,
+             'NAME_1',
+             IDN_EPSG_PROJECTION,
+             IDN_POP_RASTER_PATH,
+             IDN_ROAD_VECTOR_PATH),]:
         flow_dir_path = os.path.join(WORKSPACE_DIR, basefilename(dem_path) + '.tif')
         global_base_raster_info = geoprocessing.get_raster_info(dem_path)
         routing_task = task_graph.add_task(
@@ -339,13 +346,20 @@ def main():
             target_path_list=[pop_raster_path],
             task_name=f'align pop layer {pop_raster_path}')
 
+        province_scenario_masks = collections.defaultdict(dict)
+
         simplify_vector_task.join()
         vector = gdal.OpenEx(
             simplified_vector_path, gdal.OF_VECTOR | gdal.GA_ReadOnly)
         layer = vector.GetLayer()
-        for feature in layer:
+
+
+        align_service_raster_task_lookup = {}
+        service_raster_path_lookup = {}
+
+        for index, feature in enumerate(layer):
             province_fid = feature.GetFID()
-            province_name = feature.GetField(province_name_key)
+            province_name = feature.GetField(province_name_key).strip().replace(' ', '_')
             province_mask_path = os.path.join(MASK_DIR, f'{province_name}.tif')
 
             rasterize_province_task = task_graph.add_task(
@@ -388,26 +402,31 @@ def main():
                 task_name=f'road length for {province_fid}')
 
             for scenario in SCENARIO_LIST:
-                # TODO: check what's here i was doing it global before so files etc are wrong
-                service_raster_path = os.path.join(
-                    ALIGNED_DIR,
-                    f'{country_id}_{province_name}_{scenario}_top10_aligned.tif')
-                align_service_raster_task = task_graph.add_task(
-                    func=geoprocessing.warp_raster,
-                    args=(
-                        TOP10_SERVICE_COVERAGE_RASTERS[(country_id, scenario)],
-                        global_base_raster_info['pixel_size'],
-                        service_raster_path, 'near'),
-                    kwargs={
-                        'target_bb': global_base_raster_info['bounding_box'],
-                        'target_projection_wkt': global_base_raster_info['projection_wkt'],
-                        'working_dir': WORKSPACE_DIR,
-                        'raster_driver_creation_tuple': ('GTIFF', (
-                            'TILED=YES', 'BIGTIFF=YES', 'COMPRESS=LZW',
-                            'BLOCKXSIZE=256', 'BLOCKYSIZE=256', 'SPARSE_OK=TRUE'))
-                    },
-                    target_path_list=[service_raster_path],
-                    task_name=f'align service layer {service_raster_path}')
+                # guard against an already calculates service overlap
+                if (country_id, scenario) not in align_service_raster_task_lookup:
+                    service_raster_path = os.path.join(
+                        ALIGNED_DIR,
+                        f'{country_id}_{scenario}_top10_aligned.tif')
+                    align_service_raster_task = task_graph.add_task(
+                        func=geoprocessing.warp_raster,
+                        args=(
+                            TOP10_SERVICE_COVERAGE_RASTERS[(country_id, scenario)],
+                            global_base_raster_info['pixel_size'],
+                            service_raster_path, 'near'),
+                        kwargs={
+                            'target_bb': global_base_raster_info['bounding_box'],
+                            'target_projection_wkt': global_base_raster_info['projection_wkt'],
+                            'working_dir': WORKSPACE_DIR,
+                            'raster_driver_creation_tuple': ('GTIFF', (
+                                'TILED=YES', 'BIGTIFF=YES', 'COMPRESS=LZW',
+                                'BLOCKXSIZE=256', 'BLOCKYSIZE=256', 'SPARSE_OK=TRUE'))
+                        },
+                        target_path_list=[service_raster_path],
+                        task_name=f'align service layer {service_raster_path}')
+                    align_service_raster_task_lookup[(country_id, scenario)] = (
+                        align_service_raster_task, service_raster_path)
+                else:
+                    align_service_raster_task, service_raster_path = align_service_raster_task_lookup[(country_id, scenario)]
 
                 # mask TOP10_SERVICE to the current province
                 masked_service_raster_path = os.path.join(
@@ -448,7 +467,9 @@ def main():
                             'BLOCKXSIZE=256', 'BLOCKYSIZE=256',
                             'SPARSE_OK=TRUE'))
                     },
-                    dependent_task_list=[rasterize_province_task, routing_task],
+                    dependent_task_list=[
+                        rasterize_province_task, routing_task,
+                        mask_service_task],
                     target_path_list=[global_downstream_coverage_raster_path],
                     task_name=f'flow accum of service {scenario} down from {province_name}')
                 local_downstream_coverage_raster_path = os.path.join(
@@ -484,7 +505,7 @@ def main():
                     func=calculate_sum_over_mask,
                     args=(local_downstream_coverage_raster_path, pop_raster_path),
                     dependent_task_list=[
-                        local_downstream_service_area_task,
+                        local_mask_service_task,
                         align_pop_layer_task],
                     store_result=True,
                     task_name=f'calculate people in {local_downstream_coverage_raster_path}')
@@ -496,21 +517,153 @@ def main():
                         local_downstream_coverage_raster_path, road_vector_path,
                         epsg_projection),
                     ignore_path_list=[road_vector_path],
+                    dependent_task_list=[local_mask_service_task],
                     store_result=True,
                     task_name=f'road length for {province_fid} {scenario}')
 
-                result_dict = {
+                row_data = {
+                    'country': country_id,
                     'province name': province_name,
                     'province_area': province_area_task.get(),
                     'pop count': pop_count_task.get(),
                     'length of roads km': length_of_roads_task.get(),
-                    r'top 10% service area': service_area_task.get(),
+                    'top 10% service area': service_area_task.get(),
                     'top 10% service area downstream': global_downstream_service_area_task.get(),
+                    'top 10% service area downstream in province': local_downstream_service_area_task.get(),
                     'pop count in top 10% local downstream service': local_ds_service_pop_count_task.get(),
                     'length of roads in km in top 10% local downstream service': local_ds_length_of_roads_task.get(),
                 }
-                LOGGER.debug(result_dict)
-                return
+
+                province_scenario_masks[scenario][province_name] = {
+                    'province_mask_path': province_mask_path,
+                    'global_downstream_coverage_raster_path': global_downstream_coverage_raster_path,
+                    'global_downstream_service_area_km2': global_downstream_service_area_task.get()
+                }
+
+                row_df = pandas.DataFrame([row_data])
+                analysis_df[scenario] = pandas.concat(
+                    [analysis_df[scenario], row_df], ignore_index=True)
+                break
+            if index > 1:
+                break
+        # country ends here
+        for scenario, dataframe in analysis_df.items():
+            dataframe.to_csv(
+                f'province_analysis_{country_id}_{scenario}.csv',
+                index=False, na_rep='')
+
+        for scenario in SCENARIO_LIST:
+            province_analysis_map = province_scenario_masks[scenario]
+            downstream_coverage_percent_map = collections.defaultdict(dict)
+            downstream_population_coverage_map = collections.defaultdict(dict)
+            downstream_road_coverage_map = collections.defaultdict(dict)
+            for base_province, downstream_province in itertools.product(
+                    province_analysis_map,
+                    province_analysis_map):
+                if base_province == downstream_province:
+                    downstream_population_coverage_map\
+                        [base_province][downstream_province] = '-'
+                    downstream_road_coverage_map\
+                        [base_province][downstream_province] = '-'
+                    continue
+                base_downstream_coverage_path = province_scenario_masks\
+                    [scenario][base_province]['global_downstream_coverage_raster_path']
+                downstream_province_mask_path = province_scenario_masks\
+                    [scenario][downstream_province]['province_mask_path']
+
+                base_downstream_area = province_scenario_masks\
+                    [scenario][base_province]['global_downstream_service_area_km2']
+
+                downstream_coverage_of_base_province_raster_path = os.path.join(
+                    DOWNSTREAM_COVERAGE_DIR, f'{base_province} on {downstream_province}.tif')
+
+                # intersection of downstream province with downstream coverage
+                province_downstream_intersection_task = task_graph.add_task(
+                    func=mask_raster,
+                    args=(
+                        base_downstream_coverage_path,
+                        downstream_province_mask_path,
+                        downstream_coverage_of_base_province_raster_path),
+                    dependent_task_list=[
+                        downstream_coverage_task, rasterize_province_task],
+                    target_path_list=[downstream_coverage_of_base_province_raster_path],
+                    task_name=f'masking service {province_name} {scenario}')
+
+                province_dowstream_intersection_area_task = task_graph.add_task(
+                    func=calculate_pixel_area_km2,
+                    args=(downstream_coverage_of_base_province_raster_path,
+                          epsg_projection),
+                    dependent_task_list=[province_downstream_intersection_task],
+                    store_result=True,
+                    task_name=f'calculate area {downstream_coverage_of_base_province_raster_path}')
+
+                if province_dowstream_intersection_area_task.get() > 0:
+                    # km of roads in that intersection
+                    # calculate number of people on the ds mask in the province
+                    downstream_service_pop_count_task = task_graph.add_task(
+                        func=calculate_sum_over_mask,
+                        args=(downstream_coverage_of_base_province_raster_path, pop_raster_path),
+                        dependent_task_list=[province_downstream_intersection_task],
+                        store_result=True,
+                        task_name=f'calculate people in {downstream_coverage_of_base_province_raster_path}')
+
+                    # calculate km of roads on the ds mask in the province
+                    downstream_length_of_roads_task = task_graph.add_task(
+                        func=calculate_length_in_km_with_raster,
+                        args=(
+                            downstream_coverage_of_base_province_raster_path, road_vector_path,
+                            epsg_projection),
+                        ignore_path_list=[road_vector_path],
+                        dependent_task_list=[province_downstream_intersection_task],
+                        store_result=True,
+                        task_name=f'road length for downstream {downstream_coverage_of_base_province_raster_path}')
+
+                    downstream_population_coverage_map\
+                        [base_province][downstream_province] = \
+                        downstream_service_pop_count_task.get()
+                    downstream_road_coverage_map\
+                        [base_province][downstream_province] = \
+                        downstream_length_of_roads_task.get()
+                else:
+                    downstream_population_coverage_map\
+                        [base_province][downstream_province] = 0
+                    downstream_road_coverage_map\
+                        [base_province][downstream_province] = 0
+
+                LOGGER.debug(f'************ downstream maps: {downstream_population_coverage_map} {downstream_road_coverage_map}')
+
+                downstream_coverage_percent_map[base_province][downstream_province] = (
+                    province_dowstream_intersection_area_task.get() /
+                    base_downstream_area * 100.0)
+
+            downstream_coverage_df = pandas.DataFrame.from_dict(
+                downstream_coverage_percent_map, orient='index')
+            downstream_coverage_df = downstream_coverage_df.fillna(0)
+            downstream_coverage_df = downstream_coverage_df.sort_index(axis=0)
+            downstream_coverage_df = downstream_coverage_df.sort_index(axis=1)
+            downstream_coverage_df.to_csv(
+                f'downstream_provence_coverage_{country_id}_{scenario}.csv',
+                index_label='source')
+
+            downstream_pop_coverage_df = pandas.DataFrame.from_dict(
+                downstream_population_coverage_map, orient='index')
+            downstream_pop_coverage_df = downstream_pop_coverage_df.fillna(0)
+            downstream_pop_coverage_df = downstream_pop_coverage_df.sort_index(axis=0)
+            downstream_pop_coverage_df = downstream_pop_coverage_df.sort_index(axis=1)
+            downstream_pop_coverage_df.to_csv(
+                f'downstream_population_count_{country_id}_{scenario}.csv',
+                index_label='source')
+
+            downstream_road_coverage_df = pandas.DataFrame.from_dict(
+                downstream_road_coverage_map, orient='index')
+            downstream_road_coverage_df = downstream_road_coverage_df.fillna(0)
+            downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=0)
+            downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=1)
+            downstream_road_coverage_df.to_csv(
+                f'downstream_road_coverage_{country_id}_{scenario}.csv',
+                index_label='source')
+            break
+        break
 
     task_graph.join()
     task_graph.close()
