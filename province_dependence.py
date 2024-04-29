@@ -121,7 +121,7 @@ def calculate_mask_area_km2(base_mask_raster_path):
     nodata = base_raster_info['nodata'][0]
     area_raster_path = os.path.join(
         AREA_DIRS,
-        f'%s_{time.time}%s' % os.path.splitext(base_mask_raster_path))
+        f'%s_{time.time()}%s' % os.path.splitext(base_mask_raster_path))
 
     geoprocessing.raster_calculator(
         [(base_mask_raster_path, 1), pixel_conversion], mask_op,
@@ -730,16 +730,12 @@ def main():
 
         row_df = pandas.DataFrame([row_data])
         analysis_df[(country_id, scenario)] = pandas.concat(
-            [analysis_df[scenario], row_df], ignore_index=True)
+            [analysis_df[(country_id, scenario)], row_df], ignore_index=True)
 
-    try:
-        for (country_id, scenario), dataframe in analysis_df.items():
-            dataframe.to_csv(
-                f'province_analysis_{country_id}_{scenario}.csv',
-                index=False, na_rep='')
-    except Exception:
-        LOGGER.exception(f'********************* {analysis_df}')
-        raise
+    for (country_id, scenario), dataframe in analysis_df.items():
+        dataframe.to_csv(
+            f'province_analysis_{country_id}_{scenario}.csv',
+            index=False, na_rep='')
 
     for country_id, scenario, base_province, downstream_province in delayed_province_downstream_intersection_area:
         (province_downstream_intersection_area_task,
