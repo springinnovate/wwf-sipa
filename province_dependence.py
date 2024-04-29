@@ -473,7 +473,7 @@ def main():
             # calculate area of province
             province_area_task = task_graph.add_task(
                 func=calculate_mask_area_km2,
-                args=(province_mask_path),
+                args=(province_mask_path,),
                 dependent_task_list=[rasterize_province_task],
                 store_result=True,
                 task_name=f'calculate area of {province_name}')
@@ -543,7 +543,7 @@ def main():
                 # area of the mask of top 10 service in the province
                 service_area_task = task_graph.add_task(
                     func=calculate_mask_area_km2,
-                    args=(masked_service_raster_path, epsg_projection),
+                    args=(masked_service_raster_path,),
                     dependent_task_list=[mask_service_task],
                     store_result=True,
                     task_name=f'calculate area {masked_service_raster_path}')
@@ -589,7 +589,7 @@ def main():
                     (local_mask_service_task, province_mask_path))
                 local_downstream_service_area_task = task_graph.add_task(
                     func=calculate_mask_area_km2,
-                    args=(local_downstream_coverage_raster_path, epsg_projection),
+                    args=(local_downstream_coverage_raster_path,),
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,
                     task_name=f'calculate area {local_downstream_coverage_raster_path}')
@@ -597,7 +597,7 @@ def main():
                 # calculate area of total downstream top 10% areas
                 global_downstream_service_area_task = task_graph.add_task(
                     func=calculate_mask_area_km2,
-                    args=(global_downstream_coverage_raster_path, epsg_projection),
+                    args=(global_downstream_coverage_raster_path,),
                     dependent_task_list=[downstream_coverage_task],
                     store_result=True,
                     task_name=f'calculate area {global_downstream_coverage_raster_path}')
@@ -664,8 +664,7 @@ def main():
 
                 province_downstream_intersection_area_task = task_graph.add_task(
                     func=calculate_mask_area_km2,
-                    args=(downstream_coverage_of_base_province_raster_path,
-                          epsg_projection),
+                    args=(downstream_coverage_of_base_province_raster_path,),
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
                     task_name=f'calculate area {downstream_coverage_of_base_province_raster_path}')
