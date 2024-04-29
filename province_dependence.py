@@ -48,9 +48,10 @@ MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
 SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
 ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
 DOWNSTREAM_COVERAGE_DIR = os.path.join(WORKSPACE_DIR, 'downstream_rasters')
+DEM_DIR = os.path.join(WORKSPACE_DIR, 'filled_dems')
 for dir_path in [
         WORKSPACE_DIR, MASK_DIR, SERVICE_DIR, ALIGNED_DIR,
-        DOWNSTREAM_COVERAGE_DIR]:
+        DOWNSTREAM_COVERAGE_DIR, DEM_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 
@@ -298,15 +299,26 @@ def main():
              IDN_ROAD_VECTOR_PATH),]:
         flow_dir_path = os.path.join(WORKSPACE_DIR, basefilename(dem_path) + '.tif')
         global_base_raster_info = geoprocessing.get_raster_info(dem_path)
+        filled_pits_dem_path = os.path.join(
+            DEM_DIR, 'filled_' + os.path.basename(dem_path))
+        fill_dem_task = task_graph.add_task(
+            func=routing.fill_pits,
+            args=((dem_path, 1), filled_pits_dem_path),
+            kwargs={
+                'working_dir': None,
+                'max_pixel_fill_count': 100000},
+            target_path_list=[filled_pits_dem_path],
+            task_name=f'fill pits to {filled_pits_dem_path}')
         routing_task = task_graph.add_task(
             func=routing.flow_dir_mfd,
-            args=((dem_path, 1), flow_dir_path),
+            args=((filled_pits_dem_path, 1), flow_dir_path),
             kwargs={
                 'working_dir': WORKSPACE_DIR,
                 'raster_driver_creation_tuple': ('GTIFF', (
                     'TILED=YES', 'BIGTIFF=YES', 'COMPRESS=LZW',
                     'BLOCKXSIZE=256', 'BLOCKYSIZE=256', 'SPARSE_OK=TRUE'))
             },
+            dependent_task_list=[fill_dem_task],
             target_path_list=[flow_dir_path],
             task_name=f'flow dir {flow_dir_path}')
 
