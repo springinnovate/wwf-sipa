@@ -197,7 +197,9 @@ def clip_and_calculate_length_in_km(
 
 
 def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_projection):
-    temp_raster_path = f'%s_{epsg_projection}_mask%s' % epsg_projection
+    local_time = time.time()
+    temp_raster_path = f'%s_{epsg_projection}_mask_{local_time}%s' % os.path.splitext(
+        mask_raster_path)
     geoprocessing.raster_calculator(
         [(mask_raster_path, 1)], lambda a: (a > 0).astype(numpy.uint8),
         temp_raster_path,
@@ -252,6 +254,13 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
         total_length += line_geometry.Length()
 
     total_length_km = total_length / 1000
+
+    mask_raster = None
+    mask_band = None
+    try:
+        os.remove(temp_raster_path)
+    except:
+        pass
     return total_length_km
 
 
@@ -543,7 +552,6 @@ def main():
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,
                     task_name=f'road length for {province_fid} {scenario}')
-                local_ds_length_of_roads_task.join()
 
                 delayed_results[(country_id, scenario, province_name)] = (
                     province_area_task,
@@ -606,7 +614,6 @@ def main():
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
                     task_name=f'road length for downstream {downstream_coverage_of_base_province_raster_path}')
-                downstream_length_of_roads_task.join()
 
                 delayed_province_downstream_intersection_area[
                     (country_id, scenario, base_province, downstream_province)] = \
