@@ -365,7 +365,8 @@ def main():
             target_path_list=[pop_raster_path],
             task_name=f'align pop layer {pop_raster_path}')
 
-        province_scenario_masks = collections.defaultdict(dict)
+        province_scenario_masks = collections.defaultdict(
+            lambda: collections.defaultdict(dict))
 
         simplify_vector_task.join()
         vector = gdal.OpenEx(
@@ -400,6 +401,7 @@ def main():
                 dependent_task_list=[rasterize_province_task],
                 store_result=True,
                 task_name=f'calculate area of {province_name}')
+            province_area_task.join()
 
             # # of people in province
             pop_count_task = task_graph.add_task(
@@ -469,6 +471,7 @@ def main():
                     dependent_task_list=[mask_service_task],
                     store_result=True,
                     task_name=f'calculate area {masked_service_raster_path}')
+                service_area_task.join()
 
                 # downstream areas of top 10 service
                 global_downstream_coverage_raster_path = os.path.join(
@@ -514,6 +517,7 @@ def main():
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,
                     task_name=f'calculate area {local_downstream_coverage_raster_path}')
+                local_downstream_service_area_task.join()
                 # calculate area of total downstream top 10% areas
                 global_downstream_service_area_task = task_graph.add_task(
                     func=calculate_pixel_area_km2,
@@ -521,6 +525,7 @@ def main():
                     dependent_task_list=[downstream_coverage_task],
                     store_result=True,
                     task_name=f'calculate area {global_downstream_coverage_raster_path}')
+                global_downstream_service_area_task.join()
 
                 province_scenario_masks[scenario][province_name]['global_downstream_coverage_raster_path'] = (
                     (global_downstream_service_area_task, global_downstream_coverage_raster_path))
@@ -545,6 +550,7 @@ def main():
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,
                     task_name=f'road length for {province_fid} {scenario}')
+                local_ds_length_of_roads_task.join()
 
                 delayed_results[(country_id, scenario, province_name)] = (
                     province_area_task,
@@ -588,6 +594,7 @@ def main():
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
                     task_name=f'calculate area {downstream_coverage_of_base_province_raster_path}')
+                province_downstream_intersection_area_task.join()
 
                 downstream_service_pop_count_task = task_graph.add_task(
                     func=calculate_sum_over_mask,
@@ -606,6 +613,7 @@ def main():
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
                     task_name=f'road length for downstream {downstream_coverage_of_base_province_raster_path}')
+                downstream_length_of_roads_task.join()
 
                 delayed_province_downstream_intersection_area[
                     (country_id, scenario, base_province, downstream_province)] = \
@@ -647,10 +655,14 @@ def main():
         analysis_df[(country_id, scenario)] = pandas.concat(
             [analysis_df[scenario], row_df], ignore_index=True)
 
-    for (country_id, scenario), dataframe in analysis_df.items():
-        dataframe.to_csv(
-            f'province_analysis_{country_id}_{scenario}.csv',
-            index=False, na_rep='')
+    try:
+        for (country_id, scenario), dataframe in analysis_df.items():
+            dataframe.to_csv(
+                f'province_analysis_{country_id}_{scenario}.csv',
+                index=False, na_rep='')
+    except Exception:
+        LOGGER.exception(f'********************* {analysis_df}')
+        raise
 
     for country_id, scenario, base_province, downstream_province in delayed_province_downstream_intersection_area:
         (province_downstream_intersection_area_task,
