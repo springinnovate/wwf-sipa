@@ -1,6 +1,7 @@
 """What are the upstream/downstream dependancies between provinces?"""
 import itertools
 import logging
+import math
 import os
 import sys
 import time
@@ -53,6 +54,79 @@ for dir_path in [
         WORKSPACE_DIR, MASK_DIR, SERVICE_DIR, ALIGNED_DIR,
         DOWNSTREAM_COVERAGE_DIR, DEM_DIR]:
     os.makedirs(dir_path, exist_ok=True)
+
+
+def area_of_pixel(pixel_size, center_lat):
+    """Calculate m^2 area of a wgs84 square pixel.
+
+    Adapted from: https://gis.stackexchange.com/a/127327/2397
+
+    Args:
+        pixel_size (float): length of side of pixel in degrees.
+        center_lat (float): latitude of the center of the pixel. Note this
+            value +/- half the `pixel-size` must not exceed 90/-90 degrees
+            latitude or an invalid area will be calculated.
+
+    Returns:
+        Area of square pixel of side length `pixel_size` centered at
+        `center_lat` in m^2.
+
+    """
+    a = 6378137  # meters
+    b = 6356752.3142  # meters
+    e = math.sqrt(1 - (b/a)**2)
+    area_list = []
+    for f in [center_lat+pixel_size/2, center_lat-pixel_size/2]:
+        zm = 1 - e*math.sin(math.radians(f))
+        zp = 1 + e*math.sin(math.radians(f))
+        area_list.append(
+            math.pi * b**2 * (
+                math.log(zp/zm) / (2*e) +
+                math.sin(math.radians(f)) / (zp*zm)))
+    return abs(pixel_size / 360. * (area_list[0] - area_list[1]))
+
+
+def mask_op(mask_array, value_array):
+    """Mask out value to 0 if mask array is not 1."""
+    result = numpy.copy(value_array)
+    result[mask_array > 0] = 0.0
+    return result
+
+
+def calculate_mask_area_km2(base_mask_raster_path):
+    """Calculate area of mask==1."""
+    base_raster_info = geoprocessing.get_raster_info(
+        base_mask_raster_path)
+
+    base_srs = osr.SpatialReference()
+    base_srs.ImportFromWkt(base_raster_info['projection_wkt'])
+    if base_srs.IsProjected():
+        # convert m^2 of pixel size to km2
+        pixel_conversion = numpy.array([[
+            abs(base_raster_info['pixel_size'][0] *
+                base_raster_info['pixel_size'][1])]]) / 1e6
+    else:
+        # create 1D array of pixel size vs. lat
+        n_rows = base_raster_info['raster_size'][1]
+        pixel_height = abs(base_raster_info['geotransform'][5])
+        # the / 2 is to get in the center of the pixel
+        miny = base_raster_info['bounding_box'][1] + pixel_height/2
+        maxy = base_raster_info['bounding_box'][3] - pixel_height/2
+        lat_vals = numpy.linspace(maxy, miny, n_rows)
+
+        pixel_conversion = 1.0 / 1e6 * numpy.array([
+            [area_of_pixel(pixel_height, lat_val)] for lat_val in lat_vals])
+
+    nodata = base_raster_info['nodata'][0]
+    area_raster_path = 'tmp_area_mask.tif'
+    geoprocessing.raster_calculator(
+        [(base_mask_raster_path, 1), pixel_conversion], mask_op,
+        area_raster_path, gdal.GDT_Float32, nodata)
+
+    area_sum = 0.0
+    for _, area_block in geoprocessing.iterblocks((area_raster_path, 1)):
+        area_sum += numpy.sum(area_block)
+    return area_sum
 
 
 def _make_logger_callback(message):
@@ -137,34 +211,34 @@ def calculate_sum_over_mask(base_raster_path, mask_raster_path):
     return running_sum
 
 
-def calculate_pixel_area_km2(base_raster_path, target_epsg):
-    source_raster = gdal.OpenEx(base_raster_path, gdal.OF_RASTER)
-    target_srs = osr.SpatialReference()
-    target_srs.ImportFromEPSG(target_epsg)
+# def calculate_mask_area_km2(base_raster_path, target_epsg):
+#     source_raster = gdal.OpenEx(base_raster_path, gdal.OF_RASTER)
+#     target_srs = osr.SpatialReference()
+#     target_srs.ImportFromEPSG(target_epsg)
 
-    LOGGER.debug(f'about to warp {base_raster_path} to epsg:{target_epsg}')
-    reprojected_raster = gdal.Warp(
-        '',
-        source_raster,
-        format='MEM',
-        dstSRS=target_srs)
-    reprojected_band = reprojected_raster.GetRasterBand(1)
-    nodata = reprojected_band.GetNoDataValue()
-    LOGGER.debug(f'nodata value is {nodata}')
-    LOGGER.debug(f'read warped {base_raster_path}')
-    reprojected_data = reprojected_band.ReadAsArray()
-    reprojected_geotransform = reprojected_raster.GetGeoTransform()
-    reprojected_pixel_width, reprojected_pixel_height = (
-        reprojected_geotransform[1], abs(reprojected_geotransform[5]))
+#     LOGGER.debug(f'about to warp {base_raster_path} to epsg:{target_epsg}')
+#     reprojected_raster = gdal.Warp(
+#         '',
+#         source_raster,
+#         format='MEM',
+#         dstSRS=target_srs)
+#     reprojected_band = reprojected_raster.GetRasterBand(1)
+#     nodata = reprojected_band.GetNoDataValue()
+#     LOGGER.debug(f'nodata value is {nodata}')
+#     LOGGER.debug(f'read warped {base_raster_path}')
+#     reprojected_data = reprojected_band.ReadAsArray()
+#     reprojected_geotransform = reprojected_raster.GetGeoTransform()
+#     reprojected_pixel_width, reprojected_pixel_height = (
+#         reprojected_geotransform[1], abs(reprojected_geotransform[5]))
 
-    # Calculate the area of pixels with values > 1
-    pixel_area = reprojected_pixel_width * reprojected_pixel_height
-    LOGGER.debug('sum it up')
-    count = ((reprojected_data > 0) & (reprojected_data != nodata)).sum()
-    total_area = count * pixel_area / 1e6  # covert to km2
+#     # Calculate the area of pixels with values > 1
+#     pixel_area = reprojected_pixel_width * reprojected_pixel_height
+#     LOGGER.debug('sum it up')
+#     count = ((reprojected_data > 0) & (reprojected_data != nodata)).sum()
+#     total_area = count * pixel_area / 1e6  # covert to km2
 
-    LOGGER.debug(f'total area of {base_raster_path}: {total_area}km2')
-    return total_area
+#     LOGGER.debug(f'total area of {base_raster_path}: {total_area}km2')
+#     return total_area
 
 
 def clip_and_calculate_length_in_km(
@@ -398,12 +472,12 @@ def main():
 
             # calculate area of province
             province_area_task = task_graph.add_task(
-                func=calculate_pixel_area_km2,
-                args=(province_mask_path, epsg_projection),
+                func=calculate_mask_area_km2,
+                args=(province_mask_path),
                 dependent_task_list=[rasterize_province_task],
                 store_result=True,
                 task_name=f'calculate area of {province_name}')
-            province_area_task.join()
+            #province_area_task.join()
 
             # # of people in province
             pop_count_task = task_graph.add_task(
@@ -468,12 +542,12 @@ def main():
 
                 # area of the mask of top 10 service in the province
                 service_area_task = task_graph.add_task(
-                    func=calculate_pixel_area_km2,
+                    func=calculate_mask_area_km2,
                     args=(masked_service_raster_path, epsg_projection),
                     dependent_task_list=[mask_service_task],
                     store_result=True,
                     task_name=f'calculate area {masked_service_raster_path}')
-                service_area_task.join()
+                #service_area_task.join()
 
                 # downstream areas of top 10 service
                 global_downstream_coverage_raster_path = os.path.join(
@@ -514,20 +588,20 @@ def main():
                 province_scenario_masks[scenario][province_name]['province_mask_path'] = (
                     (local_mask_service_task, province_mask_path))
                 local_downstream_service_area_task = task_graph.add_task(
-                    func=calculate_pixel_area_km2,
+                    func=calculate_mask_area_km2,
                     args=(local_downstream_coverage_raster_path, epsg_projection),
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,
                     task_name=f'calculate area {local_downstream_coverage_raster_path}')
-                local_downstream_service_area_task.join()
+                #local_downstream_service_area_task.join()
                 # calculate area of total downstream top 10% areas
                 global_downstream_service_area_task = task_graph.add_task(
-                    func=calculate_pixel_area_km2,
+                    func=calculate_mask_area_km2,
                     args=(global_downstream_coverage_raster_path, epsg_projection),
                     dependent_task_list=[downstream_coverage_task],
                     store_result=True,
                     task_name=f'calculate area {global_downstream_coverage_raster_path}')
-                global_downstream_service_area_task.join()
+                #global_downstream_service_area_task.join()
 
                 province_scenario_masks[scenario][province_name]['global_downstream_coverage_raster_path'] = (
                     (global_downstream_service_area_task, global_downstream_coverage_raster_path))
@@ -589,13 +663,13 @@ def main():
                     task_name=f'masking service {province_name} {scenario}')
 
                 province_downstream_intersection_area_task = task_graph.add_task(
-                    func=calculate_pixel_area_km2,
+                    func=calculate_mask_area_km2,
                     args=(downstream_coverage_of_base_province_raster_path,
                           epsg_projection),
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
                     task_name=f'calculate area {downstream_coverage_of_base_province_raster_path}')
-                province_downstream_intersection_area_task.join()
+                #province_downstream_intersection_area_task.join()
 
                 downstream_service_pop_count_task = task_graph.add_task(
                     func=calculate_sum_over_mask,
