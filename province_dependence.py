@@ -197,23 +197,17 @@ def clip_and_calculate_length_in_km(
 
 
 def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_projection):
-    mask_raster = gdal.OpenEx(
-        mask_raster_path, gdal.OF_RASTER | gdal.GA_ReadOnly)
-    mask_projection = osr.SpatialReference(mask_raster.GetProjection())
+    temp_raster_path = f'%s_{epsg_projection}_mask%s' % epsg_projection
+    geoprocessing.raster_calculator(
+        [(mask_raster_path, 1)], lambda a: (a > 0).astype(numpy.uint8),
+        temp_raster_path,
+        gdal.GDT_Byte, None,
+        calc_raster_stats=False, skip_sparse=True)
+
+    mask_raster = gdal.OpenEx(temp_raster_path, gdal.OF_RASTER)
     mask_band = mask_raster.GetRasterBand(1)
-
-    mask_array = mask_band.ReadAsArray() > 0
-    mem_raster = gdal.GetDriverByName('MEM').Create(
-        '', mask_band.XSize, mask_band.YSize, 1, gdal.GDT_Byte)
-
-    mem_raster.SetGeoTransform(mask_raster.GetGeoTransform())
-    mem_raster.SetProjection(mask_raster.GetProjection())
-    mem_band = mem_raster.GetRasterBand(1)
-    mem_band.WriteArray(mask_array.astype(numpy.uint8))
-    mem_band.FlushCache()
-
+    mask_projection = osr.SpatialReference(mask_raster.GetProjection())
     raster_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
-    #raster_mem = ogr.GetDriverByName('GPKG').CreateDataSource('temp.gpkg')
     raster_layer = raster_mem.CreateLayer(
         'raster', srs=mask_projection,
         geom_type=ogr.wkbPolygon)
@@ -223,9 +217,8 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     # Convert raster to polygons
     LOGGER.debug(f'converting {mask_raster_path} to polygon')
     start_time = time.time()
-    # Polygonize(Band srcBand, Band maskBand, Layer outLayer, int iPixValField, char ** options=None, GDALProgressFunc callback=0, void * callback_data=None) -> int"""
     gdal.Polygonize(
-        mem_band, None, raster_layer, 0, [], callback=None)
+        mask_band, None, raster_layer, 0, [], callback=None)
     raster_layer.SetAttributeFilter("value = 1")
     LOGGER.debug(
         f'done converting {mask_raster_path} to polygon in '
