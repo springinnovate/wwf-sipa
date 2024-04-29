@@ -274,8 +274,15 @@ TOP10_SERVICE_COVERAGE_RASTERS = {
 
 def main():
     task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count())
-    analysis_df = collections.defaultdict(
-        lambda: pandas.DataFrame())
+    delayed_results = {}
+    delayed_province_dowstream_intersection_area = {}
+
+    scenario_downstream_coverage_percent_map = collections.defaultdict(
+        lambda: collections.defaultdict(dict))
+    scenario_downstream_population_coverage_map = collections.defaultdict(
+        lambda: collections.defaultdict(dict))
+    scenario_downstream_road_coverage_map = collections.defaultdict(
+        lambda: collections.defaultdict(dict))
     for (country_id,
          dem_path,
          province_vector_path,
@@ -531,49 +538,58 @@ def main():
                     store_result=True,
                     task_name=f'road length for {province_fid} {scenario}')
 
-                row_data = {
-                    'country': country_id,
-                    'scenario': scenario,
-                    'province name': province_name,
-                    'province_area': province_area_task.get(),
-                    'pop count': pop_count_task.get(),
-                    'length of roads km': length_of_roads_task.get(),
-                    'top 10% service area': service_area_task.get(),
-                    'top 10% service area downstream': global_downstream_service_area_task.get(),
-                    'top 10% service area downstream in province': local_downstream_service_area_task.get(),
-                    'pop count in top 10% local downstream service': local_ds_service_pop_count_task.get(),
-                    'length of roads in km in top 10% local downstream service': local_ds_length_of_roads_task.get(),
-                }
+                delayed_results[(country_id, scenario, province_name)] = (
+                    province_area_task.get(),
+                    pop_count_task.get(),
+                    length_of_roads_task.get(),
+                    service_area_task.get(),
+                    global_downstream_service_area_task.get(),
+                    local_downstream_service_area_task.get(),
+                    local_ds_service_pop_count_task.get(),
+                    local_ds_length_of_roads_task.get(),)
 
-                province_scenario_masks[scenario][province_name] = {
-                    'province_mask_path': province_mask_path,
-                    'global_downstream_coverage_raster_path': global_downstream_coverage_raster_path,
-                    'global_downstream_service_area_km2': global_downstream_service_area_task.get()
-                }
+        #         row_data = {
+        #             'country': country_id,
+        #             'scenario': scenario,
+        #             'province name': province_name,
+        #             'province_area': province_area_task.get(),
+        #             'pop count': pop_count_task.get(),
+        #             'length of roads km': length_of_roads_task.get(),
+        #             'top 10% service area': service_area_task.get(),
+        #             'top 10% service area downstream': global_downstream_service_area_task.get(),
+        #             'top 10% service area downstream in province': local_downstream_service_area_task.get(),
+        #             'pop count in top 10% local downstream service': local_ds_service_pop_count_task.get(),
+        #             'length of roads in km in top 10% local downstream service': local_ds_length_of_roads_task.get(),
+        #         }
 
-                row_df = pandas.DataFrame([row_data])
-                analysis_df[scenario] = pandas.concat(
-                    [analysis_df[scenario], row_df], ignore_index=True)
-        # country ends here
-        for scenario, dataframe in analysis_df.items():
-            dataframe.to_csv(
-                f'province_analysis_{country_id}_{scenario}.csv',
-                index=False, na_rep='')
+        #         province_scenario_masks[scenario][province_name] = {
+        #             'province_mask_path': province_mask_path,
+        #             'global_downstream_coverage_raster_path': global_downstream_coverage_raster_path,
+        #             'global_downstream_service_area_km2': global_downstream_service_area_task.get()
+        #         }
+
+        #         row_df = pandas.DataFrame([row_data])
+        #         analysis_df[scenario] = pandas.concat(
+        #             [analysis_df[scenario], row_df], ignore_index=True)
+        # # country ends here
+        # for scenario, dataframe in analysis_df.items():
+        #     dataframe.to_csv(
+        #         f'province_analysis_{country_id}_{scenario}.csv',
+        #         index=False, na_rep='')
 
         for scenario in SCENARIO_LIST:
             province_analysis_map = province_scenario_masks[scenario]
-            downstream_coverage_percent_map = collections.defaultdict(dict)
-            downstream_population_coverage_map = collections.defaultdict(dict)
-            downstream_road_coverage_map = collections.defaultdict(dict)
             for base_province, downstream_province in itertools.product(
                     province_analysis_map,
                     province_analysis_map):
-                if base_province == downstream_province:
-                    downstream_population_coverage_map\
-                        [base_province][downstream_province] = '-'
-                    downstream_road_coverage_map\
-                        [base_province][downstream_province] = '-'
-                    continue
+                # if base_province == downstream_province:
+                #     downstream_coverage_percent_map\
+                #         [base_province][downstream_province] = '-'
+                #     downstream_population_coverage_map\
+                #         [base_province][downstream_province] = '-'
+                #     downstream_road_coverage_map\
+                #         [base_province][downstream_province] = '-'
+                #     continue
                 base_downstream_coverage_path = province_scenario_masks\
                     [scenario][base_province]['global_downstream_coverage_raster_path']
                 downstream_province_mask_path = province_scenario_masks\
@@ -597,7 +613,7 @@ def main():
                     target_path_list=[downstream_coverage_of_base_province_raster_path],
                     task_name=f'masking service {province_name} {scenario}')
 
-                province_dowstream_intersection_area_task = task_graph.add_task(
+                province_downstream_intersection_area_task = task_graph.add_task(
                     func=calculate_pixel_area_km2,
                     args=(downstream_coverage_of_base_province_raster_path,
                           epsg_projection),
@@ -605,71 +621,117 @@ def main():
                     store_result=True,
                     task_name=f'calculate area {downstream_coverage_of_base_province_raster_path}')
 
-                if province_dowstream_intersection_area_task.get() > 0:
-                    # km of roads in that intersection
-                    # calculate number of people on the ds mask in the province
-                    downstream_service_pop_count_task = task_graph.add_task(
-                        func=calculate_sum_over_mask,
-                        args=(downstream_coverage_of_base_province_raster_path, pop_raster_path),
-                        dependent_task_list=[province_downstream_intersection_task],
-                        store_result=True,
-                        task_name=f'calculate people in {downstream_coverage_of_base_province_raster_path}')
+                downstream_service_pop_count_task = task_graph.add_task(
+                    func=calculate_sum_over_mask,
+                    args=(downstream_coverage_of_base_province_raster_path, pop_raster_path),
+                    dependent_task_list=[province_downstream_intersection_task],
+                    store_result=True,
+                    task_name=f'calculate people in {downstream_coverage_of_base_province_raster_path}')
 
-                    # calculate km of roads on the ds mask in the province
-                    downstream_length_of_roads_task = task_graph.add_task(
-                        func=calculate_length_in_km_with_raster,
-                        args=(
-                            downstream_coverage_of_base_province_raster_path, road_vector_path,
-                            epsg_projection),
-                        ignore_path_list=[road_vector_path],
-                        dependent_task_list=[province_downstream_intersection_task],
-                        store_result=True,
-                        task_name=f'road length for downstream {downstream_coverage_of_base_province_raster_path}')
+                # calculate km of roads on the ds mask in the province
+                downstream_length_of_roads_task = task_graph.add_task(
+                    func=calculate_length_in_km_with_raster,
+                    args=(
+                        downstream_coverage_of_base_province_raster_path, road_vector_path,
+                        epsg_projection),
+                    ignore_path_list=[road_vector_path],
+                    dependent_task_list=[province_downstream_intersection_task],
+                    store_result=True,
+                    task_name=f'road length for downstream {downstream_coverage_of_base_province_raster_path}')
 
-                    downstream_population_coverage_map\
-                        [base_province][downstream_province] = \
-                        downstream_service_pop_count_task.get()
-                    downstream_road_coverage_map\
-                        [base_province][downstream_province] = \
-                        downstream_length_of_roads_task.get()
-                else:
-                    downstream_population_coverage_map\
-                        [base_province][downstream_province] = 0
-                    downstream_road_coverage_map\
-                        [base_province][downstream_province] = 0
+                delayed_province_dowstream_intersection_area[
+                    (country_id, scenario, base_province, downstream_province)] = \
+                    (province_downstream_intersection_area_task,
+                     downstream_service_pop_count_task,
+                     downstream_length_of_roads_task)
 
-                LOGGER.debug(f'************ downstream maps: {downstream_population_coverage_map} {downstream_road_coverage_map}')
+    analysis_df = collections.defaultdict(lambda: pandas.DataFrame())
+    for (country_id, scenario, province_name) in delayed_results:
+        (province_area_task,
+         pop_count_task,
+         length_of_roads_task,
+         service_area_task,
+         global_downstream_service_area_task,
+         local_downstream_service_area_task,
+         local_ds_service_pop_count_task,
+         local_ds_length_of_roads_task,) = delayed_results[country_id, scenario, province_name]
+        row_data = {
+            'country': country_id,
+            'scenario': scenario,
+            'province name': province_name,
+            'province_area': province_area_task.get(),
+            'pop count': pop_count_task.get(),
+            'length of roads km': length_of_roads_task.get(),
+            'top 10% service area': service_area_task.get(),
+            'top 10% service area downstream': global_downstream_service_area_task.get(),
+            'top 10% service area downstream in province': local_downstream_service_area_task.get(),
+            'pop count in top 10% local downstream service': local_ds_service_pop_count_task.get(),
+            'length of roads in km in top 10% local downstream service': local_ds_length_of_roads_task.get(),
+        }
 
-                downstream_coverage_percent_map[base_province][downstream_province] = (
-                    province_dowstream_intersection_area_task.get() /
-                    base_downstream_area * 100.0)
+        province_scenario_masks[scenario][province_name] = {
+            'province_mask_path': province_mask_path,
+            'global_downstream_coverage_raster_path': global_downstream_coverage_raster_path,
+            'global_downstream_service_area_km2': global_downstream_service_area_task.get()
+        }
 
-            downstream_coverage_df = pandas.DataFrame.from_dict(
-                downstream_coverage_percent_map, orient='index')
-            downstream_coverage_df = downstream_coverage_df.fillna(0)
-            downstream_coverage_df = downstream_coverage_df.sort_index(axis=0)
-            downstream_coverage_df = downstream_coverage_df.sort_index(axis=1)
-            downstream_coverage_df.to_csv(
-                f'downstream_province_coverage_{country_id}_{scenario}.csv',
-                index_label='source')
+        row_df = pandas.DataFrame([row_data])
+        analysis_df[(country_id, scenario)] = pandas.concat(
+            [analysis_df[scenario], row_df], ignore_index=True)
 
-            downstream_pop_coverage_df = pandas.DataFrame.from_dict(
-                downstream_population_coverage_map, orient='index')
-            downstream_pop_coverage_df = downstream_pop_coverage_df.fillna(0)
-            downstream_pop_coverage_df = downstream_pop_coverage_df.sort_index(axis=0)
-            downstream_pop_coverage_df = downstream_pop_coverage_df.sort_index(axis=1)
-            downstream_pop_coverage_df.to_csv(
-                f'downstream_population_count_{country_id}_{scenario}.csv',
-                index_label='source')
+    for (country_id, scenario), dataframe in analysis_df.items():
+        dataframe.to_csv(
+            f'province_analysis_{country_id}_{scenario}.csv',
+            index=False, na_rep='')
 
-            downstream_road_coverage_df = pandas.DataFrame.from_dict(
-                downstream_road_coverage_map, orient='index')
-            downstream_road_coverage_df = downstream_road_coverage_df.fillna(0)
-            downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=0)
-            downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=1)
-            downstream_road_coverage_df.to_csv(
-                f'downstream_road_coverage_{country_id}_{scenario}.csv',
-                index_label='source')
+    for country_id, scenario, base_province, downstream_province in delayed_province_dowstream_intersection_area:
+        (province_downstream_intersection_area_task,
+         downstream_service_pop_count_task,
+         downstream_length_of_roads_task) = \
+            delayed_province_dowstream_intersection_area[
+                (country_id, scenario, base_province, downstream_province)]
+        scenario_downstream_coverage_percent_map[(country_id, scenario)][base_province][downstream_province] = (
+            province_downstream_intersection_area_task.get() /
+            base_downstream_area * 100.0)
+        scenario_downstream_population_coverage_map[(country_id, scenario)]\
+            [base_province][downstream_province] = \
+            downstream_service_pop_count_task.get()
+        scenario_downstream_road_coverage_map[(country_id, scenario)]\
+            [base_province][downstream_province] = \
+            downstream_length_of_roads_task.get()
+
+
+    for country_id, scenario in scenario_downstream_coverage_percent_map:
+        downstream_coverage_percent_map = scenario_downstream_coverage_percent_map[(country_id, scenario)]
+        downstream_population_coverage_map = scenario_downstream_population_coverage_map[(country_id, scenario)]
+        downstream_road_coverage_map = scenario_downstream_road_coverage_map[(country_id, scenario)]
+
+        downstream_coverage_df = pandas.DataFrame.from_dict(
+            downstream_coverage_percent_map, orient='index')
+        downstream_coverage_df = downstream_coverage_df.fillna(0)
+        downstream_coverage_df = downstream_coverage_df.sort_index(axis=0)
+        downstream_coverage_df = downstream_coverage_df.sort_index(axis=1)
+        downstream_coverage_df.to_csv(
+            f'downstream_province_coverage_{country_id}_{scenario}.csv',
+            index_label='source')
+
+        downstream_pop_coverage_df = pandas.DataFrame.from_dict(
+            downstream_population_coverage_map, orient='index')
+        downstream_pop_coverage_df = downstream_pop_coverage_df.fillna(0)
+        downstream_pop_coverage_df = downstream_pop_coverage_df.sort_index(axis=0)
+        downstream_pop_coverage_df = downstream_pop_coverage_df.sort_index(axis=1)
+        downstream_pop_coverage_df.to_csv(
+            f'downstream_population_count_{country_id}_{scenario}.csv',
+            index_label='source')
+
+        downstream_road_coverage_df = pandas.DataFrame.from_dict(
+            downstream_road_coverage_map, orient='index')
+        downstream_road_coverage_df = downstream_road_coverage_df.fillna(0)
+        downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=0)
+        downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=1)
+        downstream_road_coverage_df.to_csv(
+            f'downstream_road_coverage_{country_id}_{scenario}.csv',
+            index_label='source')
     task_graph.join()
     task_graph.close()
 
