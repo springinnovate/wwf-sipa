@@ -650,7 +650,7 @@ def main():
             downstream_coverage_df = downstream_coverage_df.sort_index(axis=0)
             downstream_coverage_df = downstream_coverage_df.sort_index(axis=1)
             downstream_coverage_df.to_csv(
-                f'downstream_provence_coverage_{country_id}_{scenario}.csv',
+                f'downstream_province_coverage_{country_id}_{scenario}.csv',
                 index_label='source')
 
             downstream_pop_coverage_df = pandas.DataFrame.from_dict(
