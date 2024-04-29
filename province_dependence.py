@@ -50,9 +50,10 @@ SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
 ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
 DOWNSTREAM_COVERAGE_DIR = os.path.join(WORKSPACE_DIR, 'downstream_rasters')
 DEM_DIR = os.path.join(WORKSPACE_DIR, 'filled_dems')
+AREA_DIRS = os.path.join(WORKSPACE_DIR, 'areas')
 for dir_path in [
         WORKSPACE_DIR, MASK_DIR, SERVICE_DIR, ALIGNED_DIR,
-        DOWNSTREAM_COVERAGE_DIR, DEM_DIR]:
+        DOWNSTREAM_COVERAGE_DIR, DEM_DIR, AREA_DIRS]:
     os.makedirs(dir_path, exist_ok=True)
 
 
@@ -118,7 +119,10 @@ def calculate_mask_area_km2(base_mask_raster_path):
             [area_of_pixel(pixel_height, lat_val)] for lat_val in lat_vals])
 
     nodata = base_raster_info['nodata'][0]
-    area_raster_path = 'tmp_area_mask.tif'
+    area_raster_path = os.path.join(
+        AREA_DIRS,
+        f'%s_{time.time}%s' % os.path.splitext(base_mask_raster_path))
+
     geoprocessing.raster_calculator(
         [(base_mask_raster_path, 1), pixel_conversion], mask_op,
         area_raster_path, gdal.GDT_Float32, nodata)
