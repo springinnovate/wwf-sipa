@@ -587,7 +587,7 @@ def main():
                     dependent_task_list=[
                         downstream_coverage_task, rasterize_province_task],
                     target_path_list=[local_downstream_coverage_raster_path],
-                    task_name=f'masking service {province_name} {scenario}')
+                    task_name=f'masking downstream coverage to {province_name} {scenario}')
 
                 province_scenario_masks[scenario][province_name]['province_mask_path'] = (
                     (local_mask_service_task, province_mask_path))
@@ -650,7 +650,7 @@ def main():
                     [scenario][downstream_province]['province_mask_path']
 
                 downstream_coverage_of_base_province_raster_path = os.path.join(
-                    DOWNSTREAM_COVERAGE_DIR, f'{base_province} on {downstream_province}.tif')
+                    DOWNSTREAM_COVERAGE_DIR, f'{base_province}_on_{downstream_province}.tif')
 
                 # intersection of downstream province with downstream coverage
                 province_downstream_intersection_task = task_graph.add_task(
@@ -664,7 +664,7 @@ def main():
                         downstream_mask_task,
                         rasterize_province_task],
                     target_path_list=[downstream_coverage_of_base_province_raster_path],
-                    task_name=f'masking service {province_name} {scenario}')
+                    task_name=f'masking base downstream coverage to {province_name} {scenario}')
 
                 province_downstream_intersection_area_task = task_graph.add_task(
                     func=calculate_mask_area_km2,
@@ -752,6 +752,9 @@ def main():
          _,
          _,
          _,) = delayed_results[(country_id, scenario, base_province)]
+
+        province_downstream_intersection_area_task.get()
+        base_downstream_area_task.get()
 
         scenario_downstream_coverage_percent_map[(country_id, scenario)][base_province][downstream_province] = (
             province_downstream_intersection_area_task.get() /
