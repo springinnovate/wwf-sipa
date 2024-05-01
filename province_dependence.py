@@ -123,7 +123,7 @@ def calculate_mask_area_km2(base_mask_raster_path):
         AREA_DIRS,
         f'%s_{time.time()}%s' % os.path.splitext(base_mask_raster_path))
 
-    geoprocessing.raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(base_mask_raster_path, 1), pixel_conversion], mask_op,
         area_raster_path, gdal.GDT_Float32, nodata)
 
@@ -353,6 +353,7 @@ TOP10_SERVICE_COVERAGE_RASTERS = {
 
 
 def main():
+    duplicate_set = set()
     task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0)
     delayed_results = {}
     delayed_province_downstream_intersection_area = {}
@@ -455,12 +456,12 @@ def main():
 
         align_service_raster_task_lookup = {}
 
-        province_list = []
+        province_set = set()
         for index, feature in enumerate(layer):
             province_fid = feature.GetFID()
             province_name = feature.GetField(province_name_key).strip().replace(' ', '_')
             province_mask_path = os.path.join(MASK_DIR, f'{province_name}.tif')
-            province_list.append(province_name)
+            province_set.add(province_name)
 
             rasterize_province_task = task_graph.add_task(
                 func=rasterize,
@@ -643,15 +644,22 @@ def main():
 
         for scenario in SCENARIO_LIST:
             for base_province, downstream_province in itertools.product(
-                    province_list, province_list):
+                    province_set, province_set):
                 (base_coverage_task, base_downstream_coverage_path) = province_scenario_masks\
                     [scenario][base_province]['global_downstream_coverage_raster_path']
                 (downstream_mask_task, downstream_province_mask_path) = province_scenario_masks\
                     [scenario][downstream_province]['province_mask_path']
 
-                downstream_coverage_of_base_province_raster_path = os.path.join(
-                    DOWNSTREAM_COVERAGE_DIR, f'{base_province}_on_{downstream_province}.tif')
+                if base_province == downstream_province:
+                    continue
 
+                downstream_coverage_of_base_province_raster_path = os.path.join(
+                    DOWNSTREAM_COVERAGE_DIR, f'{base_province}_on_{downstream_province}_{scenario}.tif')
+
+                if downstream_coverage_of_base_province_raster_path in duplicate_set:
+                    raise ValueError(f'{downstream_coverage_of_base_province_raster_path} was alreayd in the set!!!!')
+                else:
+                    duplicate_set.add(downstream_coverage_of_base_province_raster_path)
                 # intersection of downstream province with downstream coverage
                 province_downstream_intersection_task = task_graph.add_task(
                     func=mask_raster,
@@ -664,7 +672,7 @@ def main():
                         downstream_mask_task,
                         rasterize_province_task],
                     target_path_list=[downstream_coverage_of_base_province_raster_path],
-                    task_name=f'masking base downstream coverage to {province_name} {scenario}')
+                    task_name=f'masking base downstream coverage to {province_name} {scenario} {downstream_coverage_of_base_province_raster_path}')
 
                 province_downstream_intersection_area_task = task_graph.add_task(
                     func=calculate_mask_area_km2,
@@ -800,6 +808,7 @@ def main():
             index_label='source')
     task_graph.join()
     task_graph.close()
+    LOGGER.info('ALL DONE')
 
 
 if __name__ == '__main__':
