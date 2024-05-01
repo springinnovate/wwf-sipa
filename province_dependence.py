@@ -297,7 +297,6 @@ def clip_and_calculate_length_in_km(
     clipped_lines_layer = clipped_lines_mem.CreateLayer(
         'clipped_roads', srs=poly_srs)
 
-
     target_projection = osr.SpatialReference()
     target_projection.ImportFromEPSG(epsg_projection)
     target_projection.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
@@ -312,10 +311,12 @@ def clip_and_calculate_length_in_km(
         transform = None
     total_length = 0
     for line_feature in clipped_lines_layer:
-        geometry = line_feature.GetGeometryRef()
+        line_geometry = line_feature.GetGeometryRef()
         if transform is not None:
-            geometry.Transform(transform)
-        total_length += geometry.Length() / 1000  # convert to km
+            err_code = line_geometry.Transform(transform)
+            if err_code != 0:
+                raise RuntimeError(f'{line_geometry.ExportToWkt()}')
+        total_length += line_geometry.Length() / 1000  # convert to km
 
     return total_length
 
