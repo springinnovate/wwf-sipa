@@ -279,7 +279,7 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     local_time = time.time()
     temp_raster_path = f'%s_{epsg_projection}_mask_{local_time}%s' % os.path.splitext(
         mask_raster_path)
-    geoprocessing.raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(mask_raster_path, 1)], lambda a: (a > 0).astype(numpy.uint8),
         temp_raster_path,
         gdal.GDT_Byte, None,
@@ -327,10 +327,11 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
         f'{time.time()-start_time:.2f}s')
 
     total_length = 0
+    clipped_lines_layer.ResetReading()
     for index, line_feature in enumerate(clipped_lines_layer):
         line_geometry = line_feature.GetGeometryRef()
-        line_geometry.Transform(transform)
-        total_length += line_geometry.Length()
+        projected_line_geom = line_geometry.Transform(transform)
+        total_length += projected_line_geom.Length()
 
     total_length_km = total_length / 1000
 
