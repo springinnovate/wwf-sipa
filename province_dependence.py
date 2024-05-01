@@ -268,8 +268,35 @@ def clip_and_calculate_length_in_km(
     line_vector = gdal.OpenEx(line_vector_path, gdal.OF_VECTOR)
     line_layer = line_vector.GetLayer()
 
+    # Check if spatial references are the same
+    poly_srs = poly_layer.GetSpatialRef()
+    line_srs = line_layer.GetSpatialRef()
+
+    if not poly_srs.IsSame(line_srs):
+        # Create a transformed copy of line_layer in the spatial reference of poly_layer
+        transformed_line_mem = ogr.GetDriverByName('Memory').CreateDataSource('transformed_temp')
+        transformed_line_layer = transformed_line_mem.CreateLayer('transformed_lines', srs=poly_srs)
+
+        # Define the coordinate transformation
+        coord_transform = osr.CoordinateTransformation(line_srs, poly_srs)
+
+        # Transform each feature
+        line_feature = line_layer.GetNextFeature()
+        while line_feature:
+            geom = line_feature.GetGeometryRef()
+            geom.Transform(coord_transform)
+            new_feature = ogr.Feature(transformed_line_layer.GetLayerDefn())
+            new_feature.SetGeometry(geom)
+            transformed_line_layer.CreateFeature(new_feature)
+            line_feature = line_layer.GetNextFeature()
+
+        # Reset the line_layer reference to point to the transformed layer
+        line_layer = transformed_line_layer
+
     clipped_lines_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
-    clipped_lines_layer = clipped_lines_mem.CreateLayer('clipped_roads')
+    clipped_lines_layer = clipped_lines_mem.CreateLayer(
+        'clipped_roads', srs=poly_srs)
+
 
     target_projection = osr.SpatialReference()
     target_projection.ImportFromEPSG(epsg_projection)
