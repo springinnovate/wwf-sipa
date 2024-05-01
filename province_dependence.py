@@ -57,6 +57,18 @@ for dir_path in [
     os.makedirs(dir_path, exist_ok=True)
 
 
+def gdal_error_handler(err_class, err_num, err_msg):
+    raise RuntimeError(
+        f"Error Number: {err_num}\n"
+        f"Error Type: {err_class}\n"
+        f"Error Message: {err_msg}\n")
+
+
+# Register the error handler
+gdal.PushErrorHandler(gdal_error_handler)
+gdal.UseExceptions()
+
+
 def area_of_pixel(pixel_size, center_lat):
     """Calculate m^2 area of a wgs84 square pixel.
 
@@ -311,7 +323,7 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     transform = osr.CreateCoordinateTransformation(
         mask_projection, target_projection)
 
-    clipped_lines_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
+    clipped_lines_mem = ogr.GetDriverByName('GPKG').CreateDataSource('clipped_roads_' + os.path.basename(os.path.splitext(mask_raster_path)[0])+'.tif')
     clipped_lines_layer = clipped_lines_mem.CreateLayer('clipped_roads')
 
     line_vector = gdal.OpenEx(line_vector_path, gdal.OF_VECTOR)
@@ -330,8 +342,8 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     clipped_lines_layer.ResetReading()
     for index, line_feature in enumerate(clipped_lines_layer):
         line_geometry = line_feature.GetGeometryRef()
-        projected_line_geom = line_geometry.Transform(transform)
-        total_length += projected_line_geom.Length()
+        line_geometry.Transform(transform)
+        total_length += line_geometry.Length()
 
     total_length_km = total_length / 1000
 
