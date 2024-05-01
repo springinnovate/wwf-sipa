@@ -58,7 +58,8 @@ for dir_path in [
 
 
 def gdal_error_handler(err_class, err_num, err_msg):
-    raise RuntimeError(
+    LOGGER.error(
+        '********** ERROR ***************\n'
         f"Error Number: {err_num}\n"
         f"Error Type: {err_class}\n"
         f"Error Message: {err_msg}\n")
@@ -323,11 +324,15 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     transform = osr.CreateCoordinateTransformation(
         mask_projection, target_projection)
 
-    clipped_lines_mem = ogr.GetDriverByName('GPKG').CreateDataSource('clipped_roads_' + os.path.basename(os.path.splitext(mask_raster_path)[0])+'.tif')
-    clipped_lines_layer = clipped_lines_mem.CreateLayer('clipped_roads')
-
     line_vector = gdal.OpenEx(line_vector_path, gdal.OF_VECTOR)
     line_layer = line_vector.GetLayer()
+
+    clipped_lines_mem = ogr.GetDriverByName('GPKG').CreateDataSource('clipped_roads_' + os.path.basename(os.path.splitext(mask_raster_path)[0])+'.tif')
+    clipped_lines_layer = clipped_lines_mem.CreateLayer(
+        'clipped_roads', srs=line_layer.GetSpatialRef(),
+        geom_type=ogr.wkbLineString)
+
+
     LOGGER.debug(f'clipping {line_vector_path} to polygon')
     start_time = time.time()
 
@@ -342,7 +347,11 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     clipped_lines_layer.ResetReading()
     for index, line_feature in enumerate(clipped_lines_layer):
         line_geometry = line_feature.GetGeometryRef()
-        line_geometry.Transform(transform)
+        try:
+            line_geometry.Transform(transform)
+        except:
+            LOGGER.exception(f'{line_geometry.ExportToWkt()}')
+
         total_length += line_geometry.Length()
 
     total_length_km = total_length / 1000
