@@ -276,13 +276,18 @@ def clip_and_calculate_length_in_km(
     target_projection.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
 
     line_layer.Clip(poly_layer, clipped_lines_layer)
+    line_projection = clipped_lines_layer.GetSpatialRef()
 
-    transform = osr.CreateCoordinateTransformation(
-        line_layer.GetSpatialRef(), target_projection)
+    if not line_projection.IsProjected():
+        transform = osr.CreateCoordinateTransformation(
+            line_layer.GetSpatialRef(), target_projection)
+    else:
+        transform = None
     total_length = 0
     for line_feature in clipped_lines_layer:
         geometry = line_feature.GetGeometryRef()
-        geometry.Transform(transform)
+        if transform is not None:
+            geometry.Transform(transform)
         total_length += geometry.Length() / 1000  # convert to km
 
     return total_length
@@ -327,7 +332,7 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     line_vector = gdal.OpenEx(line_vector_path, gdal.OF_VECTOR)
     line_layer = line_vector.GetLayer()
 
-    clipped_lines_mem = ogr.GetDriverByName('GPKG').CreateDataSource('clipped_roads_' + os.path.basename(os.path.splitext(mask_raster_path)[0])+'.tif')
+    clipped_lines_mem = ogr.GetDriverByName('Memory').CreateDataSource('clipped_roads_' + os.path.basename(os.path.splitext(mask_raster_path)[0])+'.gpkg')
     clipped_lines_layer = clipped_lines_mem.CreateLayer(
         'clipped_roads', srs=line_layer.GetSpatialRef(),
         geom_type=ogr.wkbLineString)
