@@ -90,7 +90,7 @@ def area_of_pixel(pixel_size, center_lat):
 def mask_op(mask_array, value_array):
     """Mask out value to 0 if mask array is not 1."""
     result = numpy.copy(value_array)
-    result[mask_array > 0] = 0.0
+    result[numpy.isclose(mask_array, 0) | (mask_array < 0)] = 0.0
     return result
 
 
@@ -103,6 +103,7 @@ def calculate_mask_area_km2(base_mask_raster_path):
     base_srs.ImportFromWkt(base_raster_info['projection_wkt'])
     if base_srs.IsProjected():
         # convert m^2 of pixel size to km2
+        raise ValueError('supposed to not be projected')
         pixel_conversion = numpy.array([[
             abs(base_raster_info['pixel_size'][0] *
                 base_raster_info['pixel_size'][1])]]) / 1e6
