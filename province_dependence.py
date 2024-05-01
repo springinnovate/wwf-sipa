@@ -283,7 +283,7 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
         [(mask_raster_path, 1)], lambda a: (a > 0).astype(numpy.uint8),
         temp_raster_path,
         gdal.GDT_Byte, None,
-        calc_raster_stats=False, skip_sparse=True)
+        calc_raster_stats=False)
 
     mask_raster = gdal.OpenEx(temp_raster_path, gdal.OF_RASTER)
     mask_band = mask_raster.GetRasterBand(1)
