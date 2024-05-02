@@ -225,14 +225,19 @@ def mask_raster(base_raster_path, mask_raster_path, target_raster_path):
 
 def calculate_sum_over_mask(base_raster_path, mask_raster_path):
     running_sum = 0
+    total_sum = 0
     mask_raster = gdal.OpenEx(
         mask_raster_path, gdal.OF_RASTER | gdal.GA_ReadOnly)
     mask_band = mask_raster.GetRasterBand(1)
+    nodata = mask_band.GetNoDataValue()
     for offset_dict, base_array in geoprocessing.iterblocks(
             (base_raster_path, 1), skip_sparse=True):
         mask_array = mask_band.ReadAsArray(**offset_dict)
-        running_sum += numpy.sum(
-            base_array[(mask_array > 0) & (base_array > 0)])
+        valid_mask = (mask_array > 0) & (base_array > 0)
+        if nodata is not None:
+            valid_mask &= base_array != nodata
+        running_sum += numpy.sum(base_array[valid_mask])
+        total_sum += numpy.sum(base_array)
     return running_sum
 
 
@@ -281,6 +286,8 @@ def clip_and_calculate_length_in_km(
 
     if not poly_srs.IsSame(line_srs):
         # Create a transformed copy of line_layer in the spatial reference of poly_layer
+
+        # Define the coordinate transformation
         transformed_line_mem = ogr.GetDriverByName('Memory').CreateDataSource('transformed_temp')
         transformed_line_layer = transformed_line_mem.CreateLayer('transformed_lines', srs=poly_srs)
 
@@ -328,7 +335,8 @@ def clip_and_calculate_length_in_km(
     return total_length
 
 
-def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_projection):
+def calculate_length_in_km_with_raster(
+        mask_raster_path, line_vector_path, epsg_projection):
     local_time = time.time()
     temp_raster_path = f'%s_{epsg_projection}_mask_{local_time}%s' % os.path.splitext(
         mask_raster_path)
@@ -341,6 +349,7 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
     mask_raster = gdal.OpenEx(temp_raster_path, gdal.OF_RASTER)
     mask_band = mask_raster.GetRasterBand(1)
     mask_projection = osr.SpatialReference(mask_raster.GetProjection())
+    mask_projection.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
     raster_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
     raster_layer = raster_mem.CreateLayer(
         'raster', srs=mask_projection,
@@ -358,20 +367,43 @@ def calculate_length_in_km_with_raster(mask_raster_path, line_vector_path, epsg_
         f'done converting {mask_raster_path} to polygon in '
         f'{time.time()-start_time:.2f}s')
 
+    line_vector = gdal.OpenEx(line_vector_path, gdal.OF_VECTOR)
+    line_layer = line_vector.GetLayer()
+    line_srs = line_layer.GetSpatialRef()
+
+    if not mask_projection.IsSame(line_srs):
+        LOGGER.debug('************** LINES ARENT THE SAME AS ARASTER')
+        # Create a transformed copy of line_layer in the spatial reference of poly_layer
+        transformed_line_mem = ogr.GetDriverByName('Memory').CreateDataSource('clipped_roads_PRE' + os.path.basename(os.path.splitext(mask_raster_path)[0])+'.gpkg')
+        transformed_line_layer = transformed_line_mem.CreateLayer('transformed_lines', srs=mask_projection, geom_type=ogr.wkbLineString)
+
+        # Define the coordinate transformation
+        coord_transform = osr.CoordinateTransformation(line_srs, mask_projection)
+        line_srs.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
+
+        # Transform each feature
+        line_feature = line_layer.GetNextFeature()
+        while line_feature:
+            geom = line_feature.GetGeometryRef()
+            geom.Transform(coord_transform)
+            new_feature = ogr.Feature(transformed_line_layer.GetLayerDefn())
+            new_feature.SetGeometry(geom)
+            transformed_line_layer.CreateFeature(new_feature)
+            line_feature = line_layer.GetNextFeature()
+
+        # Reset the line_layer reference to point to the transformed layer
+        line_layer = transformed_line_layer
+
     target_projection = osr.SpatialReference()
     target_projection.ImportFromEPSG(epsg_projection)
     target_projection.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
     transform = osr.CreateCoordinateTransformation(
         mask_projection, target_projection)
 
-    line_vector = gdal.OpenEx(line_vector_path, gdal.OF_VECTOR)
-    line_layer = line_vector.GetLayer()
-
     clipped_lines_mem = ogr.GetDriverByName('Memory').CreateDataSource('clipped_roads_' + os.path.basename(os.path.splitext(mask_raster_path)[0])+'.gpkg')
     clipped_lines_layer = clipped_lines_mem.CreateLayer(
         'clipped_roads', srs=line_layer.GetSpatialRef(),
         geom_type=ogr.wkbLineString)
-
 
     LOGGER.debug(f'clipping {line_vector_path} to polygon')
     start_time = time.time()
@@ -557,7 +589,7 @@ def main():
             # # of people in province
             pop_count_task = task_graph.add_task(
                 func=calculate_sum_over_mask,
-                args=(province_mask_path, pop_raster_path),
+                args=(pop_raster_path, province_mask_path),
                 dependent_task_list=[
                     rasterize_province_task, align_pop_layer_task],
                 store_result=True,
@@ -677,8 +709,6 @@ def main():
                     store_result=True,
                     task_name=f'calculate area {global_downstream_coverage_raster_path}')
                 #global_downstream_service_area_task.join()
-                LOGGER.debug(f'************************ {global_downstream_coverage_raster_path} area is: {global_downstream_service_area_task.get()}')
-                #sys.exit()
 
                 province_scenario_masks[scenario][province_name]['global_downstream_coverage_raster_path'] = (
                     (global_downstream_service_area_task, global_downstream_coverage_raster_path))
@@ -686,7 +716,7 @@ def main():
                 # calculate number of people on the ds mask in the province
                 local_ds_service_pop_count_task = task_graph.add_task(
                     func=calculate_sum_over_mask,
-                    args=(local_downstream_coverage_raster_path, pop_raster_path),
+                    args=(pop_raster_path, local_downstream_coverage_raster_path),
                     dependent_task_list=[
                         local_mask_service_task,
                         align_pop_layer_task],
@@ -756,7 +786,7 @@ def main():
 
                 downstream_service_pop_count_task = task_graph.add_task(
                     func=calculate_sum_over_mask,
-                    args=(downstream_coverage_of_base_province_raster_path, pop_raster_path),
+                    args=(pop_raster_path, downstream_coverage_of_base_province_raster_path),
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
                     task_name=f'calculate people in {downstream_coverage_of_base_province_raster_path}')
