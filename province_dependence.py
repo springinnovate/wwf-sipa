@@ -17,8 +17,8 @@ import collections
 import numpy
 import pandas
 
-VALID_PROVINCE_NAMES = ['National_Capital_Region', 'Region_IV-A']
-VALID_COUNTRY_ID = ['PH']
+VALID_PROVINCE_NAMES = None  # ['National_Capital_Region', 'Region_IV-A']
+VALID_COUNTRY_ID = None  # ['PH']
 logging.basicConfig(
     level=logging.DEBUG,
     stream=sys.stdout,
@@ -481,7 +481,7 @@ def main():
              IDN_POP_RASTER_PATH,
              IDN_ROAD_VECTOR_PATH),]:
 
-        if country_id not in VALID_COUNTRY_ID:
+        if VALID_COUNTRY_ID is not None and country_id not in VALID_COUNTRY_ID:
             continue
 
         flow_dir_path = os.path.join(WORKSPACE_DIR, basefilename(dem_path) + '.tif')
@@ -559,7 +559,7 @@ def main():
         for index, feature in enumerate(layer):
             province_fid = feature.GetFID()
             province_name = feature.GetField(province_name_key).strip().replace(' ', '_')
-            if province_name not in VALID_PROVINCE_NAMES:
+            if VALID_PROVINCE_NAMES is not None and province_name not in VALID_PROVINCE_NAMES:
                 continue
 
             province_mask_path = os.path.join(MASK_DIR, f'{province_name}.tif')
