@@ -17,6 +17,8 @@ import collections
 import numpy
 import pandas
 
+VALID_PROVINCE_NAMES = ['National_Capital_Region', 'Region_IV-A']
+VALID_COUNTRY_ID = ['PH']
 logging.basicConfig(
     level=logging.DEBUG,
     stream=sys.stdout,
@@ -135,7 +137,8 @@ def calculate_mask_area_km2(base_mask_raster_path):
     nodata = base_raster_info['nodata'][0]
     area_raster_path = os.path.join(
         AREA_DIRS,
-        f'%s_time_%s' % os.path.splitext(base_mask_raster_path))
+        '%s_km2_pixel_area_%s' % os.path.splitext(os.path.basename(
+            base_mask_raster_path)))
 
     geoprocessing.single_thread_raster_calculator(
         [(base_mask_raster_path, 1), pixel_conversion], mask_op,
@@ -143,7 +146,9 @@ def calculate_mask_area_km2(base_mask_raster_path):
 
     area_sum = 0.0
     for _, area_block in geoprocessing.iterblocks((area_raster_path, 1)):
-        area_sum += numpy.sum(area_block)
+        area_sum += numpy.sum(area_block[area_block > 0])
+        # if base_mask_raster_path == r'province_dependence_workspace\province_masks\National_Capital_Region_restoration_top10_service_downstream_global_coverage.tif':
+        #     LOGGER.debug(f'*********** {area_block} {numpy.sum(area_block)}')
     return area_sum
 
 
@@ -208,9 +213,11 @@ def mask_raster(base_raster_path, mask_raster_path, target_raster_path):
         result[valid_mask] = array[valid_mask]
         return result
 
+    raster_info = geoprocessing.get_raster_info(base_raster_path)
     geoprocessing.single_thread_raster_calculator(
         [(base_raster_path, 1), (mask_raster_path, 1)], _mask_raster,
-        target_raster_path, gdal.GDT_Float32, None,
+        target_raster_path, raster_info['datatype'],
+        raster_info['nodata'][0],
         raster_driver_creation_tuple=('GTIFF', (
             'TILED=YES', 'BIGTIFF=YES', 'COMPRESS=LZW',
             'BLOCKXSIZE=256', 'BLOCKYSIZE=256', 'SPARSE_OK=TRUE')))
@@ -441,6 +448,10 @@ def main():
              IDN_EPSG_PROJECTION,
              IDN_POP_RASTER_PATH,
              IDN_ROAD_VECTOR_PATH),]:
+
+        if country_id not in VALID_COUNTRY_ID:
+            continue
+
         flow_dir_path = os.path.join(WORKSPACE_DIR, basefilename(dem_path) + '.tif')
         global_base_raster_info = geoprocessing.get_raster_info(dem_path)
         filled_pits_dem_path = os.path.join(
@@ -516,6 +527,9 @@ def main():
         for index, feature in enumerate(layer):
             province_fid = feature.GetFID()
             province_name = feature.GetField(province_name_key).strip().replace(' ', '_')
+            if province_name not in VALID_PROVINCE_NAMES:
+                continue
+
             province_mask_path = os.path.join(MASK_DIR, f'{province_name}.tif')
             province_set.add(province_name)
 
@@ -663,6 +677,8 @@ def main():
                     store_result=True,
                     task_name=f'calculate area {global_downstream_coverage_raster_path}')
                 #global_downstream_service_area_task.join()
+                LOGGER.debug(f'************************ {global_downstream_coverage_raster_path} area is: {global_downstream_service_area_task.get()}')
+                #sys.exit()
 
                 province_scenario_masks[scenario][province_name]['global_downstream_coverage_raster_path'] = (
                     (global_downstream_service_area_task, global_downstream_coverage_raster_path))
