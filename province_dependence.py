@@ -135,7 +135,7 @@ def calculate_mask_area_km2(base_mask_raster_path):
     nodata = base_raster_info['nodata'][0]
     area_raster_path = os.path.join(
         AREA_DIRS,
-        f'%s_{time.time()}%s' % os.path.splitext(base_mask_raster_path))
+        f'%s_time_%s' % os.path.splitext(base_mask_raster_path))
 
     geoprocessing.single_thread_raster_calculator(
         [(base_mask_raster_path, 1), pixel_conversion], mask_op,
