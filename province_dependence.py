@@ -37,8 +37,7 @@ PH_PROViNCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_ad
 IDN_DEM_PATH = r"D:\repositories\wwf-sipa\data\idn_dem.tif"
 PH_DEM_PATH = r"D:\repositories\wwf-sipa\data\ph_dem.tif"
 
-PH_EPSG_PROJECTION = 3121
-IDN_EPSG_PROJECTION = 23830
+ELLIPSOID_EPSG = 6933
 
 IDN_POP_RASTER_PATH = r"D:\repositories\wwf-sipa\data\pop\idn_ppp_2020.tif"
 PH_POP_RASTER_PATH = r"D:\repositories\wwf-sipa\data\pop\phl_ppp_2020.tif"
@@ -433,23 +432,20 @@ def main():
          dem_path,
          province_vector_path,
          province_name_key,
-         epsg_projection,
          unaligned_pop_raster_path,
          road_vector_path) in [
             ('PH',
              PH_DEM_PATH,
              PH_PROViNCE_VECTOR_PATH,
              'ADM1_EN',
-             PH_EPSG_PROJECTION,
              PH_POP_RASTER_PATH,
              PH_ROAD_VECTOR_PATH),
             ('IDN',
              IDN_DEM_PATH,
              IDN_PROViNCE_VECTOR_PATH,
              'NAME_1',
-             IDN_EPSG_PROJECTION,
              IDN_POP_RASTER_PATH,
-             IDN_ROAD_VECTOR_PATH),]:
+             IDN_ROAD_VECTOR_PATH)]:
 
         if VALID_COUNTRY_ID is not None and country_id not in VALID_COUNTRY_ID:
             continue
@@ -570,7 +566,7 @@ def main():
                 func=clip_and_calculate_length_in_km,
                 args=(
                     province_vector_path, road_vector_path,
-                    province_fid, epsg_projection),
+                    province_fid, ELLIPSOID_EPSG),
                 ignore_path_list=[province_vector_path, road_vector_path],
                 store_result=True,
                 task_name=f'road length for {province_fid}')
@@ -717,10 +713,10 @@ def main():
         for scenario in SCENARIO_LIST:
             for base_province, downstream_province in itertools.product(
                     province_set, province_set):
-                (base_coverage_task, base_downstream_coverage_path) = province_scenario_masks\
-                    [scenario][base_province]['global_downstream_coverage_raster_path']
-                (downstream_mask_task, downstream_province_mask_path) = province_scenario_masks\
-                    [scenario][downstream_province]['province_mask_path']
+                (base_coverage_task, base_downstream_coverage_path) = province_scenario_masks[
+                    scenario][base_province]['global_downstream_coverage_raster_path']
+                (downstream_mask_task, downstream_province_mask_path) = province_scenario_masks[
+                    scenario][downstream_province]['province_mask_path']
 
                 if base_province == downstream_province:
                     continue
@@ -766,7 +762,7 @@ def main():
                     func=calculate_length_in_km_with_raster,
                     args=(
                         downstream_coverage_of_base_province_raster_path, road_vector_path,
-                        epsg_projection),
+                        ELLIPSOID_EPSG),
                     ignore_path_list=[road_vector_path],
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
@@ -845,7 +841,6 @@ def main():
         scenario_downstream_road_coverage_map[(country_id, scenario)]\
             [base_province][downstream_province] = \
             downstream_length_of_roads_task.get()
-
 
     for country_id, scenario in scenario_downstream_coverage_percent_map:
         downstream_coverage_percent_map = scenario_downstream_coverage_percent_map[(country_id, scenario)]
