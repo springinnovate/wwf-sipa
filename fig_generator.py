@@ -51,6 +51,7 @@ HIGH_PERCENTILE = 90
 BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
 GLOBAL_DPI = 800
+ELLIPSOID_EPSG = 6933
 SAMPLING_METHOD = 'near'
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
@@ -543,10 +544,7 @@ def do_analyses(task_graph):
     # How much do services overlap with each other? Which one overlaps the least?
     # Need to know:
 
-    ph_epsg_projection = 3121
     ph_vector_path = "data/admin_boundaries/PH_outline.gpkg"
-
-    idn_epsg_projection = 23830
     idn_vector_path = "data/admin_boundaries/IDN_outline.gpkg"
 
     scenario_service_tuples = list(itertools.product(
@@ -557,8 +555,8 @@ def do_analyses(task_graph):
     result_df = pandas.DataFrame()
 
     for country, vector_path, projection_epsg in [
-            ('PH', ph_vector_path, ph_epsg_projection),
-            ('IDN', idn_vector_path, idn_epsg_projection)]:
+            ('PH', ph_vector_path, ELLIPSOID_EPSG),
+            ('IDN', idn_vector_path, ELLIPSOID_EPSG)]:
         # (2) Total area of the country
         country_area_km2 = calculate_vector_area_km2(vector_path, projection_epsg)
 
