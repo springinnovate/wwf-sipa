@@ -241,36 +241,6 @@ def calculate_sum_over_mask(base_raster_path, mask_raster_path):
     return running_sum
 
 
-# def calculate_mask_area_km2(base_raster_path, target_epsg):
-#     source_raster = gdal.OpenEx(base_raster_path, gdal.OF_RASTER)
-#     target_srs = osr.SpatialReference()
-#     target_srs.ImportFromEPSG(target_epsg)
-
-#     LOGGER.debug(f'about to warp {base_raster_path} to epsg:{target_epsg}')
-#     reprojected_raster = gdal.Warp(
-#         '',
-#         source_raster,
-#         format='MEM',
-#         dstSRS=target_srs)
-#     reprojected_band = reprojected_raster.GetRasterBand(1)
-#     nodata = reprojected_band.GetNoDataValue()
-#     LOGGER.debug(f'nodata value is {nodata}')
-#     LOGGER.debug(f'read warped {base_raster_path}')
-#     reprojected_data = reprojected_band.ReadAsArray()
-#     reprojected_geotransform = reprojected_raster.GetGeoTransform()
-#     reprojected_pixel_width, reprojected_pixel_height = (
-#         reprojected_geotransform[1], abs(reprojected_geotransform[5]))
-
-#     # Calculate the area of pixels with values > 1
-#     pixel_area = reprojected_pixel_width * reprojected_pixel_height
-#     LOGGER.debug('sum it up')
-#     count = ((reprojected_data > 0) & (reprojected_data != nodata)).sum()
-#     total_area = count * pixel_area / 1e6  # covert to km2
-
-#     LOGGER.debug(f'total area of {base_raster_path}: {total_area}km2')
-#     return total_area
-
-
 def clip_and_calculate_length_in_km(
         poly_vector_path, line_vector_path, fid_value, epsg_projection):
     poly_vector = gdal.OpenEx(poly_vector_path, gdal.OF_VECTOR)
