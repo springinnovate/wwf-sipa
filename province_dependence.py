@@ -694,7 +694,7 @@ def main():
                     func=calculate_length_in_km_with_raster,
                     args=(
                         local_downstream_coverage_raster_path, road_vector_path,
-                        epsg_projection),
+                        ELLIPSOID_EPSG),
                     ignore_path_list=[road_vector_path],
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,

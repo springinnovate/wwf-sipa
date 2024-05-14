@@ -1,6 +1,7 @@
 from pathlib import Path
 import csv
 import glob
+import operator
 import itertools
 import logging
 import numpy
@@ -431,7 +432,7 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
     """
     flat_path_list = [
         path
-        for required_path_list, optional_path_list, _ in overlap_combo_list
+        for required_path_list, optional_path_list, _, _ in overlap_combo_list
         for path_list in [required_path_list, optional_path_list]
         for index, path in enumerate(path_list)
     ]
@@ -453,7 +454,7 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         result = numpy.zeros(array_list[0].shape, dtype=int)
         service_index = 1
         local_index_list = index_list.copy()
-        next_optional_index, next_required_index, overlap_threshold = (
+        next_optional_index, next_required_index, overlap_threshold, comparitor_op = (
             local_index_list.pop(0))
         local_overlap = numpy.zeros(result.shape, dtype=int)
         required_valid_overlap = numpy.ones(result.shape, dtype=bool)
@@ -468,11 +469,11 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
                     # process this next
                     result[
                         required_valid_overlap &
-                        (local_overlap >= overlap_threshold)] = service_index
+                        (comparitor_op(local_overlap, overlap_threshold))] = service_index
                     local_overlap[:] = 0
                     local_max_overlap = 0
                     service_index += 1
-                    next_optional_index, next_required_index, overlap_threshold = (
+                    next_optional_index, next_required_index, overlap_threshold, comparitor_op = (
                         local_index_list.pop(0))
                     if (array_index < next_optional_index):
                         local_overlap_mask = (array > 0)
@@ -491,11 +492,12 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
 
     index_list = [(0, 0, 0)]  # just to initialize, it's dropped later
     next_offset = 0
-    for required_path_list, optional_path_list, overlap_threshold in overlap_combo_list:
+    for required_path_list, optional_path_list, overlap_threshold, comparitor_op in overlap_combo_list:
         index_list.append((
             next_offset+len(required_path_list),
             next_offset+len(required_path_list)+len(optional_path_list),
-            overlap_threshold))
+            overlap_threshold,
+            comparitor_op))
         next_offset = index_list[-1][1]
     index_list.pop(0)
 
@@ -646,7 +648,6 @@ def do_analyses(task_graph):
             # count area of these overlaps:
             overlap_combo_service_path = os.path.join(
                 OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{OVERLAPPING_SERVICES_ID}.tif')
-            dspop_road_overlap_path
             service_vs_overlap_path = os.path.join(
                 OVERLAP_DIR, f'{country}_{scenario}_{service}_overlapped_{OVERLAPPING_SERVICES_ID}.tif')
 
@@ -735,23 +736,21 @@ def main():
     ]
 
     overlapping_services = [
-        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, 'sed/flood'),
-        ((), (FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 2, 'flood/recharge'),
-        ((), (SEDIMENT_SERVICE, RECHARGE_SERVICE), 2, 'sed/recharge'),
-        ((CV_SERVICE,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 1, 'cv/at least one other service'),
-        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'sed/flood/recharge'),
-        ((), (CV_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, 'cv/flood/recharge'),
-        ((), (SEDIMENT_SERVICE, CV_SERVICE, RECHARGE_SERVICE), 3, 'sed/cv/recharge'),
-        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, CV_SERVICE), 3, 'sed/flood/cv'),
-        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 4, 'sed/flood/recharge/cv'),
+        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, operator.eq, 'sed/flood'),
+        ((), (FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 2, operator.eq, 'flood/recharge'),
+        ((), (SEDIMENT_SERVICE, RECHARGE_SERVICE), 2, operator.eq, 'sed/recharge'),
+        ((CV_SERVICE,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 1, operator.eq, 'cv/and one other service'),
+        ((), (CV_SERVICE, SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, operator.eq, '3 service overlaps'),
+        ((), (CV_SERVICE, SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 4, operator.eq, '4 service overlaps'),
+
     ]
 
     each_service = [
-        ((), (SEDIMENT_SERVICE,), 1, "sediment"),
-        ((), (FLOOD_MITIGATION_SERVICE,), 1, "flood"),
-        ((), (RECHARGE_SERVICE,), 1, "recharge"),
-        ((), (CV_SERVICE,), 1, 'coastal v'),
-        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 2, '> 1 service overlap'),
+        ((), (SEDIMENT_SERVICE,), 1, operator.eq, "sediment"),
+        ((), (FLOOD_MITIGATION_SERVICE,), 1, operator.eq, "flood"),
+        ((), (RECHARGE_SERVICE,), 1, operator.eq, "recharge"),
+        ((), (CV_SERVICE,), 1, operator.eq, 'coastal v'),
+        ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 2, operator.ge, '> 1 service overlap'),
     ]
 
     for country, scenario in top_10_percent_maps:
@@ -762,7 +761,7 @@ def main():
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
             category_list = ['none']
-            for required_service_tuple, optional_service_tuple, overlap_threshold, legend_category in service_set:
+            for required_service_tuple, optional_service_tuple, overlap_threshold, comparitor_op, legend_category in service_set:
                 required_service_subset = []
                 optional_service_subset = []
                 category_list.append(legend_category)
@@ -791,7 +790,7 @@ def main():
                             dspop_road_overlap_path = top_10th_percentile_service_dspop_path
                         service_subset.append(dspop_road_overlap_path)
 
-                overlap_sets.append((required_service_subset, optional_service_subset, overlap_threshold))
+                overlap_sets.append((required_service_subset, optional_service_subset, overlap_threshold, comparitor_op))
 
             overlap_combo_service_path = os.path.join(
                 OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{service_set_title}.tif')
