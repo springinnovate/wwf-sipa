@@ -58,7 +58,8 @@ NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
     '1_element': [NODATA_COLOR, '#e41a1c'],
     '3_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086'],
-    '5_element': [NODATA_COLOR, '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#984ea3'],
+    '5_element': [NODATA_COLOR, '#CC720A', '#72B1CC', '#ADCCC6', '#C1CC43', '#000000'],
+    '6_element': [NODATA_COLOR, '#8C4E07', '#4F7A8C', '#778C88', '#848C2E', '#F0027F', '#000000'],
     '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c'],
     '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c'],
     '9_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#666666', '#e41a1c'],
