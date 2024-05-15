@@ -1,10 +1,11 @@
 from pathlib import Path
+import copy
 import csv
 import glob
-import operator
 import itertools
 import logging
 import numpy
+import operator
 import os
 import sys
 
@@ -38,15 +39,16 @@ ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
 OVERLAP_DIR = os.path.join(WORKING_DIR, 'overlap_rasters')
 SCALED_DIR = os.path.join(WORKING_DIR, 'scaled_rasters')
 COMBINED_SERVICE_DIR = os.path.join(WORKING_DIR, 'combined_services')
-COARSE_CV_SERVICE_DIR = os.path.join(WORKING_DIR, 'coarse_cv_service')
 for dir_path in [
-        WORKING_DIR, FIG_DIR, ALGINED_DIR, OVERLAP_DIR, SCALED_DIR,
-        COARSE_CV_SERVICE_DIR]:
+        WORKING_DIR,
+        FIG_DIR,
+        ALGINED_DIR,
+        OVERLAP_DIR,
+        SCALED_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_no_road_recharge'
 
-CV_COARSEN_SCALE = 20
 LOW_PERCENTILE = 10
 HIGH_PERCENTILE = 90
 BASE_FONT_SIZE = 12
@@ -490,7 +492,6 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
             (local_overlap >= overlap_threshold)] = service_index
         return result
 
-
     index_list = [(0, 0, 0)]  # just to initialize, it's dropped later
     next_offset = 0
     for required_path_list, optional_path_list, overlap_threshold, comparitor_op in overlap_combo_list:
@@ -543,10 +544,6 @@ def subtract_paths(base_path, full_path):
 
 
 def do_analyses(task_graph):
-    # TODO: still do the analysis
-    # How much do services overlap with each other? Which one overlaps the least?
-    # Need to know:
-
     ph_vector_path = "data/admin_boundaries/PH_outline.gpkg"
     idn_vector_path = "data/admin_boundaries/IDN_outline.gpkg"
 
@@ -703,32 +700,10 @@ def do_analyses(task_graph):
 
     result_df.to_csv('analysis.csv', index=False, na_rep='')
     LOGGER.debug('finished analysis, exitin')
-    sys.exit()
 
 
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
-    do_analyses(task_graph)
-    # coarsen CV so it shows up better
-    for country, scenario in itertools.product(
-            ['IDN', 'PH'], [RESTORATION_SCENARIO, CONSERVATION_SCENARIO]):
-        cv_set = FILENAMES[country][scenario][CV_SERVICE]
-        for key, base_raster_path in cv_set.items():
-            coarsened_raster_path = os.path.join(
-                COARSE_CV_SERVICE_DIR, os.path.basename(base_raster_path))
-            base_pixel_size = numpy.array(
-                geoprocessing.get_raster_info(
-                    base_raster_path)['pixel_size'])
-            task_graph.add_task(
-                func=geoprocessing.warp_raster,
-                args=(
-                    base_raster_path, tuple(base_pixel_size * CV_COARSEN_SCALE),
-                    coarsened_raster_path, 'max'),
-                target_path_list=[coarsened_raster_path],
-                task_name=f'coarsening CV for {key}')
-            FILENAMES[country][scenario][CV_SERVICE][key] = (
-                coarsened_raster_path)
-    task_graph.join()
     top_10_percent_maps = [
         ('PH', CONSERVATION_SCENARIO,),
         ('PH', RESTORATION_SCENARIO,),
@@ -807,17 +782,24 @@ def main():
                 task_name=f'top 10% of combo priorities {country} {scenario}')
             LOGGER.debug(overlap_combo_service_path)
 
-            figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
-            color_map = overlap_colormap(f'{len(overlap_sets)}_element')
-            style_rasters(
-                [overlap_combo_service_path],
-                [category_list],
-                country == 'IDN',
-                color_map,
-                'categorical',
-                GLOBAL_FIG_SIZE,
-                os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
-                figure_title, [None], GLOBAL_DPI)
+            # figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
+            # color_map = overlap_colormap(f'{len(overlap_sets)}_element')
+            # style_rasters(
+            #     [overlap_combo_service_path],
+            #     [category_list],
+            #     country == 'IDN',
+            #     color_map,
+            #     'categorical',
+            #     GLOBAL_FIG_SIZE,
+            #     os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
+            #     figure_title, [None], GLOBAL_DPI)
+
+    do_analyses(task_graph)
+    task_graph.join()
+    task_graph.close()
+    LOGGER.info('quitting before four panel tuples')
+    return
+
 
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
@@ -992,7 +974,6 @@ def main():
 
     task_graph.close()
     task_graph.join()
-    return
 
 
 def calculate_pixel_area_km2(base_raster_path, target_epsg):
