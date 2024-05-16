@@ -994,7 +994,6 @@ def calculate_pixel_area_km2(base_raster_path, target_epsg):
 
     # Calculate the area of pixels with values > 1
     pixel_area = reprojected_pixel_width * reprojected_pixel_height
-    LOGGER.debug(f'sum it up')
     count = ((reprojected_data > 0) & (reprojected_data != nodata)).sum()
     total_area = count * pixel_area / 1e6  # covert to km2
 
