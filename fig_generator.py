@@ -49,6 +49,7 @@ for dir_path in [
 
 ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_no_road_recharge'
 
+GLOBAL_PIXEL_SIZE = (0.000277780000000, -0.000277780000000)
 LOW_PERCENTILE = 10
 HIGH_PERCENTILE = 90
 BASE_FONT_SIZE = 12
@@ -388,10 +389,9 @@ def intersection_op(raster_a_path, raster_b_path, target_path):
     aligned_rasters = [
         os.path.join(ALGINED_DIR, f'aligned_{os.path.basename(path)}')
         for path in [raster_a_path, raster_b_path]]
-    pixel_size = geoprocessing.get_raster_info(raster_a_path)['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
         [raster_a_path, raster_b_path], aligned_rasters, [SAMPLING_METHOD]*2,
-        pixel_size, 'intersection')
+        GLOBAL_PIXEL_SIZE, 'intersection')
     geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_rasters], _and, target_path,
         gdal.GDT_Int16, 0, allow_different_blocksize=True)
@@ -406,10 +406,9 @@ def overlap_dspop_road_op(raster_a_path, raster_b_path, unique_prefix, target_pa
         os.path.join(ALGINED_DIR, f'aligned_{unique_prefix}_{os.path.basename(path)}')
         for path in [raster_a_path, raster_b_path]]
     LOGGER.debug(f'for {raster_a_path} does it exist: {os.path.exists(raster_a_path)}')
-    pixel_size = geoprocessing.get_raster_info(raster_a_path)['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
         [raster_a_path, raster_b_path], aligned_rasters, [SAMPLING_METHOD]*2,
-        pixel_size, 'intersection')
+        GLOBAL_PIXEL_SIZE, 'intersection')
     geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_rasters], _overlap_dspop_road_op, target_path,
         gdal.GDT_Int16, 0, allow_different_blocksize=True)
@@ -503,15 +502,12 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         next_offset = index_list[-1][1]
     index_list.pop(0)
 
-    pixel_size = geoprocessing.get_raster_info(
-        flat_path_list[0])['pixel_size']
-
     task_graph.add_task(
         func=geoprocessing.align_and_resize_raster_stack,
         args=(
             unique_path_list, aligned_rasters,
             [SAMPLING_METHOD] * len(unique_path_list),
-            pixel_size, 'intersection'),
+            GLOBAL_PIXEL_SIZE, 'intersection'),
         target_path_list=aligned_rasters,
         task_name='alignining in overlap op')
     task_graph.join()

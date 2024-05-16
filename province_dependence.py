@@ -1,4 +1,4 @@
-"""What are the upstream/downstream dependancies between provinces?"""
+"""What are the upstream/downstream dependencies between provinces?"""
 import itertools
 import logging
 import math
