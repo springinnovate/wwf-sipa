@@ -59,14 +59,28 @@ ELLIPSOID_EPSG = 6933
 SAMPLING_METHOD = 'near'
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
-    '1_element': [NODATA_COLOR, '#e41a1c'],
+    # '1_element': [NODATA_COLOR, '#e41a1c'],
     '3_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086'],
-    '5_element': [NODATA_COLOR, '#CC720A', '#72B1CC', '#ADCCC6', '#C1CC43', '#000000'],
-    '6_element': [NODATA_COLOR, '#8C4E07', '#4F7A8C', '#778C88', '#848C2E', '#F0027F', '#000000'],
-    '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c'],
-    '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c'],
-    '9_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#666666', '#e41a1c'],
+
+    #CC720A sediment
+    #72B1CC recharge
+    #ADCCC6 flood
+    #C1CC43 coastal
+    #000000 (black) for overlap
+    'each_ecosystem_service_overlap': [NODATA_COLOR, '#CC720A', '#72B1CC', '#ADCCC6', '#C1CC43', '#000000'],
+
+    #8C4E07 for sediment-recharge
+    #4F7A8C for recharge-flood
+    #778C88 for flood-sediment
+    #848C2E for coastal-exactly one other service
+    #F0027F for any three
+    #000000 (black) all four services
+    'overlapping_ecosystem_services': [NODATA_COLOR, '#8C4E07', '#4F7A8C', '#778C88', '#848C2E', '#F0027F', '#000000'],
+    # '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c'],
+    # '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c'],
+    # '9_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#666666', '#e41a1c'],
 }
+
 
 FLOOD_MITIGATION_SERVICE = 'flood mitigation'
 RECHARGE_SERVICE = 'recharge'
@@ -727,6 +741,7 @@ def main():
     #     ('IDN', CONSERVATION_SCENARIO,),
     #     ('IDN', RESTORATION_SCENARIO,),
     # ]
+
     LOGGER.info('skipping analyses by setting top_10_percent_maps to []')
     top_10_percent_maps = []
 
@@ -799,6 +814,19 @@ def main():
                 target_path_list=[overlap_combo_service_path],
                 task_name=f'top 10% of combo priorities {country} {scenario}')
             LOGGER.debug(overlap_combo_service_path)
+
+            figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
+            color_map = overlap_colormap(f'{len(overlap_sets)}_element')
+            style_rasters(
+                COUNTRY_OUTLINE_PATH[country],
+                [overlap_combo_service_path],
+                [category_list],
+                country == 'IDN',
+                color_map,
+                'categorical',
+                GLOBAL_FIG_SIZE,
+                os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
+                figure_title, [None], GLOBAL_DPI)
 
     #do_analyses(task_graph)
     task_graph.join()
