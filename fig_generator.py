@@ -1,5 +1,4 @@
 from pathlib import Path
-import copy
 import csv
 import glob
 import itertools
@@ -14,6 +13,7 @@ from ecoshard import taskgraph
 from matplotlib.colors import LinearSegmentedColormap
 from osgeo import gdal
 from osgeo import osr
+import geopandas
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
@@ -76,6 +76,12 @@ RESTORATION_SCENARIO = 'restoration'
 CONSERVATION_SCENARIO = 'conservation'
 EACH_ECOSYSTEM_SERVICE_ID = 'each ecosystem service'
 OVERLAPPING_SERVICES_ID = 'overlapping services'
+
+COUNTRY_OUTLINE_PATH = {
+    'PH': "data/admin_boundaries/PH_outline.gpkg",
+    'IDN': "data/admin_boundaries/IDN_outline.gpkg",
+}
+
 
 FILENAMES = {
     'PH': {
@@ -283,7 +289,12 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
     return (total_width, total_height)
 
 
-def style_rasters(raster_paths, category_list, stack_vertical, color_map_or_list, percentile_or_categorical, fig_size, fig_path, overall_title, subfigure_title_list, dpi):
+def style_rasters(
+        country_outline_vector_path, raster_paths, category_list,
+        stack_vertical, color_map_or_list, percentile_or_categorical, fig_size,
+        fig_path, overall_title, subfigure_title_list, dpi):
+    outline_gdf = geopandas.read_file(country_outline_vector_path)
+
     if not isinstance(color_map_or_list, list):
         colormap_list = [color_map_or_list] * len(raster_paths)
     else:
@@ -371,6 +382,7 @@ def style_rasters(raster_paths, category_list, stack_vertical, color_map_or_list
                 fontsize=adjust_suptitle_fontsize(fig, BASE_FONT_SIZE * 0.75),
                 handles=patches,
                 loc='upper right')
+        outline_gdf.boundary.plot(ax=axs[idx], color='black', linewidth=0.5)
 
     fontsize_for_suptitle = adjust_suptitle_fontsize(
         fig, BASE_FONT_SIZE)
@@ -540,9 +552,6 @@ def subtract_paths(base_path, full_path):
 
 
 def do_analyses(task_graph):
-    ph_vector_path = "data/admin_boundaries/PH_outline.gpkg"
-    idn_vector_path = "data/admin_boundaries/IDN_outline.gpkg"
-
     scenario_service_tuples = list(itertools.product(
         [CONSERVATION_SCENARIO, RESTORATION_SCENARIO],
         [SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE,
@@ -551,8 +560,8 @@ def do_analyses(task_graph):
     result_df = pandas.DataFrame()
 
     for country, vector_path, projection_epsg in [
-            ('PH', ph_vector_path, ELLIPSOID_EPSG),
-            ('IDN', idn_vector_path, ELLIPSOID_EPSG)]:
+            ('PH', COUNTRY_OUTLINE_PATH['PH'], ELLIPSOID_EPSG),
+            ('IDN', COUNTRY_OUTLINE_PATH['IDN'], ELLIPSOID_EPSG)]:
         # (2) Total area of the country
         country_area_km2 = calculate_vector_area_km2(vector_path, projection_epsg)
 
@@ -681,6 +690,7 @@ def do_analyses(task_graph):
             for scenario in [RESTORATION_SCENARIO, CONSERVATION_SCENARIO]:
                 overlap_combo_service_path = os.path.join(
                     OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{each_or_other}.tif')
+                #TODO: THIS IS THE PLACE WHERE WE DO THE SERVICE KM2 CALCULATION
                 service_area_km2 = calculate_pixel_area_km2(
                     overlap_combo_service_path, projection_epsg)
                 row_data = {
@@ -700,12 +710,15 @@ def do_analyses(task_graph):
 
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
-    top_10_percent_maps = [
-        ('PH', CONSERVATION_SCENARIO,),
-        ('PH', RESTORATION_SCENARIO,),
-        ('IDN', CONSERVATION_SCENARIO,),
-        ('IDN', RESTORATION_SCENARIO,),
-    ]
+    # TODO: skipping analysis and just rendering
+    # top_10_percent_maps = [
+    #     ('PH', CONSERVATION_SCENARIO,),
+    #     ('PH', RESTORATION_SCENARIO,),
+    #     ('IDN', CONSERVATION_SCENARIO,),
+    #     ('IDN', RESTORATION_SCENARIO,),
+    # ]
+    LOGGER.info('skipping analyses by setting top_10_percent_maps to []')
+    top_10_percent_maps = []
 
     overlapping_services = [
         ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, operator.eq, 'sed/flood'),
@@ -714,7 +727,6 @@ def main():
         ((CV_SERVICE,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 1, operator.eq, 'cv/and one other service'),
         ((), (CV_SERVICE, SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, operator.eq, '3 service overlaps'),
         ((), (CV_SERVICE, SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 4, operator.eq, '4 service overlaps'),
-
     ]
 
     each_service = [
@@ -778,23 +790,10 @@ def main():
                 task_name=f'top 10% of combo priorities {country} {scenario}')
             LOGGER.debug(overlap_combo_service_path)
 
-            # figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
-            # color_map = overlap_colormap(f'{len(overlap_sets)}_element')
-            # style_rasters(
-            #     [overlap_combo_service_path],
-            #     [category_list],
-            #     country == 'IDN',
-            #     color_map,
-            #     'categorical',
-            #     GLOBAL_FIG_SIZE,
-            #     os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
-            #     figure_title, [None], GLOBAL_DPI)
-
-    do_analyses(task_graph)
+    #do_analyses(task_graph)
     task_graph.join()
-    task_graph.close()
-    LOGGER.info('quitting before four panel tuples')
-    return
+    #task_graph.close()
+    #return
 
 
     four_panel_tuples = [
@@ -836,6 +835,7 @@ def main():
             fig_4_title = f'Top 10% of priorities for {service} for downstream beneficiaries'
 
             style_rasters(
+                COUNTRY_OUTLINE_PATH[country],
                 [diff_path,
                  service_dspop_path,
                  service_road_path,
@@ -884,6 +884,7 @@ def main():
             fig_4_title = 'Top 10% of priorities'
 
             style_rasters(
+                COUNTRY_OUTLINE_PATH[country],
                 [diff_path,
                  service_dspop_path, None,
                  top_10th_percentile_service_dspop_path],
@@ -943,6 +944,7 @@ def main():
             fig_4_title = 'Top 10% of priorities for coastal protection for coastal beneficiaries'
 
             style_rasters(
+                COUNTRY_OUTLINE_PATH[country],
                 [None, service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],

@@ -614,6 +614,7 @@ def main():
                     task_name=f'masking service {province_name} {scenario}')
 
                 # area of the mask of top 10 service in the province
+                # TODO: THIS IS WHERE WE CALCUALTE THE PROVINCE SERVICE AREA
                 service_area_task = task_graph.add_task(
                     func=calculate_mask_area_km2,
                     args=(masked_service_raster_path,),
