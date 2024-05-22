@@ -333,6 +333,9 @@ def style_rasters(
             continue
         raster_info = geoprocessing.get_raster_info(base_raster_path)
         target_pixel_size = scale_pixel_size(raster_info['raster_size'], n_pixels, raster_info['pixel_size'])
+
+        LOGGER.info('skipping analyses')
+
         scaled_path = os.path.join(
             SCALED_DIR,
             f'scaled_for_fig_{os.path.basename(base_raster_path)}')
@@ -343,7 +346,14 @@ def style_rasters(
             SAMPLING_METHOD)
         LOGGER.info('scaled!')
 
-        base_array = gdal.OpenEx(scaled_path, gdal.OF_RASTER).ReadAsArray()
+        base_raster = gdal.OpenEx(scaled_path, gdal.OF_RASTER)
+        base_array = base_raster.GetRasterBand(1).ReadAsArray()
+        gt = base_raster.GetGeoTransform()
+        xmin = gt[0]
+        xmax = xmin + (gt[1] * base_raster.RasterXSize)
+        ymax = gt[3]
+        ymin = ymax + (gt[5] * base_raster.RasterYSize)
+        extent = [xmin, xmax, ymin, ymax]
 
         # Create a color gradient
         color_map = interpolated_colormap(color_map)
@@ -370,7 +380,7 @@ def style_rasters(
         if subfigure_title is not None:
             axs[idx].set_title(subfigure_title_list[idx], wrap=True)
             adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
-        axs[idx].imshow(styled_array, origin='upper')
+        axs[idx].imshow(styled_array, origin='upper', extent=extent)
         axs[idx].axis('off')  # Turn off axis labels
         if categories is not None:
             values = numpy.linspace(0, 1, len(categories))
