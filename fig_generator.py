@@ -57,29 +57,6 @@ GLOBAL_FIG_SIZE = 10
 GLOBAL_DPI = 800
 ELLIPSOID_EPSG = 6933
 SAMPLING_METHOD = 'near'
-NODATA_COLOR = '#ffffff'
-COLOR_LIST = {
-    # '1_element': [NODATA_COLOR, '#e41a1c'],
-    '3_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086'],
-
-    #CC720A sediment
-    #72B1CC recharge
-    #ADCCC6 flood
-    #C1CC43 coastal
-    #000000 (black) for overlap
-    'each_ecosystem_service_overlap': [NODATA_COLOR, '#CC720A', '#72B1CC', '#ADCCC6', '#C1CC43', '#000000'],
-
-    #8C4E07 for sediment-recharge
-    #4F7A8C for recharge-flood
-    #778C88 for flood-sediment
-    #848C2E for coastal-exactly one other service
-    #F0027F for any three
-    #000000 (black) all four services
-    'overlapping_ecosystem_services': [NODATA_COLOR, '#8C4E07', '#4F7A8C', '#778C88', '#848C2E', '#F0027F', '#000000'],
-    # '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c'],
-    # '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c'],
-    # '9_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#666666', '#e41a1c'],
-}
 
 
 FLOOD_MITIGATION_SERVICE = 'flood mitigation'
@@ -90,6 +67,32 @@ RESTORATION_SCENARIO = 'restoration'
 CONSERVATION_SCENARIO = 'conservation'
 EACH_ECOSYSTEM_SERVICE_ID = 'each ecosystem service'
 OVERLAPPING_SERVICES_ID = 'overlapping services'
+
+NODATA_COLOR = '#ffffff'
+COLOR_LIST = {
+    # '1_element': [NODATA_COLOR, '#e41a1c'],
+    'sediment_intensity': [NODATA_COLOR, '#ffbd4b', '#cc720a', '#8c4e07', '#4d2b04'],
+    'recharge_intensity': [NODATA_COLOR, '#cfffff', '#72b1cc', '#4f7abc', '#2b424d'],
+    'flood_intensity': [NODATA_COLOR, '#d9fff8', '#adccc6', '#778c88', '#414d4a'],
+    'coastal_intensity': [NODATA_COLOR, '#e5ffc9', '#c1cc42', '#848c2e', '#484D19'],
+    '3_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086'],
+    # CC720A sediment
+    # 72B1CC recharge
+    # ADCCC6 flood
+    # C1CC43 coastal
+    # 000000 (black) for overlap
+    EACH_ECOSYSTEM_SERVICE_ID: [NODATA_COLOR, '#CC720A', '#72B1CC', '#ADCCC6', '#C1CC43', '#000000'],
+    # 8C4E07 for sediment-recharge
+    # 4F7A8C for recharge-flood
+    # 778C88 for flood-sediment
+    # 848C2E for coastal-exactly one other service
+    # F0027F for any three
+    # 000000 (black) all four services
+    OVERLAPPING_SERVICES_ID: [NODATA_COLOR, '#8C4E07', '#4F7A8C', '#778C88', '#848C2E', '#F0027F', '#000000'],
+    # '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c'],
+    # '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c'],
+    # '9_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#666666', '#e41a1c'],
+}
 
 COUNTRY_OUTLINE_PATH = {
     'PH': "data/admin_boundaries/PH_outline.gpkg",
@@ -714,7 +717,6 @@ def do_analyses(task_graph):
             for scenario in [RESTORATION_SCENARIO, CONSERVATION_SCENARIO]:
                 overlap_combo_service_path = os.path.join(
                     OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{each_or_other}.tif')
-                #TODO: THIS IS THE PLACE WHERE WE DO THE SERVICE KM2 CALCULATION
                 service_area_km2 = calculate_pixel_area_km2(
                     overlap_combo_service_path, projection_epsg)
                 row_data = {
@@ -816,7 +818,7 @@ def main():
             LOGGER.debug(overlap_combo_service_path)
 
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
-            color_map = overlap_colormap(f'{len(overlap_sets)}_element')
+            color_map = overlap_colormap(service_set_title)
             style_rasters(
                 COUNTRY_OUTLINE_PATH[country],
                 [overlap_combo_service_path],
