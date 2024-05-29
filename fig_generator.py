@@ -294,7 +294,7 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
 def style_rasters(
         country_outline_vector_path, raster_paths, category_list,
         stack_vertical, color_map_or_list, percentile_or_categorical, fig_size,
-        fig_path, overall_title, subfigure_title_list, dpi):
+        fig_path, overall_title, subfigure_title_list, dpi, pixel_coarsen_factor=1):
     outline_gdf = geopandas.read_file(country_outline_vector_path)
 
     if not isinstance(color_map_or_list, list):
@@ -334,7 +334,8 @@ def style_rasters(
             axs[idx].axis('off')
             continue
         raster_info = geoprocessing.get_raster_info(base_raster_path)
-        target_pixel_size = scale_pixel_size(raster_info['raster_size'], n_pixels, raster_info['pixel_size'])
+        target_pixel_size = pixel_coarsen_factor * scale_pixel_size(
+            raster_info['raster_size'], n_pixels, raster_info['pixel_size'])
 
         LOGGER.info('skipping analyses')
 
@@ -874,7 +875,7 @@ def main():
                 [overlap_colormap(service),
                  overlap_colormap(service),
                  overlap_colormap(service),
-                 overlap_colormap('3_element')],
+                 overlap_colormap('3_element_overlap')],
                 (LOW_PERCENTILE, HIGH_PERCENTILE),
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
@@ -922,7 +923,7 @@ def main():
                 [overlap_colormap(service),
                  overlap_colormap(service),
                  overlap_colormap(service),
-                 overlap_colormap('3_element'),],
+                 overlap_colormap('3_element_overlap'),],
                 (LOW_PERCENTILE, HIGH_PERCENTILE),
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
@@ -982,7 +983,7 @@ def main():
                 [overlap_colormap(service),
                  overlap_colormap(service),
                  overlap_colormap(service),
-                 overlap_colormap('3_element'),],
+                 overlap_colormap('3_element_overlap'),],
                 (LOW_PERCENTILE, HIGH_PERCENTILE),
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
@@ -990,7 +991,8 @@ def main():
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
-                    fig_4_title,], GLOBAL_DPI)
+                    fig_4_title,], GLOBAL_DPI,
+                pixel_coarsen_factor=20)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
