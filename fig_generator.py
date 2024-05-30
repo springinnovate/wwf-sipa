@@ -56,7 +56,7 @@ BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
 GLOBAL_DPI = 800
 ELLIPSOID_EPSG = 6933
-SAMPLING_METHOD = 'near'
+SAMPLING_METHOD = 'average'
 
 
 FLOOD_MITIGATION_SERVICE = 'flood mitigation'
@@ -334,8 +334,9 @@ def style_rasters(
             axs[idx].axis('off')
             continue
         raster_info = geoprocessing.get_raster_info(base_raster_path)
-        target_pixel_size = pixel_coarsen_factor * scale_pixel_size(
-            raster_info['raster_size'], n_pixels, raster_info['pixel_size'])
+        target_pixel_size = scale_pixel_size(
+            raster_info['raster_size'], n_pixels/pixel_coarsen_factor,
+            raster_info['pixel_size'])
 
         LOGGER.info('skipping analyses')
 
@@ -834,6 +835,7 @@ def main():
     ]
 
     for service, country, scenario, figure_title in four_panel_tuples:
+        break # short circuit for fast coastal
         try:
             diff_path = FILENAMES[country][scenario][service]['diff']
             service_dspop_path = FILENAMES[country][scenario][service]['service_dspop']
@@ -896,7 +898,9 @@ def main():
         (RECHARGE_SERVICE, 'PH', RESTORATION_SCENARIO, 'Water recharge (Restoration)'),
         (RECHARGE_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Water recharge (Restoration)'),
     ]
+
     for service, country, scenario, figure_title in three_panel_no_road_tuple:
+        break  # short circuit for fast coastal
         try:
             diff_path = FILENAMES[country][scenario][service]['diff']
             service_dspop_path = FILENAMES[country][scenario][service]['service_dspop']
@@ -992,7 +996,7 @@ def main():
                     fig_2_title,
                     fig_3_title,
                     fig_4_title,], GLOBAL_DPI,
-                pixel_coarsen_factor=20)
+                pixel_coarsen_factor=50)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
