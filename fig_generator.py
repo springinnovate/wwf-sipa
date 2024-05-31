@@ -56,8 +56,6 @@ BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
 GLOBAL_DPI = 800
 ELLIPSOID_EPSG = 6933
-SAMPLING_METHOD = 'average'
-
 
 FLOOD_MITIGATION_SERVICE = 'flood mitigation'
 RECHARGE_SERVICE = 'recharge'
@@ -348,7 +346,7 @@ def style_rasters(
         LOGGER.info(f'scaling {scaled_path}')
         geoprocessing.warp_raster(
             base_raster_path, target_pixel_size, scaled_path,
-            SAMPLING_METHOD)
+            'average')
         LOGGER.info('scaled!')
 
         base_raster = gdal.OpenEx(scaled_path, gdal.OF_RASTER)
@@ -533,7 +531,7 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         func=geoprocessing.align_and_resize_raster_stack,
         args=(
             unique_path_list, aligned_rasters,
-            [SAMPLING_METHOD] * len(unique_path_list),
+            ['near'] * len(unique_path_list),
             GLOBAL_PIXEL_SIZE, 'intersection'),
         target_path_list=aligned_rasters,
         task_name='alignining in overlap op')
@@ -803,8 +801,6 @@ def main():
 
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
             color_map = overlap_colormap(service_set_title)
-            LOGGER.warning(f'******************** SKIPPING THE RENDER FOR THE TOP 10 OVERLAP BECAUSE THEY ARE OK')
-            continue
             style_rasters(
                 COUNTRY_OUTLINE_PATH[country],
                 [overlap_combo_service_path],
