@@ -70,7 +70,8 @@ OVERLAPPING_SERVICES_ID = 'overlapping services'
 
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
-    '3_element_overlap': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086'],
+    #'3_element_overlap': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086'],
+    '3_element_overlap': [NODATA_COLOR, '#674ea7', '#a64d79', '#4c1130'],
     SEDIMENT_SERVICE: [NODATA_COLOR, '#ffbd4b', '#cc720a', '#8c4e07', '#4d2b04'],
     RECHARGE_SERVICE: [NODATA_COLOR, '#cfffff', '#72b1cc', '#4f7abc', '#2b424d'],
     FLOOD_MITIGATION_SERVICE: [NODATA_COLOR, '#d9fff8', '#adccc6', '#778c88', '#414d4a'],
@@ -723,16 +724,12 @@ def do_analyses(task_graph):
 
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
-    # TODO: skipping analysis and just rendering
-    # top_10_percent_maps = [
-    #     ('PH', CONSERVATION_SCENARIO,),
-    #     ('PH', RESTORATION_SCENARIO,),
-    #     ('IDN', CONSERVATION_SCENARIO,),
-    #     ('IDN', RESTORATION_SCENARIO,),
-    # ]
-
-    LOGGER.info('skipping analyses by setting top_10_percent_maps to []')
-    top_10_percent_maps = []
+    top_10_percent_maps = [
+        ('PH', CONSERVATION_SCENARIO,),
+        ('PH', RESTORATION_SCENARIO,),
+        ('IDN', CONSERVATION_SCENARIO,),
+        ('IDN', RESTORATION_SCENARIO,),
+    ]
 
     overlapping_services = [
         ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, operator.eq, 'sed/flood'),
@@ -806,6 +803,8 @@ def main():
 
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
             color_map = overlap_colormap(service_set_title)
+            LOGGER.warning(f'******************** SKIPPING THE RENDER FOR THE TOP 10 OVERLAP BECAUSE THEY ARE OK')
+            continue
             style_rasters(
                 COUNTRY_OUTLINE_PATH[country],
                 [overlap_combo_service_path],
@@ -816,12 +815,6 @@ def main():
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI)
-
-    #do_analyses(task_graph)
-    task_graph.join()
-    #task_graph.close()
-    #return
-
 
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
@@ -835,7 +828,6 @@ def main():
     ]
 
     for service, country, scenario, figure_title in four_panel_tuples:
-        break # short circuit for fast coastal
         try:
             diff_path = FILENAMES[country][scenario][service]['diff']
             service_dspop_path = FILENAMES[country][scenario][service]['service_dspop']
@@ -900,7 +892,6 @@ def main():
     ]
 
     for service, country, scenario, figure_title in three_panel_no_road_tuple:
-        break  # short circuit for fast coastal
         try:
             diff_path = FILENAMES[country][scenario][service]['diff']
             service_dspop_path = FILENAMES[country][scenario][service]['service_dspop']
