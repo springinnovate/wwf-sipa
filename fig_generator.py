@@ -417,7 +417,7 @@ def intersection_op(raster_a_path, raster_b_path, target_path):
         os.path.join(ALGINED_DIR, f'aligned_{os.path.basename(path)}')
         for path in [raster_a_path, raster_b_path]]
     geoprocessing.align_and_resize_raster_stack(
-        [raster_a_path, raster_b_path], aligned_rasters, [SAMPLING_METHOD]*2,
+        [raster_a_path, raster_b_path], aligned_rasters, ['near']*2,
         GLOBAL_PIXEL_SIZE, 'intersection')
     geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_rasters], _and, target_path,
@@ -434,7 +434,7 @@ def overlap_dspop_road_op(raster_a_path, raster_b_path, unique_prefix, target_pa
         for path in [raster_a_path, raster_b_path]]
     LOGGER.debug(f'for {raster_a_path} does it exist: {os.path.exists(raster_a_path)}')
     geoprocessing.align_and_resize_raster_stack(
-        [raster_a_path, raster_b_path], aligned_rasters, [SAMPLING_METHOD]*2,
+        [raster_a_path, raster_b_path], aligned_rasters, ['near']*2,
         GLOBAL_PIXEL_SIZE, 'intersection')
     geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_rasters], _overlap_dspop_road_op, target_path,
