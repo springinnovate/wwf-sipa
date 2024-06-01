@@ -424,7 +424,7 @@ def intersection_op(raster_a_path, raster_b_path, target_path):
 
 def overlap_dspop_road_op(raster_a_path, raster_b_path, unique_prefix, target_path):
     def _overlap_dspop_road_op(array_a, array_b):
-        result = array_a + (2 * array_b)
+        result = (array_a > 0) + (2 * (array_b > 0))
         return result
 
     aligned_rasters = [
