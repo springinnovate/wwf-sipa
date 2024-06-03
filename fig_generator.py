@@ -292,7 +292,7 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
 
 def style_rasters(
         country_outline_vector_path, raster_paths, category_list,
-        stack_vertical, color_map_or_list, percentile_or_categorical, fig_size,
+        stack_vertical, color_map_or_list, percentile_or_categorical_list, fig_size,
         fig_path, overall_title, subfigure_title_list, dpi, pixel_coarsen_factor=1):
     outline_gdf = geopandas.read_file(country_outline_vector_path)
 
@@ -328,7 +328,7 @@ def style_rasters(
     else:
         axs = [axs]
 
-    for idx, (base_raster_path, categories, color_map) in enumerate(zip(raster_paths, category_list, colormap_list)):
+    for idx, (base_raster_path, categories, color_map, percentile_or_categorical) in enumerate(zip(raster_paths, category_list, colormap_list, percentile_or_categorical_list)):
         if base_raster_path is None:
             axs[idx].axis('off')
             continue
@@ -346,7 +346,7 @@ def style_rasters(
         LOGGER.info(f'scaling {scaled_path}')
         geoprocessing.warp_raster(
             base_raster_path, target_pixel_size, scaled_path,
-            'average')
+            'mode')
         LOGGER.info('scaled!')
 
         base_raster = gdal.OpenEx(scaled_path, gdal.OF_RASTER)
@@ -807,7 +807,7 @@ def main():
                 [category_list],
                 country == 'IDN',
                 color_map,
-                'categorical',
+                ['categorical'],
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI)
@@ -866,7 +866,10 @@ def main():
                  overlap_colormap(service),
                  overlap_colormap(service),
                  overlap_colormap('3_element_overlap')],
-                (LOW_PERCENTILE, HIGH_PERCENTILE),
+                [(LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 'categorical'],
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
@@ -915,7 +918,10 @@ def main():
                  overlap_colormap(service),
                  overlap_colormap(service),
                  overlap_colormap('3_element_overlap'),],
-                (LOW_PERCENTILE, HIGH_PERCENTILE),
+                [(LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 'categorical'],
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
@@ -975,7 +981,10 @@ def main():
                  overlap_colormap(service),
                  overlap_colormap(service),
                  overlap_colormap('3_element_overlap'),],
-                (LOW_PERCENTILE, HIGH_PERCENTILE),
+                [(LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 'categorical'],
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
