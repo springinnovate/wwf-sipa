@@ -65,11 +65,13 @@ RESTORATION_SCENARIO = 'restoration'
 CONSERVATION_SCENARIO = 'conservation'
 EACH_ECOSYSTEM_SERVICE_ID = 'each ecosystem service'
 OVERLAPPING_SERVICES_ID = 'overlapping services'
+ROAD_AND_PEOPLE_BENFICIARIES_ID = 'road and people beneficiaries'
+PEOPLE_ONLY_BENEFICIARIES_ID = 'people beneficiares'
 
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
-    #'3_element_overlap': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086'],
-    '3_element_overlap': [NODATA_COLOR, '#674ea7', '#a64d79', '#4c1130'],
+    ROAD_AND_PEOPLE_BENFICIARIES_ID: [NODATA_COLOR, '#674ea7', '#a64d79', '#4c1130'],
+    PEOPLE_ONLY_BENEFICIARIES_ID: [NODATA_COLOR, '#a64d79'],
     SEDIMENT_SERVICE: [NODATA_COLOR, '#ffbd4b', '#cc720a', '#8c4e07', '#4d2b04'],
     RECHARGE_SERVICE: [NODATA_COLOR, '#cfffff', '#72b1cc', '#4f7abc', '#2b424d'],
     FLOOD_MITIGATION_SERVICE: [NODATA_COLOR, '#d9fff8', '#adccc6', '#778c88', '#414d4a'],
@@ -865,7 +867,7 @@ def main():
                 [overlap_colormap(service),
                  overlap_colormap(service),
                  overlap_colormap(service),
-                 overlap_colormap('3_element_overlap')],
+                 overlap_colormap(ROAD_AND_PEOPLE_BENFICIARIES_ID)],
                 [(LOW_PERCENTILE, HIGH_PERCENTILE),
                  (LOW_PERCENTILE, HIGH_PERCENTILE),
                  (LOW_PERCENTILE, HIGH_PERCENTILE),
@@ -916,8 +918,8 @@ def main():
                 country == 'IDN',
                 [overlap_colormap(service),
                  overlap_colormap(service),
-                 overlap_colormap(service),
-                 overlap_colormap('3_element_overlap'),],
+                 None,
+                 overlap_colormap(PEOPLE_ONLY_BENEFICIARIES_ID),],
                 [(LOW_PERCENTILE, HIGH_PERCENTILE),
                  (LOW_PERCENTILE, HIGH_PERCENTILE),
                  (LOW_PERCENTILE, HIGH_PERCENTILE),
@@ -980,7 +982,7 @@ def main():
                 [overlap_colormap(service),
                  overlap_colormap(service),
                  overlap_colormap(service),
-                 overlap_colormap('3_element_overlap'),],
+                 overlap_colormap(ROAD_AND_PEOPLE_BENFICIARIES_ID),],
                 [(LOW_PERCENTILE, HIGH_PERCENTILE),
                  (LOW_PERCENTILE, HIGH_PERCENTILE),
                  (LOW_PERCENTILE, HIGH_PERCENTILE),
