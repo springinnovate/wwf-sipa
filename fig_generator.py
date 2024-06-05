@@ -39,13 +39,17 @@ ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
 OVERLAP_DIR = os.path.join(WORKING_DIR, 'overlap_rasters')
 SCALED_DIR = os.path.join(WORKING_DIR, 'scaled_rasters')
 COMBINED_SERVICE_DIR = os.path.join(WORKING_DIR, 'combined_services')
+COG_DIR = os.path.join(WORKING_DIR, 'cog')
 for dir_path in [
         WORKING_DIR,
         FIG_DIR,
         ALGINED_DIR,
         OVERLAP_DIR,
-        SCALED_DIR]:
+        SCALED_DIR,
+        COG_DIR]:
     os.makedirs(dir_path, exist_ok=True)
+
+REMOTE_BUCKET_PATH = 'gs://ecoshard-root/wwf_sipa_viewer_2024_06_04/'
 
 ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_no_road_recharge'
 
@@ -56,18 +60,8 @@ BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
 GLOBAL_DPI = 800
 ELLIPSOID_EPSG = 6933
-SAMPLING_METHOD = 'near'
-NODATA_COLOR = '#ffffff'
-COLOR_LIST = {
-    '1_element': [NODATA_COLOR, '#e41a1c'],
-    '3_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086'],
-    '5_element': [NODATA_COLOR, '#CC720A', '#72B1CC', '#ADCCC6', '#C1CC43', '#000000'],
-    '6_element': [NODATA_COLOR, '#8C4E07', '#4F7A8C', '#778C88', '#848C2E', '#F0027F', '#000000'],
-    '7_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#e41a1c'],
-    '8_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#e41a1c'],
-    '9_element': [NODATA_COLOR, '#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#666666', '#e41a1c'],
-}
 
+RASTER_STYLE_LOG_PATH = 'viewer_info.txt'
 FLOOD_MITIGATION_SERVICE = 'flood mitigation'
 RECHARGE_SERVICE = 'recharge'
 SEDIMENT_SERVICE = 'sediment'
@@ -76,6 +70,20 @@ RESTORATION_SCENARIO = 'restoration'
 CONSERVATION_SCENARIO = 'conservation'
 EACH_ECOSYSTEM_SERVICE_ID = 'each ecosystem service'
 OVERLAPPING_SERVICES_ID = 'overlapping services'
+ROAD_AND_PEOPLE_BENFICIARIES_ID = 'road and people beneficiaries'
+PEOPLE_ONLY_BENEFICIARIES_ID = 'people beneficiares'
+
+NODATA_COLOR = '#ffffff'
+COLOR_LIST = {
+    ROAD_AND_PEOPLE_BENFICIARIES_ID: [NODATA_COLOR, '#674ea7', '#a64d79', '#4c1130'],
+    PEOPLE_ONLY_BENEFICIARIES_ID: [NODATA_COLOR, '#a64d79'],
+    SEDIMENT_SERVICE: [NODATA_COLOR, '#ffbd4b', '#cc720a', '#8c4e07', '#4d2b04'],
+    RECHARGE_SERVICE: [NODATA_COLOR, '#cfffff', '#72b1cc', '#4f7abc', '#2b424d'],
+    FLOOD_MITIGATION_SERVICE: [NODATA_COLOR, '#d9fff8', '#adccc6', '#778c88', '#414d4a'],
+    CV_SERVICE: [NODATA_COLOR, '#e5ffc9', '#c1cc42', '#848c2e', '#484D19'],
+    EACH_ECOSYSTEM_SERVICE_ID: [NODATA_COLOR, '#CC720A', '#72B1CC', '#ADCCC6', '#C1CC43', '#000000'],
+    OVERLAPPING_SERVICES_ID: [NODATA_COLOR, '#8C4E07', '#4F7A8C', '#778C88', '#848C2E', '#F0027F'],
+}
 
 COUNTRY_OUTLINE_PATH = {
     'PH': "data/admin_boundaries/PH_outline.gpkg",
@@ -199,6 +207,44 @@ FILENAMES = {
 }
 
 
+def _make_logger_callback(message, timeout=5.0):
+    """Build a timed logger callback that prints ``message`` replaced.
+
+    Args:
+        message (string): a string that expects 2 placement %% variables,
+            first for % complete from ``df_complete``, second from
+            ``p_progress_arg[0]``.
+        timeout (float): number of seconds to wait until print
+
+    Returns:
+        Function with signature:
+            logger_callback(df_complete, psz_message, p_progress_arg)
+
+    """
+    def logger_callback(df_complete, _, p_progress_arg):
+        """Argument names come from the GDAL API for callbacks."""
+        current_time = time.time()
+        if ((current_time - logger_callback.last_time) > timeout or
+                (df_complete == 1.0 and
+                 logger_callback.total_time >= timeout)):
+            # In some multiprocess applications I was encountering a
+            # ``p_progress_arg`` of None. This is unexpected and I suspect
+            # was an issue for some kind of GDAL race condition. So I'm
+            # guarding against it here and reporting an appropriate log
+            # if it occurs.
+            progress_arg = ''
+            if p_progress_arg is not None:
+                progress_arg = p_progress_arg[0]
+
+            LOGGER.info(message, df_complete * 100, progress_arg)
+            logger_callback.last_time = current_time
+            logger_callback.total_time += current_time
+    logger_callback.last_time = time.time()
+    logger_callback.total_time = 0.0
+
+    return logger_callback
+
+
 def adjust_font_size(ax, fig, base_size):
     fig_width, fig_height = fig.get_size_inches()
     mean_dim = (fig_width + fig_height) / 2
@@ -289,10 +335,78 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
     return (total_width, total_height)
 
 
+def get_percentiles(raster_path, min_percentile, max_percentile):
+    raster = gdal.OpenEx(raster_path, gdal.OF_RASTER)
+    band = raster.GetRasterBand(1)
+    stats = band.GetStatistics(True, True)
+    min_value = 0
+    max_value = stats[1]*0.9
+    return min_value, max_value
+
+
+def cogit(file_path, target_dir):
+    # create copy with COG
+    os.makedirs(target_dir, exist_ok=True)
+    cog_driver = gdal.GetDriverByName('COG')
+    base_raster = gdal.OpenEx(file_path, gdal.OF_RASTER)
+    cog_file_path = os.path.join(
+        target_dir,
+        f'cog_{os.path.basename(file_path)}')
+    options = ('COMPRESS=LZW', 'NUM_THREADS=ALL_CPUS', 'BIGTIFF=YES')
+    LOGGER.info(f'convert {file_path} to COG {cog_file_path} with {options}')
+    cog_raster = cog_driver.CreateCopy(
+        cog_file_path, base_raster, options=options,
+        callback=_make_logger_callback(
+            f"COGing {cog_file_path} %.1f%% complete %s"))
+    del cog_raster
+    return cog_file_path
+
+
 def style_rasters(
         country_outline_vector_path, raster_paths, category_list,
-        stack_vertical, color_map_or_list, percentile_or_categorical, fig_size,
-        fig_path, overall_title, subfigure_title_list, dpi):
+        stack_vertical, color_map_or_list, color_palette_list,
+        percentile_or_categorical_list,
+        base_min_max_list, fig_size, fig_path, overall_title,
+        subfigure_title_list, dpi, task_graph, pixel_coarsen_factor=1):
+
+    with open(RASTER_STYLE_LOG_PATH, 'a') as file:
+        for (raster_path, color_palette, category_labels,
+             percentile_or_categorical, base_min_max, subfigure_title) in zip(
+                raster_paths, color_palette_list, category_list,
+                percentile_or_categorical_list, base_min_max_list, subfigure_title_list):
+            if subfigure_title is None:
+                continue
+
+            cog_task = task_graph.add_task(
+                func=cogit,
+                args=(raster_path, COG_DIR),
+                store_result=True,
+                task_name=f'cog {raster_path}')
+            if percentile_or_categorical == 'categorical':
+                base_min = 0
+                base_max = len(category_labels)
+            elif base_min_max is not None:
+                base_min, base_max = base_min_max
+            else:
+                min_percentile, max_percentile = percentile_or_categorical
+                LOGGER.debug(f'loading {raster_path}')
+                percentile_task = task_graph.add_task(
+                    func=get_percentiles,
+                    args=(raster_path, min_percentile, max_percentile),
+                    store_result=True,
+                    task_name=f'percentiles for {raster_path}')
+                base_min, base_max = percentile_task.get()
+            cog_path = os.path.join(
+                REMOTE_BUCKET_PATH, os.path.basename(cog_task.get()))
+
+            file.write('{fig_title:"' + f'{overall_title}, {subfigure_title}' + '",\n')
+            file.write('palette:[' + ','.join([f'"#{x}"' for x in color_palette]) + '],\n')
+            file.write('labels:[' + ','.join([f'"{x}"' for x in category_labels]) + '],\n')
+            file.write(f'min_val:{base_min},\n max_val:{base_max},\n')
+            file.write(f'remote_path: "{cog_path}",' + '\n},\n')
+            file.flush()
+    return
+
     outline_gdf = geopandas.read_file(country_outline_vector_path)
 
     if not isinstance(color_map_or_list, list):
@@ -327,12 +441,14 @@ def style_rasters(
     else:
         axs = [axs]
 
-    for idx, (base_raster_path, categories, color_map) in enumerate(zip(raster_paths, category_list, colormap_list)):
+    for idx, (base_raster_path, categories, color_map, percentile_or_categorical, base_min_max) in enumerate(zip(raster_paths, category_list, colormap_list, percentile_or_categorical_list, base_min_max_list)):
         if base_raster_path is None:
             axs[idx].axis('off')
             continue
         raster_info = geoprocessing.get_raster_info(base_raster_path)
-        target_pixel_size = scale_pixel_size(raster_info['raster_size'], n_pixels, raster_info['pixel_size'])
+        target_pixel_size = scale_pixel_size(
+            raster_info['raster_size'], n_pixels/pixel_coarsen_factor,
+            raster_info['pixel_size'])
 
         LOGGER.info('skipping analyses')
 
@@ -343,7 +459,7 @@ def style_rasters(
         LOGGER.info(f'scaling {scaled_path}')
         geoprocessing.warp_raster(
             base_raster_path, target_pixel_size, scaled_path,
-            SAMPLING_METHOD)
+            'mode')
         LOGGER.info('scaled!')
 
         base_raster = gdal.OpenEx(scaled_path, gdal.OF_RASTER)
@@ -366,6 +482,8 @@ def style_rasters(
         if percentile_or_categorical == 'categorical':
             base_min = 0
             base_max = len(categories)
+        elif base_min_max is not None:
+            base_min, base_max = base_min_max
         else:
             min_percentile, max_percentile = percentile_or_categorical
             base_min = np.percentile(valid_base_array, min_percentile)
@@ -412,7 +530,7 @@ def intersection_op(raster_a_path, raster_b_path, target_path):
         os.path.join(ALGINED_DIR, f'aligned_{os.path.basename(path)}')
         for path in [raster_a_path, raster_b_path]]
     geoprocessing.align_and_resize_raster_stack(
-        [raster_a_path, raster_b_path], aligned_rasters, [SAMPLING_METHOD]*2,
+        [raster_a_path, raster_b_path], aligned_rasters, ['near']*2,
         GLOBAL_PIXEL_SIZE, 'intersection')
     geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_rasters], _and, target_path,
@@ -421,7 +539,7 @@ def intersection_op(raster_a_path, raster_b_path, target_path):
 
 def overlap_dspop_road_op(raster_a_path, raster_b_path, unique_prefix, target_path):
     def _overlap_dspop_road_op(array_a, array_b):
-        result = array_a + (2 * array_b)
+        result = (array_a > 0) + (2 * (array_b > 0))
         return result
 
     aligned_rasters = [
@@ -429,7 +547,7 @@ def overlap_dspop_road_op(raster_a_path, raster_b_path, unique_prefix, target_pa
         for path in [raster_a_path, raster_b_path]]
     LOGGER.debug(f'for {raster_a_path} does it exist: {os.path.exists(raster_a_path)}')
     geoprocessing.align_and_resize_raster_stack(
-        [raster_a_path, raster_b_path], aligned_rasters, [SAMPLING_METHOD]*2,
+        [raster_a_path, raster_b_path], aligned_rasters, ['near']*2,
         GLOBAL_PIXEL_SIZE, 'intersection')
     geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_rasters], _overlap_dspop_road_op, target_path,
@@ -528,7 +646,7 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         func=geoprocessing.align_and_resize_raster_stack,
         args=(
             unique_path_list, aligned_rasters,
-            [SAMPLING_METHOD] * len(unique_path_list),
+            ['near'] * len(unique_path_list),
             GLOBAL_PIXEL_SIZE, 'intersection'),
         target_path_list=aligned_rasters,
         task_name='alignining in overlap op')
@@ -700,7 +818,6 @@ def do_analyses(task_graph):
             for scenario in [RESTORATION_SCENARIO, CONSERVATION_SCENARIO]:
                 overlap_combo_service_path = os.path.join(
                     OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{each_or_other}.tif')
-                #TODO: THIS IS THE PLACE WHERE WE DO THE SERVICE KM2 CALCULATION
                 service_area_km2 = calculate_pixel_area_km2(
                     overlap_combo_service_path, projection_epsg)
                 row_data = {
@@ -720,15 +837,12 @@ def do_analyses(task_graph):
 
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
-    # TODO: skipping analysis and just rendering
-    # top_10_percent_maps = [
-    #     ('PH', CONSERVATION_SCENARIO,),
-    #     ('PH', RESTORATION_SCENARIO,),
-    #     ('IDN', CONSERVATION_SCENARIO,),
-    #     ('IDN', RESTORATION_SCENARIO,),
-    # ]
-    LOGGER.info('skipping analyses by setting top_10_percent_maps to []')
-    top_10_percent_maps = []
+    top_10_percent_maps = [
+        ('PH', CONSERVATION_SCENARIO,),
+        ('PH', RESTORATION_SCENARIO,),
+        ('IDN', CONSERVATION_SCENARIO,),
+        ('IDN', RESTORATION_SCENARIO,),
+    ]
 
     overlapping_services = [
         ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE), 2, operator.eq, 'sed/flood'),
@@ -736,7 +850,7 @@ def main():
         ((), (SEDIMENT_SERVICE, RECHARGE_SERVICE), 2, operator.eq, 'sed/recharge'),
         ((CV_SERVICE,), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 1, operator.eq, 'cv/and one other service'),
         ((), (CV_SERVICE, SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 3, operator.eq, '3 service overlaps'),
-        ((), (CV_SERVICE, SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 4, operator.eq, '4 service overlaps'),
+        #((), (CV_SERVICE, SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE), 4, operator.eq, '4 service overlaps'),
     ]
 
     each_service = [
@@ -800,11 +914,19 @@ def main():
                 task_name=f'top 10% of combo priorities {country} {scenario}')
             LOGGER.debug(overlap_combo_service_path)
 
-    #do_analyses(task_graph)
-    task_graph.join()
-    #task_graph.close()
-    #return
-
+            figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
+            style_rasters(
+                COUNTRY_OUTLINE_PATH[country],
+                [overlap_combo_service_path],
+                [category_list],
+                country == 'IDN',
+                overlap_colormap(service_set_title),
+                COLOR_LIST[service_set_title],
+                ['categorical'],
+                [(0, 5)] if service_set_title==OVERLAPPING_SERVICES_ID else [None],
+                GLOBAL_FIG_SIZE,
+                os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
+                figure_title, [None], GLOBAL_DPI, task_graph)
 
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
@@ -856,18 +978,26 @@ def main():
                 [['none', 'benefiting roads only', 'benefiting people only',
                  'benefiting both']],
                 country == 'IDN',
-                [plt.get_cmap('turbo'),
-                 plt.get_cmap('turbo'),
-                 plt.get_cmap('turbo'),
-                 overlap_colormap('3_element')],
-                (LOW_PERCENTILE, HIGH_PERCENTILE),
+                [overlap_colormap(service),
+                 overlap_colormap(service),
+                 overlap_colormap(service),
+                 overlap_colormap(ROAD_AND_PEOPLE_BENFICIARIES_ID)],
+                [COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 COLOR_LIST[ROAD_AND_PEOPLE_BENFICIARIES_ID],],
+                [(LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 'categorical'],
+                [None]*4,
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
-                    fig_4_title,], GLOBAL_DPI)
+                    fig_4_title,], GLOBAL_DPI, task_graph)
             print(f'done with {service}_{country}_{scenario}.png')
 
         except Exception:
@@ -880,6 +1010,7 @@ def main():
         (RECHARGE_SERVICE, 'PH', RESTORATION_SCENARIO, 'Water recharge (Restoration)'),
         (RECHARGE_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Water recharge (Restoration)'),
     ]
+
     for service, country, scenario, figure_title in three_panel_no_road_tuple:
         try:
             diff_path = FILENAMES[country][scenario][service]['diff']
@@ -904,18 +1035,26 @@ def main():
                 [['none', 'benefiting roads only', 'benefiting people only',
                  'benefiting both']],
                 country == 'IDN',
-                [plt.get_cmap('turbo'),
-                 plt.get_cmap('turbo'),
-                 plt.get_cmap('turbo'),
-                 overlap_colormap('3_element'),],
-                (LOW_PERCENTILE, HIGH_PERCENTILE),
+                [overlap_colormap(service),
+                 overlap_colormap(service),
+                 None,
+                 overlap_colormap(PEOPLE_ONLY_BENEFICIARIES_ID),],
+                [COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 None,
+                 COLOR_LIST[PEOPLE_ONLY_BENEFICIARIES_ID],],
+                [(LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 'categorical'],
+                [None]*4,
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
-                    fig_4_title,], GLOBAL_DPI)
+                    fig_4_title,], GLOBAL_DPI, task_graph)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
@@ -964,18 +1103,27 @@ def main():
                 [['none', 'benefiting roads only', 'benefiting people only',
                  'benefiting both']],
                 country == 'IDN',
-                [plt.get_cmap('turbo'),
-                 plt.get_cmap('turbo'),
-                 plt.get_cmap('turbo'),
-                 overlap_colormap('3_element'),],
-                (LOW_PERCENTILE, HIGH_PERCENTILE),
+                [overlap_colormap(service),
+                 overlap_colormap(service),
+                 overlap_colormap(service),
+                 overlap_colormap(ROAD_AND_PEOPLE_BENFICIARIES_ID),],
+                [COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 COLOR_LIST[ROAD_AND_PEOPLE_BENFICIARIES_ID],],
+                [(LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 'categorical'],
+                [None]*4,
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
                 figure_title, [
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
-                    fig_4_title,], GLOBAL_DPI)
+                    fig_4_title,], GLOBAL_DPI, task_graph,
+                pixel_coarsen_factor=50)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
@@ -1032,4 +1180,8 @@ def calculate_vector_area_km2(vector_path, target_epsg):
 
 
 if __name__ == '__main__':
+    with open(RASTER_STYLE_LOG_PATH, 'w') as file:
+        file.write('raster_list=[')
     main()
+    with open(RASTER_STYLE_LOG_PATH, 'a') as file:
+        file.write('];\n')
