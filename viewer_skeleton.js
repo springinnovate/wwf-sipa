@@ -618,6 +618,42 @@ var datasets={
   },
 };
 
+var default_vector_style = {
+    color: 'FFFFFF',
+    width: 0.5,
+    fillColor: '00000000',
+}
+
+var aggregate_polygons = {
+    'PH': 'projects/ecoshard-202922/assets/gdam_PH_1',
+    'IDN': 'projects/ecoshard-202922/assets/gdam_IDN_1',
+}
+
+var mapCenter = {
+  'PH': {'lon': 121.77, 'lat': 12.96, 'zoom': 5},
+  'IDN': {'lon': 118.01, 'lat': -2.49, 'zoom': 5},
+}
+
+var uniqueCountriesSet = new Set();
+var uniqueCountries = {};
+var datasetByCountry = {};
+for (var key in datasets) {
+  if (datasets[key] === ''){
+    continue;
+  }
+  if (datasets.hasOwnProperty(key)) {
+    var country = datasets[key].country;
+    if (!datasetByCountry[country]) {
+      datasetByCountry[country] = {};
+    }
+    datasetByCountry[country][key] = datasets[key];
+    if (!uniqueCountriesSet.has(country)) {
+      uniqueCountriesSet.add(country);
+      uniqueCountries[country] = country;
+    }
+  }
+}
+
 function updateRasterLayer(key, active_context) {
   if (key !== null) {
     active_context.raster = ee.Image.loadGeoTIFF(datasets[key]['remote_path']);
@@ -685,6 +721,7 @@ var panel_list = [];
       'raster': null,
       'point_val': null,
       'last_point_layer': null,
+      'last_aoi': null,
       'map': mapside[0],
       'legend_panel': null,
       'visParams': null,
@@ -698,64 +735,93 @@ var panel_list = [];
         'backgroundColor': 'rgba(255, 255, 255, 0.4)'
       }
     });
-
-    var default_control_text = mapside[1]+' map';
-    var controls_label = ui.Label({
-      value: default_control_text,
+    // Create the radio button
+    var country_selection_label = ui.Label({
+      value: 'Active country:',
       style: {
         backgroundColor: 'rgba(0, 0, 0, 0)',
       }
     });
-    panel.add(controls_label);
-
-    var select = ui.Select({
-      items: Object.keys(datasets),
-      onChange: function(raster_key, self) {
-        active_context.raster_key = raster_key;
-        self.setDisabled(true);
-        var original_value = self.getValue();
-        self.setPlaceholder('loading ...');
-        print('got here');
-        if (active_context.last_layer !== null) {
-          active_context.map.remove(active_context.last_layer);
-        }
-        if (datasets[raster_key] == '') {
-          self.setValue(original_value, false);
-          self.setDisabled(false);
-          return
-        }
-        updateRasterLayer(raster_key, active_context);
-        self.setValue(original_value, false);
-        self.setDisabled(false);
-        active_context.point_val.style().set('shown', true);
-      }
-    });
-    panel.add(select);
-
-
-    select.setPlaceholder('Choose a dataset...');
-
-    var legendPanel = ui.Panel({
+    var countryDatasetPanel = ui.Panel({
+      layout: ui.Panel.Layout.flow('vertical'),
       style: {
-        position: 'bottom-left',
-        padding: '8px 15px'
+        'position': "middle-"+mapside[1],
+        'backgroundColor': 'rgba(255, 255, 255, 0.4)'
       }
     });
-    active_context.legendPanel = legendPanel;
-    active_context.legendPanel.clear();
-    active_context.legendPanel.style().set('shown', false);
-    panel.add(legendPanel);
 
-    active_context.point_val = ui.Textbox('click on map to get point value');
-    active_context.point_val.setDisabled(true);
-    active_context.point_val.style().set('shown', false);
-    panel.add(active_context.point_val);
+    panel.add(country_selection_label);
+    var countrySelectButton = ui.Select({
+      items: Object.keys(uniqueCountries),
+      onChange: function(selected, self) {
+        var country_id = self.getValue();
+        active_context.aoi_polygon = ee.FeatureCollection(aggregate_polygons[country_id]);
+        Map.setCenter(
+          mapCenter[country_id]['lon'],
+          mapCenter[country_id]['lat'],
+          mapCenter[country_id]['zoom']);
+        updateDataselectPanel(active_context, country_id, countryDatasetPanel);
+      }
+    });
+    countrySelectButton.setPlaceholder('choose a country ...');
+    panel.add(countrySelectButton);
+    panel.add(countryDatasetPanel)
 
     panel_list.push([panel, active_context]);
     active_context.map.add(panel);
     active_context.map.setControlVisibility(false);
     active_context.map.setControlVisibility({"mapTypeControl": true});
 });
+
+
+function updateDataselectPanel(active_context, country_id, panel) {
+  panel.clear();
+  var select = ui.Select({
+    items: Object.keys(datasetByCountry[country_id]),
+    onChange: function(raster_key, self) {
+      active_context.raster_key = raster_key;
+      self.setDisabled(true);
+      var original_value = self.getValue();
+      self.setPlaceholder('loading ...');
+      if (active_context.last_aoi !== null) {
+        active_context.map.remove(active_context.last_aoi);
+      }
+      if (active_context.last_layer !== null) {
+        active_context.map.remove(active_context.last_layer);
+      }
+      if (datasetByCountry[country_id][raster_key] == '') {
+        self.setValue(original_value, false);
+        self.setDisabled(false);
+        return
+      }
+      updateRasterLayer(raster_key, active_context);
+      active_context.last_aoi = active_context.map.addLayer(
+        active_context.aoi_polygon.style(default_vector_style));
+      self.setValue(original_value, false);
+      self.setDisabled(false);
+      active_context.point_val.style().set('shown', true);
+    }
+  });
+  active_context.select = select;
+  panel.add(select);
+
+  select.setPlaceholder('Choose a dataset...');
+  var legendPanel = ui.Panel({
+    style: {
+      position: 'bottom-left',
+      padding: '8px 15px'
+    }
+  });
+  active_context.legendPanel = legendPanel;
+  active_context.legendPanel.clear();
+  active_context.legendPanel.style().set('shown', false);
+  panel.add(legendPanel);
+
+  active_context.point_val = ui.Textbox('click on map to get point value');
+  active_context.point_val.setDisabled(true);
+  active_context.point_val.style().set('shown', false);
+  panel.add(active_context.point_val);
+}
 
 
 panel_list.forEach(function (panel_array) {
