@@ -7,6 +7,8 @@ import numpy
 import operator
 import os
 import sys
+import tempfile
+import time
 
 from ecoshard import geoprocessing
 from ecoshard import taskgraph
@@ -335,13 +337,39 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
     return (total_width, total_height)
 
 
-def get_percentiles(raster_path, min_percentile, max_percentile):
-    raster = gdal.OpenEx(raster_path, gdal.OF_RASTER)
-    band = raster.GetRasterBand(1)
-    stats = band.GetStatistics(True, True)
-    min_value = 0
-    max_value = stats[1]*0.9
-    return min_value, max_value
+def get_percentiles(base_raster_path, min_percentile, max_percentile):
+    base_raster = gdal.Open(base_raster_path, gdal.GA_ReadOnly)
+    width = base_raster.RasterXSize // 4
+    height = base_raster.RasterYSize // 4
+
+    warp_options = gdal.WarpOptions(
+        width=width,
+        height=height,
+        resampleAlg=gdal.GRA_NearestNeighbour
+    )
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.tif', dir='.') as tmp_file:
+        tmp_file.close()
+        output_raster_path = tmp_file.name
+        gdal.Warp(output_raster_path, base_raster, options=warp_options)
+        base_raster = None
+
+        warped_raster = gdal.OpenEx(output_raster_path)
+        band = warped_raster.GetRasterBand(1)
+        nodata = band.GetNoDataValue()
+        base_array = band.ReadAsArray()
+        nodata_mask = ((base_array == nodata) | np.isnan(base_array)) | (base_array == 0)
+        valid_base_array = base_array[~nodata_mask]
+        base_array = None
+        nodata_mask = None
+        base_min = np.percentile(valid_base_array, min_percentile)
+        base_max = np.percentile(valid_base_array, max_percentile)
+        valid_base_array = None
+        band = None
+        warped_raster = None
+        os.remove(output_raster_path)
+
+    return base_min, base_max
 
 
 def cogit(file_path, target_dir):
@@ -352,7 +380,7 @@ def cogit(file_path, target_dir):
     cog_file_path = os.path.join(
         target_dir,
         f'cog_{os.path.basename(file_path)}')
-    options = ('COMPRESS=LZW', 'NUM_THREADS=ALL_CPUS', 'BIGTIFF=YES')
+    options = ('COMPRESS=LZW', 'NUM_THREADS=ALL_CPUS', 'BIGTIFF=YES', 'RESAMPLING=mode')
     LOGGER.info(f'convert {file_path} to COG {cog_file_path} with {options}')
     cog_raster = cog_driver.CreateCopy(
         cog_file_path, base_raster, options=options,
@@ -363,7 +391,7 @@ def cogit(file_path, target_dir):
 
 
 def style_rasters(
-        country_outline_vector_path, raster_paths, category_list,
+        country_outline_vector_path, country_id, raster_paths, category_list,
         stack_vertical, color_map_or_list, color_palette_list,
         percentile_or_categorical_list,
         base_min_max_list, fig_size, fig_path, overall_title,
@@ -399,11 +427,17 @@ def style_rasters(
             cog_path = os.path.join(
                 REMOTE_BUCKET_PATH, os.path.basename(cog_task.get()))
 
-            file.write('{fig_title:"' + f'{overall_title}, {subfigure_title}' + '",\n')
-            file.write('palette:[' + ','.join([f'"#{x}"' for x in color_palette]) + '],\n')
-            file.write('labels:[' + ','.join([f'"{x}"' for x in category_labels]) + '],\n')
-            file.write(f'min_val:{base_min},\n max_val:{base_max},\n')
-            file.write(f'remote_path: "{cog_path}",' + '\n},\n')
+            key = f'{country_id}_{overall_title}_{subfigure_title}'
+            file.write(f'\t"{key}"'+': {\n')
+            file.write('\t\tfig_title:"' + f'{overall_title}, {subfigure_title}' + '",\n')
+            file.write(f'\t\tcountry:"{country_id}",\n')
+            file.write('\t\tlabels:[' + ','.join([f'"{x}"' for x in category_labels]) + '],\n')
+            file.write('\t\tvisParams:{\n')
+            file.write(f'\t\t\tmin:{base_min},\n')
+            file.write(f'\t\t\tmax:{base_max},\n')
+            file.write('\t\t\tpalette:[' + ','.join([f'"{x.strip("#")}"' for x in color_palette[1:]]) + '],\n')
+            file.write('\t\t},\n')
+            file.write(f'\t\tremote_path: "{cog_path}",' + '\n\t},\n')
             file.flush()
     return
 
@@ -917,6 +951,7 @@ def main():
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
             style_rasters(
                 COUNTRY_OUTLINE_PATH[country],
+                country,
                 [overlap_combo_service_path],
                 [category_list],
                 country == 'IDN',
@@ -968,14 +1003,14 @@ def main():
 
             style_rasters(
                 COUNTRY_OUTLINE_PATH[country],
+                country,
                 [diff_path,
                  service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],
-                [[f'{LOW_PERCENTILE}th percentile',
-                  '50th percentile',
-                 f'{HIGH_PERCENTILE}th percentile']] * 3 +
-                [['none', 'benefiting roads only', 'benefiting people only',
+                [[f'{percentile:.0f}th percentile' for percentile in
+                  np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
+                [['benefiting roads only', 'benefiting people only',
                  'benefiting both']],
                 country == 'IDN',
                 [overlap_colormap(service),
@@ -1026,13 +1061,13 @@ def main():
 
             style_rasters(
                 COUNTRY_OUTLINE_PATH[country],
+                country,
                 [diff_path,
                  service_dspop_path, None,
                  top_10th_percentile_service_dspop_path],
-                [[f'{LOW_PERCENTILE}th percentile',
-                  '50th percentile',
-                 f'{HIGH_PERCENTILE}th percentile']] * 3 +
-                [['none', 'benefiting roads only', 'benefiting people only',
+                [[f'{percentile:.0f}th percentile' for percentile in
+                  np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
+                [['benefiting roads only', 'benefiting people only',
                  'benefiting both']],
                 country == 'IDN',
                 [overlap_colormap(service),
@@ -1094,13 +1129,13 @@ def main():
 
             style_rasters(
                 COUNTRY_OUTLINE_PATH[country],
+                country,
                 [None, service_dspop_path,
                  service_road_path,
                  combined_percentile_service_path],
-                [[f'{LOW_PERCENTILE}th percentile',
-                  '50th percentile',
-                 f'{HIGH_PERCENTILE}th percentile']] * 3 +
-                [['none', 'benefiting roads only', 'benefiting people only',
+                [[f'{percentile:.0f}th percentile' for percentile in
+                  np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
+                [['benefiting roads only', 'benefiting people only',
                  'benefiting both']],
                 country == 'IDN',
                 [overlap_colormap(service),
@@ -1181,7 +1216,7 @@ def calculate_vector_area_km2(vector_path, target_epsg):
 
 if __name__ == '__main__':
     with open(RASTER_STYLE_LOG_PATH, 'w') as file:
-        file.write('raster_list=[')
+        file.write('var datasets={\n\t"(*clear*)": "",\n')
     main()
     with open(RASTER_STYLE_LOG_PATH, 'a') as file:
-        file.write('];\n')
+        file.write('};\n')

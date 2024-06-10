@@ -47,14 +47,17 @@ KEY_BIODIVERSITY_AREAS = {
     'IDN': 'D:/repositories/wwf-sipa/data/protected_areas/Indonesia_KBA',
 }
 
+
 SERVICE_OVERLAP_RASTERS = {
     'PH': [
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_PH_conservation_inf_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_PH_restoration_service_overlap_count.tif",],
+        r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_PH_conservation_each ecosystem service.tif",
+        r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
+    ],
     'IDN': [
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_IDN_conservation_inf_service_overlap_count.tif",
-        "D:/repositories/wwf-sipa/post_processing_results_no_road_recharge/summed_services/10_IDN_restoration_service_overlap_count.tif",],
-    }
+        r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_IDN_conservation_each ecosystem service.tif",
+        r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_IDN_restoration_each ecosystem service.tif",
+    ],
+}
 
 RESULTS_DIR = f'workspace_{os.path.basename(os.path.splitext(__file__)[0])}'
 WORKING_DIR = os.path.join(RESULTS_DIR, 'working_dir')
