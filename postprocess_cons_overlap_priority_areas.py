@@ -98,8 +98,8 @@ def area_of_pixel_km2(pixel_size, center_lat):
 
 def main():
     """Entry point."""
-    task_graph = taskgraph.TaskGraph(RESULTS_DIR, os.cpu_count()//2+2, 15.0)
-    #task_graph = taskgraph.TaskGraph(RESULTS_DIR, -1)
+    #task_graph = taskgraph.TaskGraph(RESULTS_DIR, os.cpu_count()//2+2, 15.0)
+    task_graph = taskgraph.TaskGraph(RESULTS_DIR, -1)
 
     pixel_counts_per_region = {}
     for region_id in REGIONS_TO_ANALYZE:
@@ -109,6 +109,8 @@ def main():
                 f'%s_{region_id}_in_pa%s' % os.path.splitext(os.path.basename(
                     service_overlap_raster_path))
                 )
+            vector_info = geoprocessing.get_vector_info(PROTECTED_AREAS[region_id])
+            raster_info = geoprocessing.get_raster_info(service_overlap_raster_path);
             pa_overlap_task = task_graph.add_task(
                 func=geoprocessing.mask_raster,
                 args=(
@@ -175,7 +177,7 @@ def main():
     task_graph.join()
     task_graph.close()
     pixel_count_file = open(os.path.join(
-        RESULTS_DIR, 'area_analysis_of_priority_areas.csv'), 'w')
+        RESULTS_DIR, 'area_analysis_of_priority_areas_v2.csv'), 'w')
     for region_id, pixel_counts in pixel_counts_per_region.items():
         pixel_count_file.write(f'{region_id}\n')
         pixel_count_file.write(f'service,area in Ha,% of total service\n')
@@ -202,7 +204,8 @@ def count_valid_pixels(raster_path):
             offset_dict['xoff']+offset_dict['win_xsize']/2,
             offset_dict['yoff']+offset_dict['win_ysize']/2)
         pixel_area_in_ha = 100*area_of_pixel_km2(raster_info['pixel_size'][0], y_coord)
-        local_valid_count = numpy.count_nonzero(array != nodata)
+        local_valid_count = numpy.count_nonzero(
+            (array != nodata) & (array != 0.0))
         valid_count += local_valid_count
         total_area_ha += pixel_area_in_ha*local_valid_count
     return valid_count, total_area_ha
@@ -213,12 +216,16 @@ def exclude_by_raster(
     """Exclude regions in the base that are defined in the excluder."""
     base_nodata = geoprocessing.get_raster_info(
         base_raster_path)['nodata'][0]
+    if base_nodata is None:
+        base_nodata = 0
     excluder_nodata = geoprocessing.get_raster_info(
         excluder_raster_path)['nodata'][0]
 
     def _op(base_array, excluder_array):
         result = base_array.copy()
-        result[excluder_array != excluder_nodata] = base_nodata
+        if excluder_nodata is not None:
+            result[excluder_array != excluder_nodata] = base_nodata
+        result[excluder_array != 0] = base_nodata
         return result
 
     geoprocessing.raster_calculator(
