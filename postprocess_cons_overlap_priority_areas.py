@@ -13,19 +13,14 @@ Inputs to use:
     IDN PA  D:/repositories/wwf-sipa/data/protected_areas/ID_Combined PAs
     IDN KBA D:/repositories/wwf-sipa/data/protected_areas/Indonesia_KBA
 """
-import collections
 import os
 import logging
 import sys
-import subprocess
-import shutil
-import tempfile
 
 from ecoshard import taskgraph
 from ecoshard import geoprocessing
 from osgeo import gdal
-import numpy
-from osgeo import ogr
+from osgeo import osr
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -144,7 +139,7 @@ def main():
         RESULTS_DIR, 'area_analysis_of_priority_areas_v2.csv'), 'w')
     for region_id, raster_area_ in raster_area_per_region.items():
         pixel_count_file.write(f'{region_id}\n')
-        pixel_count_file.write(f'service,area in km2,% of total service\n')
+        pixel_count_file.write('service,area in km2,% of total service\n')
         first_val = None
         for service_key, task in raster_area_.items():
             area_in_km2 = task.get()
