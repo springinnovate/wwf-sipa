@@ -1,4 +1,5 @@
 from pathlib import Path
+import collections
 import csv
 import glob
 import itertools
@@ -74,6 +75,8 @@ EACH_ECOSYSTEM_SERVICE_ID = 'each ecosystem service'
 OVERLAPPING_SERVICES_ID = 'overlapping services'
 ROAD_AND_PEOPLE_BENFICIARIES_ID = 'road and people beneficiaries'
 PEOPLE_ONLY_BENEFICIARIES_ID = 'people beneficiares'
+CONSERVATION_OVERLAP_HEATMAP = 'conservation overlap heatmap'
+RESTORATION_OVERLAP_HEATMAP = 'restoration overlap heatmap'
 
 NODATA_COLOR = '#ffffff'
 COLOR_LIST = {
@@ -82,9 +85,11 @@ COLOR_LIST = {
     SEDIMENT_SERVICE: [NODATA_COLOR, '#ffbd4b', '#cc720a', '#8c4e07', '#4d2b04'],
     RECHARGE_SERVICE: [NODATA_COLOR, '#cfffff', '#72b1cc', '#4f7abc', '#2b424d'],
     FLOOD_MITIGATION_SERVICE: [NODATA_COLOR, '#d9fff8', '#adccc6', '#778c88', '#414d4a'],
-    CV_SERVICE: [NODATA_COLOR, '#e5ffc9', '#c1cc42', '#848c2e', '#484D19'],
+    CV_SERVICE: [NODATA_COLOR, '#f4cccc', '#ea9999', '#e06666', '#990000'],
     EACH_ECOSYSTEM_SERVICE_ID: [NODATA_COLOR, '#CC720A', '#72B1CC', '#ADCCC6', '#C1CC43', '#000000'],
     OVERLAPPING_SERVICES_ID: [NODATA_COLOR, '#8C4E07', '#4F7A8C', '#778C88', '#848C2E', '#F0027F'],
+    CONSERVATION_OVERLAP_HEATMAP: [NODATA_COLOR, '#DCEAB6', '#B3C169', '#828434', '#464A1E'],
+    RESTORATION_OVERLAP_HEATMAP: [NODATA_COLOR, '#D0E4D6', '#9BC8AA', '#42A16E', '#008742']
 }
 
 COUNTRY_OUTLINE_PATH = {
@@ -865,7 +870,7 @@ def do_analyses(task_graph):
                 row_df = pandas.DataFrame([row_data])
                 result_df = pandas.concat([result_df, row_df], ignore_index=True)
 
-    result_df.to_csv('analysis.csv', index=False, na_rep='')
+    result_df.to_csv('analysisv2222.csv', index=False, na_rep='')
     LOGGER.debug('finished analysis, exitin')
 
 
@@ -894,6 +899,8 @@ def main():
         ((), (CV_SERVICE,), 1, operator.eq, 'coastal v'),
         ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 2, operator.ge, '> 1 service overlap'),
     ]
+
+    combined_dspop_overlap_service_map = collections.defaultdict(dict)
 
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
@@ -930,6 +937,7 @@ def main():
                         else:
                             # doesn't exist but we don't lose anything by just doing the dspop
                             dspop_road_overlap_path = top_10th_percentile_service_dspop_path
+                        combined_dspop_overlap_service_map[f'{country}_{scenario}'][service] = dspop_road_overlap_path
                         service_subset.append(dspop_road_overlap_path)
 
                 overlap_sets.append((required_service_subset, optional_service_subset, overlap_threshold, comparitor_op))
@@ -962,6 +970,26 @@ def main():
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI, task_graph)
+
+    # make 'heat map' overlap
+    for country_scenario, ds_pop_rasters in combined_dspop_overlap_service_map.items():
+        four_service_overlap_path = os.path.join(
+            OVERLAP_DIR, f'four_service_overlap_{country_scenario}.tif')
+        task_graph.add_task(
+            func=add_masks,
+            args=ds_pop_rasters.values(),
+            target_path_list=[four_service_overlap_path],
+            task_name=f'four overlaps for {country_scenario}')
+
+        country, scenario = country_scenario.split('_')
+        style_rasters(
+            COUNTRY_OUTLINE_PATH[country], country,
+            [four_service_overlap_path],
+            ['1 service', '2 services', '3 services', '4 services'],
+            None, None,
+            COLOR_LIST[CONSERVATION_OVERLAP_HEATMAP] if scenario =='conservation' else COLOR_LIST[RESTORATION_OVERLAP_HEATMAP],
+            'categorical', None, None, None, "Top 10% of service overlap for ",
+            [f'{country} {scenario}'], None, None)
 
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
@@ -1163,8 +1191,38 @@ def main():
             LOGGER.error(f'{service} {country} {scenario}')
             raise
 
+    # calculate total overlap
+
+
+    do_analyses(task_graph)
+
     task_graph.close()
     task_graph.join()
+
+
+def add_masks(raster_path_list, target_raster_path):
+    """Where a raster is > 0, add a "1" to the final result."""
+    nodata_list = [
+        geoprocessing.get_raster_info(path)['nodata'][0]
+        for path in raster_path_list]
+    target_nodata = -1
+    def _add_masks(*array_list):
+        result = numpy.zeros(array_list[0].shape, dtype=int)
+        valid_mask = numpy.zeros(result.shape, dtype=bool)
+        for nodata, array in zip(nodata_list, array_list):
+            if nodata is not None:
+                local_valid_mask = array != nodata
+            else:
+                local_valid_mask = numpy.ones(result.shape, dtype=bool)
+            result[valid_mask] += array[local_valid_mask] > 0
+            valid_mask |= local_valid_mask
+        result[~valid_mask] = target_nodata
+        return result
+
+    geoprocessing.raster_calculator(
+        [(path, 1) for path in raster_path_list], _add_masks,
+        target_raster_path, gdal.GDT_Int, target_nodata,
+        allow_different_blocksize=True)
 
 
 def calculate_pixel_area_km2(base_raster_path, target_epsg):
