@@ -972,24 +972,33 @@ def main():
                 figure_title, [None], GLOBAL_DPI, task_graph)
 
     # make 'heat map' overlap
+    LOGGER.debug(f'************ thius is the working map: {combined_dspop_overlap_service_map}')
     for country_scenario, ds_pop_rasters in combined_dspop_overlap_service_map.items():
         four_service_overlap_path = os.path.join(
             OVERLAP_DIR, f'four_service_overlap_{country_scenario}.tif')
         task_graph.add_task(
             func=add_masks,
-            args=ds_pop_rasters.values(),
+            args=(ds_pop_rasters.values(), four_service_overlap_path),
             target_path_list=[four_service_overlap_path],
             task_name=f'four overlaps for {country_scenario}')
 
         country, scenario = country_scenario.split('_')
         style_rasters(
-            COUNTRY_OUTLINE_PATH[country], country,
-            [four_service_overlap_path],
-            ['1 service', '2 services', '3 services', '4 services'],
-            None, None,
-            COLOR_LIST[CONSERVATION_OVERLAP_HEATMAP] if scenario =='conservation' else COLOR_LIST[RESTORATION_OVERLAP_HEATMAP],
-            'categorical', None, None, None, "Top 10% of service overlap for ",
-            [f'{country} {scenario}'], None, None)
+            COUNTRY_OUTLINE_PATH[country],
+            country,
+            [four_service_overlap_path], #raster_paths
+            [['1 service', '2 services', '3 services', '4 services']], #category_list
+            None, # stack vertical
+            None, # color map or list
+            [COLOR_LIST[CONSERVATION_OVERLAP_HEATMAP] if scenario =='conservation' else COLOR_LIST[RESTORATION_OVERLAP_HEATMAP]], #color palette list
+            ['categorical'],  #percentil or catgrical
+            [None], # base min max list
+            None, # fig size
+            None, # fig path
+            "Top 10% of service overlap for ", # overall title
+            [f'{country} {scenario}'], # subfigure title
+            None,  # dpi
+            task_graph) #task graph
 
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
@@ -1202,6 +1211,14 @@ def main():
 
 def add_masks(raster_path_list, target_raster_path):
     """Where a raster is > 0, add a "1" to the final result."""
+
+    aligned_rasters = [
+        os.path.join(ALGINED_DIR, f'aligned_for_add_masks_{os.path.basename(path)}')
+        for path in raster_path_list]
+    geoprocessing.align_and_resize_raster_stack(
+        raster_path_list, aligned_rasters, ['near']*4,
+        GLOBAL_PIXEL_SIZE, 'intersection')
+
     nodata_list = [
         geoprocessing.get_raster_info(path)['nodata'][0]
         for path in raster_path_list]
@@ -1214,14 +1231,14 @@ def add_masks(raster_path_list, target_raster_path):
                 local_valid_mask = array != nodata
             else:
                 local_valid_mask = numpy.ones(result.shape, dtype=bool)
-            result[valid_mask] += array[local_valid_mask] > 0
+            result[local_valid_mask] += array[local_valid_mask] > 0
             valid_mask |= local_valid_mask
         result[~valid_mask] = target_nodata
         return result
 
     geoprocessing.raster_calculator(
-        [(path, 1) for path in raster_path_list], _add_masks,
-        target_raster_path, gdal.GDT_Int, target_nodata,
+        [(path, 1) for path in aligned_rasters], _add_masks,
+        target_raster_path, gdal.GDT_Int16, target_nodata,
         allow_different_blocksize=True)
 
 
