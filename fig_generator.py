@@ -911,6 +911,10 @@ def main():
             overlap_sets = []
             category_list = ['none']
             for required_service_tuple, optional_service_tuple, overlap_threshold, comparitor_op, legend_category in service_set:
+                if legend_category != 'recharge':
+                    # trying to fix the recharge figures
+                    continue
+
                 required_service_subset = []
                 optional_service_subset = []
                 category_list.append(legend_category)
@@ -970,6 +974,7 @@ def main():
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI, task_graph)
+    return
 
     # make 'heat map' overlap
     LOGGER.debug(f'************ thius is the working map: {combined_dspop_overlap_service_map}')
@@ -1290,8 +1295,8 @@ def calculate_vector_area_km2(vector_path, target_epsg):
 
 
 if __name__ == '__main__':
-    with open(RASTER_STYLE_LOG_PATH, 'w') as file:
-        file.write('var datasets={\n\t"(*clear*)": "",\n')
+    # with open(RASTER_STYLE_LOG_PATH, 'w') as file:
+    #     file.write('var datasets={\n\t"(*clear*)": "",\n')
     main()
-    with open(RASTER_STYLE_LOG_PATH, 'a') as file:
-        file.write('};\n')
+    # with open(RASTER_STYLE_LOG_PATH, 'a') as file:
+    #     file.write('};\n')
