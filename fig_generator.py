@@ -1103,7 +1103,7 @@ def main():
                  top_10th_percentile_service_dspop_path],
                 [[f'{percentile:.0f}th percentile' for percentile in
                   np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
-                [['benefiting people only',]],
+                [['none', 'benefiting people only',]],
                 country == 'IDN',
                 [overlap_colormap(service),
                  overlap_colormap(service),
