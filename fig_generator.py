@@ -444,7 +444,6 @@ def style_rasters(
             file.write('\t\t},\n')
             file.write(f'\t\tremote_path: "{cog_path}",' + '\n\t},\n')
             file.flush()
-    return
 
     outline_gdf = geopandas.read_file(country_outline_vector_path)
 
