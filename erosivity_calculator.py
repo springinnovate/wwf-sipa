@@ -145,6 +145,8 @@ def main():
     parser.add_argument(
         '--status', action='store_true', help='To check task status')
     parser.add_argument(
+        '--kill_task', action='store_true', help='Kill all running tasks')
+    parser.add_argument(
         '--dataset_scale', type=float, default=DATASET_SCALE, help=(
             f'Override the base scale of {DATASET_SCALE}m to '
             f'whatever you desire.'))
@@ -153,10 +155,17 @@ def main():
     args = parser.parse_args()
     authenticate()
 
-    if args.status:
+    if args.status or args.kill_task:
         # Loop through each task to print its status
         for task in ee.batch.Task.list():
-            print(task)
+            if args.kill_task:
+                task.cancel()
+            status = task.status()
+            print(status)
+            if 'error_message' in status:
+                print("Error Message:", status['error_message'])
+            if 'error_details' in status:
+                print("Error Details:", status['error_details'])
             print("-----")
         return
 
@@ -225,7 +234,8 @@ def main():
                 crs=DATASET_CRS,
                 region=ee_poly.geometry().bounds(),
                 fileFormat='GeoTIFF',
-                ).start()
+                maxPixels=1000000000,
+            ).start()
 
             print(
                 f'downloading erosivity raster to google drive: '
