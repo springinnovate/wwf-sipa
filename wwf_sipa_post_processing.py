@@ -232,6 +232,12 @@ def main():
     DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_inf_ssp245.tif")
     DIFF_FLOOD_MITIGATION_IDN_RESTORATION = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_restoration.tif")
     DIFF_FLOOD_MITIGATION_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_restoration_ssp245.tif")
+
+    # TODO: This is the template for 'worst case''
+    DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_all.tif")
+    DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_all_ssp245.tif")
+
+
     DIFF_FLOOD_MITIGATION_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_conservation_inf.tif")
     DIFF_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_conservation_inf_ssp245.tif")
     DIFF_FLOOD_MITIGATION_PH_RESTORATION = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_restoration.tif")
@@ -412,6 +418,9 @@ def main():
         )
     ]
 
+    # for the template, DIFF_SEDIMENT_IDN_CONSERVATION_ALL should look like DIFF_SEDIMENT_IDN_CONSERVATION_INF
+    # we subtract the bad one minus the good one for sediment retention and quickflow, but the good one minus the bad one for recharge
+    # and in this case restoration is "good" compared to baseline and infra or worstcase is "bad" compared to baseline
     SUBTRACT_RASTER_SET = [
         (r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_historical_climate\stitched_sed_export_wwf_IDN_baseline_historical_climate.tif",
          r"D:\repositories\ndr_sdr_global\wwf_IDN_restoration_historical_climate\stitched_sed_export_wwf_IDN_restoration_historical_climate.tif",
@@ -487,6 +496,7 @@ def main():
          DIFF_QUICKFLOW_PH_CONSERVATION_INF_SSP245)
         ]
 
+    # TODO: for the template, DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_ALL should look like DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF
     MULTIPLY_RASTER_SET = [
         (r"D:\repositories\wwf-sipa\idn_downstream_flood_risk.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_historical_climate\QF_wwf_IDN_baseline_historical_climate.tif",
