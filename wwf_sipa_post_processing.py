@@ -21,7 +21,7 @@ logging.basicConfig(
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_no_road_recharge'
+RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_updated_R_worstcase_2024_11_3'
 CLIMATE_RESILIENT_PERCENTILES = os.path.join(RESULTS_DIR, 'climate_resilient_results')
 MASK_SUBSET_DIR = os.path.join(RESULTS_DIR, 'mask_service_subsets')
 for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES, MASK_SUBSET_DIR]:
@@ -442,12 +442,12 @@ def main():
             DIFF_SEDIMENT_IDN_CONSERVATION_INF_SSP245
         ),
         (
-            r"D:\repositories\ndr_sdr_global\wwf_IDN_infra_historical_climate\stitched_sed_export_wwf_IDN_infra_historical_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_worstcase_historical_climate\stitched_sed_export_wwf_IDN_worstcase_historical_climate.tif",
             r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_historical_climate\stitched_sed_export_wwf_IDN_baseline_historical_climate.tif",
             DIFF_SEDIMENT_IDN_CONSERVATION_ALL
         ),
         (
-            r"D:\repositories\ndr_sdr_global\wwf_IDN_infra_ssp245_climate\stitched_sed_export_wwf_IDN_infra_ssp245_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_worstcase_ssp245_climate\stitched_sed_export_wwf_IDN_worstcase_ssp245_climate.tif",
             r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_ssp245_climate\stitched_sed_export_wwf_IDN_baseline_ssp245_climate.tif",
             DIFF_SEDIMENT_IDN_CONSERVATION_ALL_SSP245
         ),
@@ -472,12 +472,12 @@ def main():
             DIFF_SEDIMENT_PH_CONSERVATION_INF_SSP245
         ),
         (
-            r"D:\repositories\ndr_sdr_global\wwf_PH_infra_historical_climate\stitched_sed_export_wwf_PH_infra_historical_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_PH_worstcase_historical_climate\stitched_sed_export_wwf_PH_worstcase_historical_climate.tif",
             r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_historical_climate\stitched_sed_export_wwf_PH_baseline_historical_climate.tif",
             DIFF_SEDIMENT_PH_CONSERVATION_ALL
         ),
         (
-            r"D:\repositories\ndr_sdr_global\wwf_PH_infra_ssp245_climate\stitched_sed_export_wwf_PH_infra_ssp245_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_PH_worstcase_ssp245_climate\stitched_sed_export_wwf_PH_worstcase_ssp245_climate.tif",
             r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_ssp245_climate\stitched_sed_export_wwf_PH_baseline_ssp245_climate.tif",
             DIFF_SEDIMENT_PH_CONSERVATION_ALL_SSP245
         )
