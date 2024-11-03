@@ -1,5 +1,4 @@
 from pathlib import Path
-import collections
 import csv
 import glob
 import itertools

@@ -55,7 +55,7 @@ def join_mask(mask_a_path, mask_b_path, joined_mask_path):
         mask_a_path)['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
         [mask_a_path, mask_b_path], aligned_target_raster_path_list,
-        ['near']*2, pixel_size, 'intersection')
+        ['near'] * 2, pixel_size, 'intersection')
 
     pre_cog_target = os.path.join(aligned_dir, os.path.basename(joined_mask_path))
     geoprocessing.raster_calculator(
@@ -76,7 +76,7 @@ def add_rasters(raster_path_list, target_raster_path, target_datatype):
     pixel_size = geoprocessing.get_raster_info(
         raster_path_list[0])['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
-        raster_path_list, aligned_target_raster_path_list, ['near']*len(raster_path_list),
+        raster_path_list, aligned_target_raster_path_list, ['near'] * len(raster_path_list),
         pixel_size, 'intersection')
 
     def _sum_op(*array_list):
@@ -97,7 +97,7 @@ def make_top_nth_percentile_masks(
     """Mask base by mask such that any nodata in mask is set to nodata in base."""
     ordered_top_percentile_list = list(sorted(top_percentile_list, reverse=True))
     # need to convert this to "gte" format so if top 10th percent, we get 90th percentile
-    raw_percentile_list = [100-float(x) for x in ordered_top_percentile_list]
+    raw_percentile_list = [100 - float(x) for x in ordered_top_percentile_list]
     working_dir = tempfile.mkdtemp(
         prefix='percentile_sort_', dir=os.path.dirname(target_raster_path_pattern))
     os.makedirs(working_dir, exist_ok=True)
@@ -143,7 +143,7 @@ def raster_op(
         base_raster_path_list[0])['pixel_size']
     geoprocessing.align_and_resize_raster_stack(
         base_raster_path_list, aligned_target_raster_path_list,
-        ['near']*len(base_raster_path_list), pixel_size, 'intersection')
+        ['near'] * len(base_raster_path_list), pixel_size, 'intersection')
 
     raster_info = geoprocessing.get_raster_info(base_raster_path_list[0])
 
@@ -200,9 +200,9 @@ def main():
 
     # diff x benes x services (4) x scenarios (2) x climage (2)
     country_list = ['PH', 'IDN']
+    # TODO: do i need to update this vector?
     country_vector_list = [
         ('PH', './data/admin_boundaries/PH_gdam2.gpkg'),
-        #('IDN', './data/admin_boundaries/IDN_gdam3.gpkg'),
         ('IDN', './data/admin_boundaries/IDN_adm1.gpkg'),
     ]
 
@@ -233,11 +233,6 @@ def main():
     DIFF_FLOOD_MITIGATION_IDN_RESTORATION = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_restoration.tif")
     DIFF_FLOOD_MITIGATION_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_restoration_ssp245.tif")
 
-    # TODO: This is the template for 'worst case''
-    DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_all.tif")
-    DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_all_ssp245.tif")
-
-
     DIFF_FLOOD_MITIGATION_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_conservation_inf.tif")
     DIFF_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_conservation_inf_ssp245.tif")
     DIFF_FLOOD_MITIGATION_PH_RESTORATION = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_restoration.tif")
@@ -258,16 +253,20 @@ def main():
     DIFF_RECHARGE_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_recharge_PH_conservation_inf_ssp245.tif")
     DIFF_RECHARGE_PH_RESTORATION = os.path.join(RESULTS_DIR, 'diff_recharge_PH_restoration.tif')
     DIFF_RECHARGE_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_recharge_PH_restoration_ssp245.tif")
+    FLOOD_MITIGATION_IDN_BASELINE_HISTORICAL_CLIMATE = os.path.join(RESULTS_DIR, "flood_mitigation_IDN_baseline_historical_climate.tif")
+    FLOOD_MITIGATION_PH_BASELINE_HISTORICAL_CLIMATE = os.path.join(RESULTS_DIR, "flood_mitigation_PH_baseline_historical_climate.tif")
+    DIFF_SEDIMENT_IDN_CONSERVATION_ALL = os.path.join(RESULTS_DIR, 'diff_sediment_IDN_conservation_all.tif')
     DIFF_SEDIMENT_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_sediment_IDN_conservation_inf.tif')
+    DIFF_SEDIMENT_IDN_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_IDN_conservation_all_ssp245.tif")
     DIFF_SEDIMENT_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_IDN_conservation_inf_ssp245.tif")
     DIFF_SEDIMENT_IDN_RESTORATION = os.path.join(RESULTS_DIR, 'diff_sediment_IDN_restoration.tif')
     DIFF_SEDIMENT_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_IDN_restoration_ssp245.tif")
+    DIFF_SEDIMENT_PH_CONSERVATION_ALL = os.path.join(RESULTS_DIR, 'diff_sediment_PH_conservation_all.tif')
     DIFF_SEDIMENT_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_sediment_PH_conservation_inf.tif')
+    DIFF_SEDIMENT_PH_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_PH_conservation_all_ssp245.tif")
     DIFF_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_PH_conservation_inf_ssp245.tif")
     DIFF_SEDIMENT_PH_RESTORATION = os.path.join(RESULTS_DIR, 'diff_sediment_PH_restoration.tif')
     DIFF_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_PH_restoration_ssp245.tif")
-    FLOOD_MITIGATION_IDN_BASELINE_HISTORICAL_CLIMATE = os.path.join(RESULTS_DIR, "flood_mitigation_IDN_baseline_historical_climate.tif")
-    FLOOD_MITIGATION_PH_BASELINE_HISTORICAL_CLIMATE = os.path.join(RESULTS_DIR, "flood_mitigation_PH_baseline_historical_climate.tif")
 
     DSPOP_SERVICE_FLOOD_MITIGATION_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_IDN_conservation_inf.tif")
     DSPOP_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_IDN_restoration.tif")
@@ -282,12 +281,17 @@ def main():
     DSPOP_SERVICE_RECHARGE_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_restoration.tif")
     DSPOP_SERVICE_RECHARGE_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_conservation_inf.tif")
     DSPOP_SERVICE_RECHARGE_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_restoration.tif")
+
+    DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_conservation_all.tif")
     DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_conservation_inf.tif")
     DSPOP_SERVICE_SEDIMENT_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_restoration.tif")
+    DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_all.tif")
     DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_inf.tif")
     DSPOP_SERVICE_SEDIMENT_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_restoration.tif")
+    ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_all.tif")
     ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_inf.tif")
     ROAD_SERVICE_SEDIMENT_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_restoration.tif")
+    ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_all.tif")
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_inf.tif")
     ROAD_SERVICE_SEDIMENT_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_road_sediment_PH_restoration.tif")
 
@@ -296,20 +300,23 @@ def main():
     DSPOP_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_PH_conservation_inf_ssp245.tif")
     DSPOP_SERVICE_FLOOD_MITIGATION_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_PH_restoration_ssp245.tif")
     DSPOP_SERVICE_RECHARGE_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_conservation_inf_ssp245.tif")
+    DSPOP_SERVICE_RECHARGE_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_restoration_ssp245.tif")
+    DSPOP_SERVICE_RECHARGE_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_conservation_inf_ssp245.tif")
+    DSPOP_SERVICE_RECHARGE_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_restoration_ssp245.tif")
+    DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_conservation_all_ssp245.tif")
+    DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_conservation_inf_ssp245.tif")
+    DSPOP_SERVICE_SEDIMENT_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_restoration_ssp245.tif")
+    DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_all_ssp245.tif")
+    DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_inf_ssp245.tif")
+    DSPOP_SERVICE_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_restoration_ssp245.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_IDN_conservation_inf_ssp245.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_IDN_restoration_ssp245.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_conservation_inf_ssp245.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_restoration_ssp245.tif")
-
-    DSPOP_SERVICE_RECHARGE_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_restoration_ssp245.tif")
-    DSPOP_SERVICE_RECHARGE_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_conservation_inf_ssp245.tif")
-    DSPOP_SERVICE_RECHARGE_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_restoration_ssp245.tif")
-    DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_conservation_inf_ssp245.tif")
-    DSPOP_SERVICE_SEDIMENT_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_restoration_ssp245.tif")
-    DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_inf_ssp245.tif")
-    DSPOP_SERVICE_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_restoration_ssp245.tif")
+    ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_all_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_inf_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_restoration_ssp245.tif")
+    ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_all_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_inf_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_restoration_ssp245.tif")
 
@@ -328,8 +335,7 @@ def main():
     # x diff between DSPOP and ROAD 'service_...' output files
     # x check that "diff" is an output to a multiply and that the filename makes sense
     ADD_RASTER_SET = [
-        (
-         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\forest_mangrove_population_less_than_2m_value_index.tif",
+        (r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\forest_mangrove_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\forest_mangroves_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\reefs_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\saltmarsh_population_less_than_2m_value_index.tif",
@@ -338,9 +344,8 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\woody_crop_population_less_than_2m_value_index.tif",
          DS_POP_SERVICE_CV_IDN_CONSERVATION_INF_RESULT
-        ),
-        (
-         r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\woody_crop_roads_within_15km_value_index.tif",
+         ),
+        (r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\woody_crop_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\forest_mangrove_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\forest_mangroves_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\reefs_roads_within_15km_value_index.tif",
@@ -349,9 +354,8 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\seagrass_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_baseline\value_rasters\secondary forest_roads_within_15km_value_index.tif",
          ROAD_SERVICE_CV_IDN_CONSERVATION_INF_RESULT
-        ),
-        (
-         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangrove_population_less_than_2m_value_index.tif",
+         ),
+        (r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangrove_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangroves_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\reefs_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\saltmarsh_population_less_than_2m_value_index.tif",
@@ -360,9 +364,8 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\woody_crop_population_less_than_2m_value_index.tif",
          DS_POP_SERVICE_CV_IDN_RESTORATION_RESULT
-        ),
-        (
-         r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\woody_crop_roads_within_15km_value_index.tif",
+         ),
+        (r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\woody_crop_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangrove_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\forest_mangroves_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\reefs_roads_within_15km_value_index.tif",
@@ -371,9 +374,8 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\seagrass_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\IDN_restoration\value_rasters\secondary forest_roads_within_15km_value_index.tif",
          ROAD_SERVICE_CV_IDN_RESTORATION_RESULT
-        ),
-        (
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\brush_population_less_than_2m_value_index.tif",
+         ),
+        (r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\brush_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\grassland_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\perennial_crop_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\forest_mangroves_population_less_than_2m_value_index.tif",
@@ -382,9 +384,8 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\seagrass_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
          DS_POP_SERVICE_CV_PH_CONSERVATION_INF_RESULT
-        ),
-        (
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\brush_roads_within_15km_value_index.tif",
+         ),
+        (r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\brush_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\grassland_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\perennial_crop_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\forest_mangroves_roads_within_15km_value_index.tif",
@@ -393,9 +394,8 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\seagrass_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_baseline\value_rasters\secondary forest_roads_within_15km_value_index.tif",
          ROAD_SERVICE_CV_PH_CONSERVATION_INF_RESULT
-        ),
-        (
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_population_less_than_2m_value_index.tif",
+         ),
+        (r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\grassland_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\perennial_crop_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\forest_mangroves_population_less_than_2m_value_index.tif",
@@ -404,9 +404,8 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\seagrass_population_less_than_2m_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\secondary forest_population_less_than_2m_value_index.tif",
          DS_POP_SERVICE_CV_PH_RESTORATION_RESULT
-        ),
-        (
-         r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_roads_within_15km_value_index.tif",
+         ),
+        (r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\brush_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\grassland_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\perennial_crop_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\forest_mangroves_roads_within_15km_value_index.tif",
@@ -415,37 +414,74 @@ def main():
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\seagrass_roads_within_15km_value_index.tif",
          r"D:\repositories\coastal_risk_reduction\workspace\ph_restoration\value_rasters\secondary forest_roads_within_15km_value_index.tif",
          ROAD_SERVICE_CV_PH_RESTORATION_RESULT
-        )
+         ),
     ]
 
     # for the template, DIFF_SEDIMENT_IDN_CONSERVATION_ALL should look like DIFF_SEDIMENT_IDN_CONSERVATION_INF
     # we subtract the bad one minus the good one for sediment retention and quickflow, but the good one minus the bad one for recharge
     # and in this case restoration is "good" compared to baseline and infra or worstcase is "bad" compared to baseline
     SUBTRACT_RASTER_SET = [
-        (r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_historical_climate\stitched_sed_export_wwf_IDN_baseline_historical_climate.tif",
-         r"D:\repositories\ndr_sdr_global\wwf_IDN_restoration_historical_climate\stitched_sed_export_wwf_IDN_restoration_historical_climate.tif",
-         DIFF_SEDIMENT_IDN_RESTORATION),
-        (r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_ssp245_climate\stitched_sed_export_wwf_IDN_baseline_ssp245_climate.tif",
-         r"D:\repositories\ndr_sdr_global\wwf_IDN_restoration_ssp245_climate\stitched_sed_export_wwf_IDN_restoration_ssp245_climate.tif",
-         DIFF_SEDIMENT_IDN_RESTORATION_SSP245),
-        (r"D:\repositories\ndr_sdr_global\wwf_IDN_infra_historical_climate\stitched_sed_export_wwf_IDN_infra_historical_climate.tif",
-         r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_historical_climate\stitched_sed_export_wwf_IDN_baseline_historical_climate.tif",
-         DIFF_SEDIMENT_IDN_CONSERVATION_INF),
-        (r"D:\repositories\ndr_sdr_global\wwf_IDN_infra_ssp245_climate\stitched_sed_export_wwf_IDN_infra_ssp245_climate.tif",
-         r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_ssp245_climate\stitched_sed_export_wwf_IDN_baseline_ssp245_climate.tif",
-         DIFF_SEDIMENT_IDN_CONSERVATION_INF_SSP245),
-        (r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_historical_climate\stitched_sed_export_wwf_PH_baseline_historical_climate.tif",
-         r"D:\repositories\ndr_sdr_global\wwf_PH_restoration_historical_climate\stitched_sed_export_wwf_PH_restoration_historical_climate.tif",
-         DIFF_SEDIMENT_PH_RESTORATION),
-        (r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_ssp245_climate\stitched_sed_export_wwf_PH_baseline_ssp245_climate.tif",
-         r"D:\repositories\ndr_sdr_global\wwf_PH_restoration_ssp245_climate\stitched_sed_export_wwf_PH_restoration_ssp245_climate.tif",
-         DIFF_SEDIMENT_PH_RESTORATION_SSP245),
-        (r"D:\repositories\ndr_sdr_global\wwf_PH_infra_historical_climate\stitched_sed_export_wwf_PH_infra_historical_climate.tif",
-         r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_historical_climate\stitched_sed_export_wwf_PH_baseline_historical_climate.tif",
-         DIFF_SEDIMENT_PH_CONSERVATION_INF),
-        (r"D:\repositories\ndr_sdr_global\wwf_PH_infra_ssp245_climate\stitched_sed_export_wwf_PH_infra_ssp245_climate.tif",
-         r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_ssp245_climate\stitched_sed_export_wwf_PH_baseline_ssp245_climate.tif",
-         DIFF_SEDIMENT_PH_CONSERVATION_INF_SSP245),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_historical_climate\stitched_sed_export_wwf_IDN_baseline_historical_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_restoration_historical_climate\stitched_sed_export_wwf_IDN_restoration_historical_climate.tif",
+            DIFF_SEDIMENT_IDN_RESTORATION
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_ssp245_climate\stitched_sed_export_wwf_IDN_baseline_ssp245_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_restoration_ssp245_climate\stitched_sed_export_wwf_IDN_restoration_ssp245_climate.tif",
+            DIFF_SEDIMENT_IDN_RESTORATION_SSP245
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_infra_historical_climate\stitched_sed_export_wwf_IDN_infra_historical_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_historical_climate\stitched_sed_export_wwf_IDN_baseline_historical_climate.tif",
+            DIFF_SEDIMENT_IDN_CONSERVATION_INF
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_infra_ssp245_climate\stitched_sed_export_wwf_IDN_infra_ssp245_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_ssp245_climate\stitched_sed_export_wwf_IDN_baseline_ssp245_climate.tif",
+            DIFF_SEDIMENT_IDN_CONSERVATION_INF_SSP245
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_infra_historical_climate\stitched_sed_export_wwf_IDN_infra_historical_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_historical_climate\stitched_sed_export_wwf_IDN_baseline_historical_climate.tif",
+            DIFF_SEDIMENT_IDN_CONSERVATION_ALL
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_infra_ssp245_climate\stitched_sed_export_wwf_IDN_infra_ssp245_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_ssp245_climate\stitched_sed_export_wwf_IDN_baseline_ssp245_climate.tif",
+            DIFF_SEDIMENT_IDN_CONSERVATION_ALL_SSP245
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_historical_climate\stitched_sed_export_wwf_PH_baseline_historical_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_PH_restoration_historical_climate\stitched_sed_export_wwf_PH_restoration_historical_climate.tif",
+            DIFF_SEDIMENT_PH_RESTORATION
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_ssp245_climate\stitched_sed_export_wwf_PH_baseline_ssp245_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_PH_restoration_ssp245_climate\stitched_sed_export_wwf_PH_restoration_ssp245_climate.tif",
+            DIFF_SEDIMENT_PH_RESTORATION_SSP245
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_PH_infra_historical_climate\stitched_sed_export_wwf_PH_infra_historical_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_historical_climate\stitched_sed_export_wwf_PH_baseline_historical_climate.tif",
+            DIFF_SEDIMENT_PH_CONSERVATION_INF
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_PH_infra_ssp245_climate\stitched_sed_export_wwf_PH_infra_ssp245_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_ssp245_climate\stitched_sed_export_wwf_PH_baseline_ssp245_climate.tif",
+            DIFF_SEDIMENT_PH_CONSERVATION_INF_SSP245
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_PH_infra_historical_climate\stitched_sed_export_wwf_PH_infra_historical_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_historical_climate\stitched_sed_export_wwf_PH_baseline_historical_climate.tif",
+            DIFF_SEDIMENT_PH_CONSERVATION_ALL
+        ),
+        (
+            r"D:\repositories\ndr_sdr_global\wwf_PH_infra_ssp245_climate\stitched_sed_export_wwf_PH_infra_ssp245_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_ssp245_climate\stitched_sed_export_wwf_PH_baseline_ssp245_climate.tif",
+            DIFF_SEDIMENT_PH_CONSERVATION_ALL_SSP245
+        )
+
         (r"D:\repositories\swy_global\workspace_swy_wwf_IDN_restoration_historical_climate\B_wwf_IDN_restoration_historical_climate.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_historical_climate\B_wwf_IDN_baseline_historical_climate.tif",
          DIFF_RECHARGE_IDN_RESTORATION),
@@ -494,9 +530,8 @@ def main():
         (r"D:\repositories\swy_global\workspace_swy_wwf_PH_infra_ssp245_climate90\QF_wwf_PH_infra_ssp245_climate90.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_PH_baseline_ssp245_climate90\QF_wwf_PH_baseline_ssp245_climate90.tif",
          DIFF_QUICKFLOW_PH_CONSERVATION_INF_SSP245)
-        ]
+    ]
 
-    # TODO: for the template, DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_ALL should look like DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF
     MULTIPLY_RASTER_SET = [
         (r"D:\repositories\wwf-sipa\idn_downstream_flood_risk.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_historical_climate\QF_wwf_IDN_baseline_historical_climate.tif",
@@ -647,8 +682,32 @@ def main():
          ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245),
         (DIFF_SEDIMENT_PH_CONSERVATION_INF_SSP245,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
-         ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245)
-        ]
+         ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245),
+        (DIFF_SEDIMENT_IDN_CONSERVATION_ALL,
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_dspop_benes_md5_e4d2c4.tif",
+         DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL),
+        (DIFF_SEDIMENT_IDN_CONSERVATION_ALL,
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
+         ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL),
+        (DIFF_SEDIMENT_PH_CONSERVATION_ALL,
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_dspop_benes_md5_028732.tif",
+         DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_ALL),
+        (DIFF_SEDIMENT_PH_CONSERVATION_ALL,
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
+         ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_ALL),
+        (DIFF_SEDIMENT_IDN_CONSERVATION_ALL_SSP245,
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_dspop_benes_md5_e4d2c4.tif",
+         DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL_SSP245),
+        (DIFF_SEDIMENT_IDN_CONSERVATION_ALL_SSP245,
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
+         ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL_SSP245),
+        (DIFF_SEDIMENT_PH_CONSERVATION_ALL_SSP245,
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_dspop_benes_md5_028732.tif",
+         DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_ALL_SSP245),
+        (DIFF_SEDIMENT_PH_CONSERVATION_ALL_SSP245,
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
+         ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_ALL_SSP245)
+    ]
 
     # prevent add and mult from doing it
     add_output_set = set([t[-1] for t in ADD_RASTER_SET])
@@ -679,8 +738,7 @@ def main():
     for raster_path_list_plus_target, op_str in (
             [(path_set, '-') for path_set in SUBTRACT_RASTER_SET] +
             [(path_set, '+') for path_set in ADD_RASTER_SET] +
-            [(path_set, '*') for path_set in MULTIPLY_RASTER_SET]
-            ):
+            [(path_set, '*') for path_set in MULTIPLY_RASTER_SET]):
         dependent_task_list = []
         target_raster_path = raster_path_list_plus_target[-1]
         input_rasters = raster_path_list_plus_target[:-1]
@@ -852,7 +910,7 @@ def local_zonal_stats(prefix, raster_path_list, aggregate_vector_path):
         RESULTS_DIR, 'summed_services')
     os.makedirs(summed_dir, exist_ok=True)
     fixed_raster_path = os.path.join(
-            summed_dir, f'{prefix}.tif')
+        summed_dir, f'{prefix}.tif')
     sum_zero_to_nodata(raster_path_list, fixed_raster_path)
     stat_dict = geoprocessing.zonal_statistics(
         (fixed_raster_path, 1), aggregate_vector_path,
@@ -942,9 +1000,9 @@ def zonal_stats(raster_path_list, aggregate_vector_path, target_vector_path):
 
     target_layer = None
     target_ds = None
-    # Cleanup
     source_ds = None
     target_ds = None
+
 
 if __name__ == '__main__':
     main()
