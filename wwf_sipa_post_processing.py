@@ -480,7 +480,7 @@ def main():
             r"D:\repositories\ndr_sdr_global\wwf_PH_worstcase_historical_climate\stitched_sed_export_wwf_PH_worstcase_historical_climate.tif",
             r"D:\repositories\ndr_sdr_global\wwf_PH_baseline_ssp245_climate\stitched_sed_export_wwf_PH_baseline_ssp245_climate.tif",
             DIFF_SEDIMENT_PH_CONSERVATION_ALL_SSP245
-        )
+        ),
 
         (r"D:\repositories\swy_global\workspace_swy_wwf_IDN_restoration_historical_climate\B_wwf_IDN_restoration_historical_climate.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_historical_climate\B_wwf_IDN_baseline_historical_climate.tif",
