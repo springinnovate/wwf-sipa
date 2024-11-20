@@ -21,7 +21,7 @@ logging.basicConfig(
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_updated_R_worstcase_2024_11_3'
+RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_updated_R_worstcase_2024_11_11'
 CLIMATE_RESILIENT_PERCENTILES = os.path.join(RESULTS_DIR, 'climate_resilient_results')
 MASK_SUBSET_DIR = os.path.join(RESULTS_DIR, 'mask_service_subsets')
 for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES, MASK_SUBSET_DIR]:
@@ -228,56 +228,73 @@ def main():
         ]
     }
 
+    # group by [operation] [country] [scenario]
+
     DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_inf.tif")
     DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_conservation_inf_ssp245.tif")
+
     DIFF_FLOOD_MITIGATION_IDN_RESTORATION = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_restoration.tif")
     DIFF_FLOOD_MITIGATION_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_IDN_restoration_ssp245.tif")
 
     DIFF_FLOOD_MITIGATION_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_conservation_inf.tif")
     DIFF_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_conservation_inf_ssp245.tif")
+
     DIFF_FLOOD_MITIGATION_PH_RESTORATION = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_restoration.tif")
     DIFF_FLOOD_MITIGATION_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_flood_mitigation_PH_restoration_ssp245.tif")
+
     DIFF_QUICKFLOW_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_quickflow_IDN_conservation_inf.tif')
     DIFF_QUICKFLOW_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, 'diff_quickflow_IDN_conservation_inf_ssp245.tif')
+
     DIFF_QUICKFLOW_IDN_RESTORATION = os.path.join(RESULTS_DIR, 'diff_quickflow_IDN_restoration.tif')
     DIFF_QUICKFLOW_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, 'diff_quickflow_IDN_restoration_ssp245.tif')
+
     DIFF_QUICKFLOW_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_quickflow_PH_conservation_inf.tif')
     DIFF_QUICKFLOW_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, 'diff_quickflow_PH_conservation_inf_ssp245.tif')
+
     DIFF_QUICKFLOW_PH_RESTORATION = os.path.join(RESULTS_DIR, 'diff_quickflow_PH_restoration.tif')
     DIFF_QUICKFLOW_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, 'diff_quickflow_PH_restoration_ssp245.tif')
+
     DIFF_RECHARGE_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_recharge_IDN_conservation_inf.tif')
     DIFF_RECHARGE_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_recharge_IDN_conservation_inf_ssp245.tif")
+
     DIFF_RECHARGE_IDN_RESTORATION = os.path.join(RESULTS_DIR, 'diff_recharge_IDN_restoration.tif')
     DIFF_RECHARGE_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_recharge_IDN_restoration_ssp245.tif")
+
     DIFF_RECHARGE_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_recharge_PH_conservation_inf.tif')
     DIFF_RECHARGE_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_recharge_PH_conservation_inf_ssp245.tif")
+
     DIFF_RECHARGE_PH_RESTORATION = os.path.join(RESULTS_DIR, 'diff_recharge_PH_restoration.tif')
     DIFF_RECHARGE_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_recharge_PH_restoration_ssp245.tif")
+
     FLOOD_MITIGATION_IDN_BASELINE_HISTORICAL_CLIMATE = os.path.join(RESULTS_DIR, "flood_mitigation_IDN_baseline_historical_climate.tif")
     FLOOD_MITIGATION_PH_BASELINE_HISTORICAL_CLIMATE = os.path.join(RESULTS_DIR, "flood_mitigation_PH_baseline_historical_climate.tif")
+
     DIFF_SEDIMENT_IDN_CONSERVATION_ALL = os.path.join(RESULTS_DIR, 'diff_sediment_IDN_conservation_all.tif')
-    DIFF_SEDIMENT_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_sediment_IDN_conservation_inf.tif')
     DIFF_SEDIMENT_IDN_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_IDN_conservation_all_ssp245.tif")
+    DIFF_SEDIMENT_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_sediment_IDN_conservation_inf.tif')
     DIFF_SEDIMENT_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_IDN_conservation_inf_ssp245.tif")
     DIFF_SEDIMENT_IDN_RESTORATION = os.path.join(RESULTS_DIR, 'diff_sediment_IDN_restoration.tif')
     DIFF_SEDIMENT_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_IDN_restoration_ssp245.tif")
+
     DIFF_SEDIMENT_PH_CONSERVATION_ALL = os.path.join(RESULTS_DIR, 'diff_sediment_PH_conservation_all.tif')
-    DIFF_SEDIMENT_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_sediment_PH_conservation_inf.tif')
     DIFF_SEDIMENT_PH_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_PH_conservation_all_ssp245.tif")
+    DIFF_SEDIMENT_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, 'diff_sediment_PH_conservation_inf.tif')
     DIFF_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_PH_conservation_inf_ssp245.tif")
     DIFF_SEDIMENT_PH_RESTORATION = os.path.join(RESULTS_DIR, 'diff_sediment_PH_restoration.tif')
     DIFF_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_PH_restoration_ssp245.tif")
 
+    # TODO: Make "alls" here:
     DSPOP_SERVICE_FLOOD_MITIGATION_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_IDN_conservation_inf.tif")
     DSPOP_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_IDN_restoration.tif")
-    DSPOP_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_PH_conservation_inf.tif")
     DSPOP_SERVICE_FLOOD_MITIGATION_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_PH_restoration.tif")
-    DSPOP_SERVICE_RECHARGE_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_conservation_inf.tif")
+    DSPOP_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_PH_conservation_inf.tif")
+
     ROAD_SERVICE_FLOOD_MITIGATION_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_IDN_conservation_inf.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_IDN_restoration.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_conservation_inf.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_restoration.tif")
 
+    DSPOP_SERVICE_RECHARGE_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_conservation_inf.tif")
     DSPOP_SERVICE_RECHARGE_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_restoration.tif")
     DSPOP_SERVICE_RECHARGE_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_conservation_inf.tif")
     DSPOP_SERVICE_RECHARGE_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_restoration.tif")
@@ -285,48 +302,67 @@ def main():
     DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_conservation_all.tif")
     DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_conservation_inf.tif")
     DSPOP_SERVICE_SEDIMENT_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_restoration.tif")
+
     DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_all.tif")
     DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_inf.tif")
     DSPOP_SERVICE_SEDIMENT_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_restoration.tif")
+
     ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_all.tif")
     ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_inf.tif")
     ROAD_SERVICE_SEDIMENT_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_restoration.tif")
+
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_ALL = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_all.tif")
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_inf.tif")
     ROAD_SERVICE_SEDIMENT_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_road_sediment_PH_restoration.tif")
 
+    # need all
     DSPOP_SERVICE_FLOOD_MITIGATION_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_IDN_conservation_inf_ssp245.tif")
     DSPOP_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_IDN_restoration_ssp245.tif")
+
+    # need all
     DSPOP_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_PH_conservation_inf_ssp245.tif")
     DSPOP_SERVICE_FLOOD_MITIGATION_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_PH_restoration_ssp245.tif")
+
+    # need all
     DSPOP_SERVICE_RECHARGE_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_conservation_inf_ssp245.tif")
     DSPOP_SERVICE_RECHARGE_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_IDN_restoration_ssp245.tif")
+
+    # need all
     DSPOP_SERVICE_RECHARGE_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_conservation_inf_ssp245.tif")
     DSPOP_SERVICE_RECHARGE_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_recharge_PH_restoration_ssp245.tif")
+
     DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_conservation_all_ssp245.tif")
     DSPOP_SERVICE_SEDIMENT_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_conservation_inf_ssp245.tif")
     DSPOP_SERVICE_SEDIMENT_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_IDN_restoration_ssp245.tif")
+
     DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_all_ssp245.tif")
     DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_conservation_inf_ssp245.tif")
     DSPOP_SERVICE_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_dspop_sediment_PH_restoration_ssp245.tif")
+
     ROAD_SERVICE_FLOOD_MITIGATION_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_IDN_conservation_inf_ssp245.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_IDN_restoration_ssp245.tif")
+
     ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_conservation_inf_ssp245.tif")
     ROAD_SERVICE_FLOOD_MITIGATION_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_flood_mitigation_PH_restoration_ssp245.tif")
+
     ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_all_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_IDN_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_conservation_inf_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_IDN_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_IDN_restoration_ssp245.tif")
+
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_ALL_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_all_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_PH_CONSERVATION_INF_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_conservation_inf_ssp245.tif")
     ROAD_SERVICE_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "service_road_sediment_PH_restoration_ssp245.tif")
 
     DS_POP_SERVICE_CV_IDN_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_dspop_cv_idn_conservation_inf_result.tif')
-    ROAD_SERVICE_CV_IDN_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_idn_conservation_inf_result.tif')
     DS_POP_SERVICE_CV_IDN_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_dspop_cv_idn_restoration_result.tif')
+
+    ROAD_SERVICE_CV_IDN_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_idn_conservation_inf_result.tif')
     ROAD_SERVICE_CV_IDN_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_idn_restoration_result.tif')
+
     DS_POP_SERVICE_CV_PH_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_dspop_cv_ph_conservation_inf_result.tif')
-    ROAD_SERVICE_CV_PH_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_ph_conservation_inf_result.tif')
     DS_POP_SERVICE_CV_PH_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_dspop_cv_ph_restoration_result.tif')
+
+    ROAD_SERVICE_CV_PH_CONSERVATION_INF_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_ph_conservation_inf_result.tif')
     ROAD_SERVICE_CV_PH_RESTORATION_RESULT = os.path.join(RESULTS_DIR, 'service_road_cv_ph_restoration_result.tif')
 
     # service first then beneficiary after
@@ -447,7 +483,9 @@ def main():
             DIFF_SEDIMENT_IDN_CONSERVATION_ALL
         ),
         (
-            r"D:\repositories\ndr_sdr_global\wwf_IDN_worstcase_historical_climate\stitched_sed_export_wwf_IDN_worstcase_historical_climate.tif",
+            # TODO -- likely all conservation_all_ssp245s are wrong, they need to compare their respective 245 scenarios
+            #r"D:\repositories\ndr_sdr_global\wwf_IDN_worstcase_historical_climate\stitched_sed_export_wwf_IDN_worstcase_historical_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_worstcase_historical_climate\stitched_sed_export_wwf_IDN_worstcase_ssp245_climate.tif",
             r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_ssp245_climate\stitched_sed_export_wwf_IDN_baseline_ssp245_climate.tif",
             DIFF_SEDIMENT_IDN_CONSERVATION_ALL_SSP245
         ),
@@ -497,9 +535,19 @@ def main():
         (r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_historical_climate\B_wwf_IDN_baseline_historical_climate.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_IDN_infra_historical_climate\B_wwf_IDN_infra_historical_climate.tif",
          DIFF_RECHARGE_IDN_CONSERVATION_INF),
+        # THIS NEEDS TO BE ADDED AFTER ALL CONSERVATION_INF - FOLLOW THE SAME PATTERN FOR RECHARGE
+        # -- recharge is "good" so we subtract worstcase from baseline
+        #(r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_historical_climate\B_wwf_IDN_baseline_historical_climate.tif",
+        # r"D:\repositories\swy_global\workspace_swy_wwf_IDN_worstcase_historical_climate\B_wwf_IDN_worstcase_historical_climate.tif",
+         #DIFF_RECHARGE_IDN_CONSERVATION_ALL),
         (r"D:\repositories\swy_global\workspace_swy_wwf_IDN_infra_historical_climate\QF_wwf_IDN_infra_historical_climate.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_historical_climate\QF_wwf_IDN_baseline_historical_climate.tif",
          DIFF_QUICKFLOW_IDN_CONSERVATION_INF),
+        # THIS NEEDS TO BE ADDED AFTER ALL CONSERVATION_INF - FOLLOW THE SAME PATTERN FOR QUICKFLOW
+        # -- quickflow is "bad" so we subtract baseline from worstcase
+        # (r"D:\repositories\swy_global\workspace_swy_wwf_IDN_worstcase_historical_climate\QF_wwf_IDN_worstcase_historical_climate.tif",
+        # r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_historical_climate\QF_wwf_IDN_baseline_historical_climate.tif",
+        # DIFF_QUICKFLOW_IDN_CONSERVATION_ALL),
         (r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_ssp245_climate10\B_wwf_IDN_baseline_ssp245_climate10.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_IDN_infra_ssp245_climate10\B_wwf_IDN_infra_ssp245_climate10.tif",
          DIFF_RECHARGE_IDN_CONSERVATION_INF_SSP245),
@@ -533,12 +581,14 @@ def main():
     ]
 
     MULTIPLY_RASTER_SET = [
+        # The following missing variables are because we changed the name from "flood mitigation", to 'flood' so it looks like 'sediment'
         (r"D:\repositories\wwf-sipa\idn_downstream_flood_risk.tif",
          r"D:\repositories\swy_global\workspace_swy_wwf_IDN_baseline_historical_climate\QF_wwf_IDN_baseline_historical_climate.tif",
-         FLOOD_MITIGATION_IDN_BASELINE_HISTORICAL_CLIMATE),
+         FLOOD_IDN_BASELINE_HISTORICAL_CLIMATE),
+        # this used to be called "DIFF_FLOOD_MITIGATION' but it's not mitigation, it's just diff flood, changing so it looks like "DIFF_SEDIMENT...."
         (r"D:\repositories\wwf-sipa\idn_downstream_flood_risk.tif",
          DIFF_QUICKFLOW_IDN_CONSERVATION_INF,
-         DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF),
+         DIFF_FLOOD_IDN_CONSERVATION_INF),
         (r"D:\repositories\wwf-sipa\idn_downstream_flood_risk.tif",
          DIFF_QUICKFLOW_IDN_CONSERVATION_INF_SSP245,
          DIFF_FLOOD_MITIGATION_IDN_CONSERVATION_INF_SSP245),
