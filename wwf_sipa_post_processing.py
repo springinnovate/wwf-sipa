@@ -21,7 +21,7 @@ logging.basicConfig(
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_updated_R_worstcase_2024_11_11'
+RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_updated_R_worstcase_2024_11_21'
 CLIMATE_RESILIENT_PERCENTILES = os.path.join(RESULTS_DIR, 'climate_resilient_results')
 MASK_SUBSET_DIR = os.path.join(RESULTS_DIR, 'mask_service_subsets')
 for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES, MASK_SUBSET_DIR]:
