@@ -69,7 +69,8 @@ RECHARGE_SERVICE = 'recharge'
 SEDIMENT_SERVICE = 'sediment'
 CV_SERVICE = 'coastal vulnerability'
 RESTORATION_SCENARIO = 'restoration'
-CONSERVATION_SCENARIO = 'conservation'
+CONSERVATION_SCENARIO_INF = 'conservation_inf'
+CONSERVATION_SCENARIO_ALL = 'conservation_all'
 EACH_ECOSYSTEM_SERVICE_ID = 'each ecosystem service'
 OVERLAPPING_SERVICES_ID = 'overlapping services'
 ROAD_AND_PEOPLE_BENFICIARIES_ID = 'road and people beneficiaries'
@@ -126,7 +127,7 @@ FILENAMES = {
                 'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_ph_restoration_result.tif'),
             },
         },
-        CONSERVATION_SCENARIO: {
+        CONSERVATION_SCENARIO_INF: {
             FLOOD_MITIGATION_SERVICE: {
                 'diff': os.path.join(ROOT_DATA_DIR, 'diff_flood_mitigation_PH_conservation_inf.tif'),
                 'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_flood_mitigation_PH_conservation_inf.tif'),
@@ -152,7 +153,35 @@ FILENAMES = {
                 'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_cv_ph_conservation_inf_result.tif'),
                 'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_ph_conservation_inf_result.tif'),
             },
-        }
+        },
+        CONSERVATION_SCENARIO_ALL: {
+            FLOOD_MITIGATION_SERVICE: {
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_flood_mitigation_PH_conservation_all.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_flood_mitigation_PH_conservation_all.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_flood_mitigation_PH_conservation_all.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_flood_mitigation_PH_conservation_all.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_flood_mitigation_PH_conservation_all.tif'),
+            },
+            RECHARGE_SERVICE: {
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_recharge_PH_conservation_all.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_recharge_PH_conservation_all.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_recharge_PH_conservation_all.tif'),
+            },
+            SEDIMENT_SERVICE: {
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_sediment_PH_conservation_all.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_sediment_PH_conservation_all.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_sediment_PH_conservation_all.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_sediment_PH_conservation_all.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_sediment_PH_conservation_all.tif'),
+            },
+            CV_SERVICE: {
+                # note that conservation for CV is the same as "inf" so we didn't run an additional scenario on it, just using the INF version here
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_cv_ph_conservation_inf_result.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_cv_ph_conservation_inf_result.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_cv_ph_conservation_inf_result.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_ph_conservation_inf_result.tif'),
+            },
+        },
     },
     'IDN': {
         RESTORATION_SCENARIO: {
@@ -182,7 +211,7 @@ FILENAMES = {
                 'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_idn_restoration_result.tif'),
             },
         },
-        CONSERVATION_SCENARIO: {
+        CONSERVATION_SCENARIO_INF: {
             FLOOD_MITIGATION_SERVICE: {
                 'diff': os.path.join(ROOT_DATA_DIR, 'diff_flood_mitigation_IDN_conservation_inf.tif'),
                 'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_flood_mitigation_IDN_conservation_inf.tif'),
@@ -208,7 +237,35 @@ FILENAMES = {
                 'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_cv_idn_conservation_inf_result.tif'),
                 'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_idn_conservation_inf_result.tif'),
             },
-        }
+        },
+        CONSERVATION_SCENARIO_ALL: {
+            FLOOD_MITIGATION_SERVICE: {
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_flood_mitigation_IDN_conservation_all.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_flood_mitigation_IDN_conservation_all.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_flood_mitigation_IDN_conservation_all.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_flood_mitigation_IDN_conservation_all.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_flood_mitigation_IDN_conservation_all.tif'),
+            },
+            RECHARGE_SERVICE: {
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_recharge_IDN_conservation_all.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_recharge_IDN_conservation_all.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_recharge_IDN_conservation_all.tif'),
+            },
+            SEDIMENT_SERVICE: {
+                'diff': os.path.join(ROOT_DATA_DIR, 'diff_sediment_IDN_conservation_all.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_sediment_IDN_conservation_all.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_sediment_IDN_conservation_all.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_sediment_IDN_conservation_all.tif'),
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_sediment_IDN_conservation_all.tif'),
+            },
+            CV_SERVICE: {
+                # note that conservation for CV is the same as "inf" so we didn't run an additional scenario on it, just using the INF version here
+                'top_10th_percentile_service_dspop': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_dspop_cv_idn_conservation_inf_result.tif'),
+                'service_dspop': os.path.join(ROOT_DATA_DIR, 'service_dspop_cv_idn_conservation_inf_result.tif'),
+                'service_road': os.path.join(ROOT_DATA_DIR, 'service_road_cv_idn_conservation_inf_result.tif'),
+                'top_10th_percentile_service_road': os.path.join(ROOT_DATA_DIR, 'top_10th_percentile_service_road_cv_idn_conservation_inf_result.tif'),
+            },
+        },
     }
 }
 
@@ -718,7 +775,7 @@ def subtract_paths(base_path, full_path):
 
 def do_analyses(task_graph):
     scenario_service_tuples = list(itertools.product(
-        [CONSERVATION_SCENARIO, RESTORATION_SCENARIO],
+        [CONSERVATION_SCENARIO_INF, RESTORATION_SCENARIO],
         [SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE,
          RECHARGE_SERVICE, CV_SERVICE]))
 
@@ -852,7 +909,7 @@ def do_analyses(task_graph):
         # E.g., top_10p_overlap_IDN_conservation_inf_each_ecosystem_service_400
 
         for each_or_other in [EACH_ECOSYSTEM_SERVICE_ID, OVERLAPPING_SERVICES_ID]:
-            for scenario in [RESTORATION_SCENARIO, CONSERVATION_SCENARIO]:
+            for scenario in [RESTORATION_SCENARIO, CONSERVATION_SCENARIO_INF]:
                 overlap_combo_service_path = os.path.join(
                     OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{each_or_other}.tif')
                 service_area_km2 = calculate_pixel_area_km2(
@@ -875,9 +932,9 @@ def do_analyses(task_graph):
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
     top_10_percent_maps = [
-        ('PH', CONSERVATION_SCENARIO,),
+        ('PH', CONSERVATION_SCENARIO_INF,),
         ('PH', RESTORATION_SCENARIO,),
-        ('IDN', CONSERVATION_SCENARIO,),
+        ('IDN', CONSERVATION_SCENARIO_INF,),
         ('IDN', RESTORATION_SCENARIO,),
     ]
 
@@ -999,10 +1056,10 @@ def main():
     #         task_graph) #task graph
 
     # four_panel_tuples = [
-    #     (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
-    #     (SEDIMENT_SERVICE, 'IDN', CONSERVATION_SCENARIO, 'Sediment retention (Conservation)'),
-    #     (FLOOD_MITIGATION_SERVICE, 'IDN', CONSERVATION_SCENARIO, 'Flood mitigation (Conservation)'),
-    #     (FLOOD_MITIGATION_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Flood mitigation (Conservation)'),
+    #     (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Sediment retention (Conservation)'),
+    #     (SEDIMENT_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Sediment retention (Conservation)'),
+    #     (FLOOD_MITIGATION_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
+    #     (FLOOD_MITIGATION_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
     #     (FLOOD_MITIGATION_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
     #     (SEDIMENT_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Sediment retention (Restoration)'),
     #     (FLOOD_MITIGATION_SERVICE, 'PH', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
@@ -1075,8 +1132,8 @@ def main():
     #         raise
 
     three_panel_no_road_tuple = [
-        (RECHARGE_SERVICE, 'IDN', CONSERVATION_SCENARIO, 'Water recharge (Conservation)'),
-        (RECHARGE_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Water recharge (Conservation)'),
+        (RECHARGE_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Water recharge (Conservation)'),
+        (RECHARGE_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Water recharge (Conservation)'),
         (RECHARGE_SERVICE, 'PH', RESTORATION_SCENARIO, 'Water recharge (Restoration)'),
         (RECHARGE_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Water recharge (Restoration)'),
     ]
@@ -1130,8 +1187,8 @@ def main():
     return
 
     three_panel_no_diff_tuple = [
-        (CV_SERVICE, 'IDN', CONSERVATION_SCENARIO, 'Coastal protection (Conservation)'),
-        (CV_SERVICE, 'PH', CONSERVATION_SCENARIO, 'Coastal protection (Conservation)'),
+        (CV_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Coastal protection (Conservation)'),
+        (CV_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Coastal protection (Conservation)'),
         (CV_SERVICE, 'PH', RESTORATION_SCENARIO, 'Coastal protection (Restoration)'),
         (CV_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Coastal protection (Restoration)'),
     ]
