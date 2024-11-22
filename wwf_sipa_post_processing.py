@@ -496,7 +496,7 @@ def main():
             DIFF_SEDIMENT_IDN_CONSERVATION_ALL
         ),
         (
-            r"D:\repositories\ndr_sdr_global\wwf_IDN_infra_ssp245_climate\stitched_sed_export_wwf_IDN_worstcase_ssp245_climate.tif",
+            r"D:\repositories\ndr_sdr_global\wwf_IDN_worstcase_ssp245_climate\stitched_sed_export_wwf_IDN_worstcase_ssp245_climate.tif",
             r"D:\repositories\ndr_sdr_global\wwf_IDN_baseline_ssp245_climate\stitched_sed_export_wwf_IDN_baseline_ssp245_climate.tif",
             DIFF_SEDIMENT_IDN_CONSERVATION_ALL_SSP245
         ),
