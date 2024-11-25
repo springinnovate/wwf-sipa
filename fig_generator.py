@@ -35,7 +35,7 @@ logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 
 CUSTOM_STYLE_DIR = 'custom_styles'
-WORKING_DIR = 'fig_generator_dir'
+WORKING_DIR = 'fig_generator_dir_2024_11_25'
 FIG_DIR = os.path.join(WORKING_DIR, 'rendered_figures')
 ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
 OVERLAP_DIR = os.path.join(WORKING_DIR, 'overlap_rasters')
@@ -51,9 +51,9 @@ for dir_path in [
         COG_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
-REMOTE_BUCKET_PATH = 'gs://ecoshard-root/wwf_sipa_viewer_2024_06_04/'
+REMOTE_BUCKET_PATH = 'gs://ecoshard-root/wwf_sipa_viewer_2024_07_10/'
 
-ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_no_road_recharge'
+ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_updated_R_worstcase_2024_11_21'
 
 GLOBAL_PIXEL_SIZE = (0.0008333333333333333868, -0.0008333333333333333868)
 LOW_PERCENTILE = 10
@@ -74,7 +74,7 @@ CONSERVATION_SCENARIO_ALL = 'conservation_all'
 EACH_ECOSYSTEM_SERVICE_ID = 'each ecosystem service'
 OVERLAPPING_SERVICES_ID = 'overlapping services'
 ROAD_AND_PEOPLE_BENFICIARIES_ID = 'road and people beneficiaries'
-PEOPLE_ONLY_BENEFICIARIES_ID = 'people beneficiares'
+PEOPLE_ONLY_BENEFICIARIES_ID = 'people beneficiaries'
 CONSERVATION_OVERLAP_HEATMAP = 'conservation overlap heatmap'
 RESTORATION_OVERLAP_HEATMAP = 'restoration overlap heatmap'
 
@@ -955,185 +955,187 @@ def main():
         ((), (SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE, RECHARGE_SERVICE, CV_SERVICE), 2, operator.ge, '> 1 service overlap'),
     ]
 
-    # combined_dspop_overlap_service_map = collections.defaultdict(dict)
+    combined_dspop_overlap_service_map = collections.defaultdict(dict)
 
-    # for country, scenario in top_10_percent_maps:
-    #     for service_set, service_set_title in [
-    #             (each_service, EACH_ECOSYSTEM_SERVICE_ID),
-    #             (overlapping_services, OVERLAPPING_SERVICES_ID),
-    #             ]:
-    #         figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
-    #         overlap_sets = []
-    #         category_list = ['none']
-    #         for required_service_tuple, optional_service_tuple, overlap_threshold, comparitor_op, legend_category in service_set:
-    #             required_service_subset = []
-    #             optional_service_subset = []
-    #             category_list.append(legend_category)
+    for country, scenario in top_10_percent_maps:
+        for service_set, service_set_title in [
+                (each_service, EACH_ECOSYSTEM_SERVICE_ID),
+                (overlapping_services, OVERLAPPING_SERVICES_ID),
+                ]:
+            figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
+            overlap_sets = []
+            category_list = ['none']
+            for required_service_tuple, optional_service_tuple, overlap_threshold, comparitor_op, legend_category in service_set:
+                required_service_subset = []
+                optional_service_subset = []
+                category_list.append(legend_category)
 
-    #             for service_tuple, service_subset in [
-    #                     (required_service_tuple, required_service_subset),
-    #                     (optional_service_tuple, optional_service_subset)]:
-    #                 for service in service_tuple:
-    #                     # loop through all the services, they always have a dspop and some of them have a roads, if roads then combine
-    #                     dspop_road_overlap_path = os.path.join(OVERLAP_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
-    #                     top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
-    #                     if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
-    #                         # combine road and dspop if road exists
-    #                         top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
-    #                         task_graph.add_task(
-    #                             func=overlap_dspop_road_op,
-    #                             args=(
-    #                                 top_10th_percentile_service_dspop_path,
-    #                                 top_10th_percentile_service_road_path,
-    #                                 f'top10_{country}_{scenario}',
-    #                                 dspop_road_overlap_path),
-    #                             target_path_list=[dspop_road_overlap_path],
-    #                             task_name=f'dspop road {service} {country} {scenario}')
-    #                     else:
-    #                         # doesn't exist but we don't lose anything by just doing the dspop
-    #                         dspop_road_overlap_path = top_10th_percentile_service_dspop_path
-    #                     combined_dspop_overlap_service_map[f'{country}_{scenario}'][service] = dspop_road_overlap_path
-    #                     service_subset.append(dspop_road_overlap_path)
+                for service_tuple, service_subset in [
+                        (required_service_tuple, required_service_subset),
+                        (optional_service_tuple, optional_service_subset)]:
+                    for service in service_tuple:
+                        # loop through all the services, they always have a dspop and some of them have a roads, if roads then combine
+                        dspop_road_overlap_path = os.path.join(OVERLAP_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
+                        top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
+                        if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
+                            # combine road and dspop if road exists
+                            top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
+                            task_graph.add_task(
+                                func=overlap_dspop_road_op,
+                                args=(
+                                    top_10th_percentile_service_dspop_path,
+                                    top_10th_percentile_service_road_path,
+                                    f'top10_{country}_{scenario}',
+                                    dspop_road_overlap_path),
+                                target_path_list=[dspop_road_overlap_path],
+                                task_name=f'dspop road {service} {country} {scenario}')
+                        else:
+                            # doesn't exist but we don't lose anything by just doing the dspop
+                            dspop_road_overlap_path = top_10th_percentile_service_dspop_path
+                        combined_dspop_overlap_service_map[f'{country}_{scenario}'][service] = dspop_road_overlap_path
+                        service_subset.append(dspop_road_overlap_path)
 
-    #             overlap_sets.append((required_service_subset, optional_service_subset, overlap_threshold, comparitor_op))
+                overlap_sets.append((required_service_subset, optional_service_subset, overlap_threshold, comparitor_op))
 
-    #         overlap_combo_service_path = os.path.join(
-    #             OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{service_set_title}.tif')
+            overlap_combo_service_path = os.path.join(
+                OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{service_set_title}.tif')
 
-    #         task_graph.add_task(
-    #             func=overlap_combos_op,
-    #             args=(
-    #                 task_graph,
-    #                 overlap_sets,
-    #                 f'{country}_{scenario}',
-    #                 overlap_combo_service_path),
-    #             target_path_list=[overlap_combo_service_path],
-    #             task_name=f'top 10% of combo priorities {country} {scenario}')
-    #         LOGGER.debug(overlap_combo_service_path)
+            task_graph.add_task(
+                func=overlap_combos_op,
+                args=(
+                    task_graph,
+                    overlap_sets,
+                    f'{country}_{scenario}',
+                    overlap_combo_service_path),
+                target_path_list=[overlap_combo_service_path],
+                task_name=f'top 10% of combo priorities {country} {scenario}')
+            LOGGER.debug(overlap_combo_service_path)
 
-    #         figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
-    #         style_rasters(
-    #             COUNTRY_OUTLINE_PATH[country],
-    #             country,
-    #             [overlap_combo_service_path],
-    #             [category_list],
-    #             country == 'IDN',
-    #             overlap_colormap(service_set_title),
-    #             COLOR_LIST[service_set_title],
-    #             ['categorical'],
-    #             [(0, 5)] if service_set_title==OVERLAPPING_SERVICES_ID else [None],
-    #             GLOBAL_FIG_SIZE,
-    #             os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
-    #             figure_title, [None], GLOBAL_DPI, task_graph)
+            figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
+            style_rasters(
+                COUNTRY_OUTLINE_PATH[country],
+                country,
+                [overlap_combo_service_path],
+                [category_list],
+                country == 'IDN',
+                overlap_colormap(service_set_title),
+                COLOR_LIST[service_set_title],
+                ['categorical'],
+                [(0, 5)] if service_set_title==OVERLAPPING_SERVICES_ID else [None],
+                GLOBAL_FIG_SIZE,
+                os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
+                figure_title, [None], GLOBAL_DPI, task_graph)
 
-    # # make 'heat map' overlap
-    # LOGGER.debug(f'************ thius is the working map: {combined_dspop_overlap_service_map}')
-    # for country_scenario, ds_pop_rasters in combined_dspop_overlap_service_map.items():
-    #     four_service_overlap_path = os.path.join(
-    #         OVERLAP_DIR, f'four_service_overlap_{country_scenario}.tif')
-    #     task_graph.add_task(
-    #         func=add_masks,
-    #         args=(ds_pop_rasters.values(), four_service_overlap_path),
-    #         target_path_list=[four_service_overlap_path],
-    #         task_name=f'four overlaps for {country_scenario}')
+    # make 'heat map' overlap
+    LOGGER.debug(f'************ thius is the working map: {combined_dspop_overlap_service_map}')
+    for country_scenario, ds_pop_rasters in combined_dspop_overlap_service_map.items():
+        four_service_overlap_path = os.path.join(
+            OVERLAP_DIR, f'four_service_overlap_{country_scenario}.tif')
+        task_graph.add_task(
+            func=add_masks,
+            args=(ds_pop_rasters.values(), four_service_overlap_path),
+            target_path_list=[four_service_overlap_path],
+            task_name=f'four overlaps for {country_scenario}')
 
-    #     country, scenario = country_scenario.split('_')
-    #     style_rasters(
-    #         COUNTRY_OUTLINE_PATH[country],
-    #         country,
-    #         [four_service_overlap_path], #raster_paths
-    #         [['1 service', '2 services', '3 services', '4 services']], #category_list
-    #         None, # stack vertical
-    #         None, # color map or list
-    #         [COLOR_LIST[CONSERVATION_OVERLAP_HEATMAP] if scenario =='conservation' else COLOR_LIST[RESTORATION_OVERLAP_HEATMAP]], #color palette list
-    #         ['categorical'],  #percentil or catgrical
-    #         [None], # base min max list
-    #         None, # fig size
-    #         None, # fig path
-    #         "Top 10% of service overlap for ", # overall title
-    #         [f'{country} {scenario}'], # subfigure title
-    #         None,  # dpi
-    #         task_graph) #task graph
+        country, scenario = country_scenario.split('_')
+        style_rasters(
+            COUNTRY_OUTLINE_PATH[country],
+            country,
+            [four_service_overlap_path], #raster_paths
+            [['1 service', '2 services', '3 services', '4 services']], #category_list
+            None, # stack vertical
+            None, # color map or list
+            [COLOR_LIST[CONSERVATION_OVERLAP_HEATMAP] if scenario =='conservation' else COLOR_LIST[RESTORATION_OVERLAP_HEATMAP]], #color palette list
+            ['categorical'],  #percentil or catgrical
+            [None], # base min max list
+            None, # fig size
+            None, # fig path
+            "Top 10% of service overlap for ", # overall title
+            [f'{country} {scenario}'], # subfigure title
+            None,  # dpi
+            task_graph) #task graph
 
-    # four_panel_tuples = [
-    #     (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Sediment retention (Conservation)'),
-    #     (SEDIMENT_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Sediment retention (Conservation)'),
-    #     (FLOOD_MITIGATION_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
-    #     (FLOOD_MITIGATION_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
-    #     (FLOOD_MITIGATION_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
-    #     (SEDIMENT_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Sediment retention (Restoration)'),
-    #     (FLOOD_MITIGATION_SERVICE, 'PH', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
-    #     (SEDIMENT_SERVICE, 'PH', RESTORATION_SCENARIO, 'Sediment retention (Restoration)'),
-    # ]
+    four_panel_tuples = [
+        (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Sediment retention (Conservation)'),
+        (SEDIMENT_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Sediment retention (Conservation)'),
+        (FLOOD_MITIGATION_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
+        (FLOOD_MITIGATION_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
+        (FLOOD_MITIGATION_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
+        (SEDIMENT_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Sediment retention (Restoration)'),
+        (FLOOD_MITIGATION_SERVICE, 'PH', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
+        (SEDIMENT_SERVICE, 'PH', RESTORATION_SCENARIO, 'Sediment retention (Restoration)'),
+    ]
 
-    # for service, country, scenario, figure_title in four_panel_tuples:
-    #     try:
-    #         diff_path = FILENAMES[country][scenario][service]['diff']
-    #         service_dspop_path = FILENAMES[country][scenario][service]['service_dspop']
-    #         service_road_path = FILENAMES[country][scenario][service]['service_road']
-    #         top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
-    #         top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
-    #         if any([not os.path.exists(path) for path in [diff_path, service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
-    #             LOGGER.error('missing!')
+    for service, country, scenario, figure_title in four_panel_tuples:
+        try:
+            diff_path = FILENAMES[country][scenario][service]['diff']
+            service_dspop_path = FILENAMES[country][scenario][service]['service_dspop']
+            service_road_path = FILENAMES[country][scenario][service]['service_road']
+            top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
+            top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
+            if any([not os.path.exists(path) for path in [diff_path, service_dspop_path, service_road_path, top_10th_percentile_service_dspop_path, top_10th_percentile_service_road_path]]):
+                LOGGER.error('missing!')
 
-    #         combined_percentile_service_path = os.path.join(
-    #             COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
-    #         task_graph.add_task(
-    #             func=overlap_dspop_road_op,
-    #             args=(
-    #                 top_10th_percentile_service_dspop_path,
-    #                 top_10th_percentile_service_road_path,
-    #                 f'fourpanel_{service}_{country}_{scenario}',
-    #                 combined_percentile_service_path),
-    #             target_path_list=[combined_percentile_service_path],
-    #             task_name=f'combined service {service} {country} {scenario}')
+            combined_percentile_service_path = os.path.join(
+                COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
+            task_graph.add_task(
+                func=overlap_dspop_road_op,
+                args=(
+                    top_10th_percentile_service_dspop_path,
+                    top_10th_percentile_service_road_path,
+                    f'fourpanel_{service}_{country}_{scenario}',
+                    combined_percentile_service_path),
+                target_path_list=[combined_percentile_service_path],
+                task_name=f'combined service {service} {country} {scenario}')
 
-    #         fig_1_title = f'Biophysical supply of {service}'
-    #         fig_2_title = f'{service} for downstream people'
-    #         fig_3_title = f'{service} for downstream roads'
-    #         fig_4_title = f'Top 10% of priorities for {service} for downstream beneficiaries'
+            fig_1_title = f'Biophysical supply of {service}'
+            fig_2_title = f'{service} for downstream people'
+            fig_3_title = f'{service} for downstream roads'
+            fig_4_title = f'Top 10% of priorities for {service} for downstream beneficiaries'
 
-    #         style_rasters(
-    #             COUNTRY_OUTLINE_PATH[country],
-    #             country,
-    #             [diff_path,
-    #              service_dspop_path,
-    #              service_road_path,
-    #              combined_percentile_service_path],
-    #             [[f'{percentile:.0f}th percentile' for percentile in
-    #               np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
-    #             [['benefiting roads only', 'benefiting people only',
-    #              'benefiting both']],
-    #             country == 'IDN',
-    #             [overlap_colormap(service),
-    #              overlap_colormap(service),
-    #              overlap_colormap(service),
-    #              overlap_colormap(ROAD_AND_PEOPLE_BENFICIARIES_ID)],
-    #             [COLOR_LIST[service],
-    #              COLOR_LIST[service],
-    #              COLOR_LIST[service],
-    #              COLOR_LIST[ROAD_AND_PEOPLE_BENFICIARIES_ID],],
-    #             [(LOW_PERCENTILE, HIGH_PERCENTILE),
-    #              (LOW_PERCENTILE, HIGH_PERCENTILE),
-    #              (LOW_PERCENTILE, HIGH_PERCENTILE),
-    #              'categorical'],
-    #             [None]*4,
-    #             GLOBAL_FIG_SIZE,
-    #             os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
-    #             figure_title, [
-    #                 fig_1_title,
-    #                 fig_2_title,
-    #                 fig_3_title,
-    #                 fig_4_title,], GLOBAL_DPI, task_graph)
-    #         print(f'done with {service}_{country}_{scenario}.png')
+            style_rasters(
+                COUNTRY_OUTLINE_PATH[country],
+                country,
+                [diff_path,
+                 service_dspop_path,
+                 service_road_path,
+                 combined_percentile_service_path],
+                [[f'{percentile:.0f}th percentile' for percentile in
+                  np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
+                [['benefiting roads only', 'benefiting people only',
+                 'benefiting both']],
+                country == 'IDN',
+                [overlap_colormap(service),
+                 overlap_colormap(service),
+                 overlap_colormap(service),
+                 overlap_colormap(ROAD_AND_PEOPLE_BENFICIARIES_ID)],
+                [COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 COLOR_LIST[ROAD_AND_PEOPLE_BENFICIARIES_ID],],
+                [(LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 'categorical'],
+                [None]*4,
+                GLOBAL_FIG_SIZE,
+                os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
+                figure_title, [
+                    fig_1_title,
+                    fig_2_title,
+                    fig_3_title,
+                    fig_4_title,], GLOBAL_DPI, task_graph)
+            print(f'done with {service}_{country}_{scenario}.png')
 
-    #     except Exception:
-    #         LOGGER.error(f'{service} {country} {scenario}')
-    #         raise
+        except Exception:
+            LOGGER.error(f'{service} {country} {scenario}')
+            raise
 
     three_panel_no_road_tuple = [
-        (RECHARGE_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Water recharge (Conservation)'),
-        (RECHARGE_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Water recharge (Conservation)'),
+        (RECHARGE_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Water recharge (Conservation -- Infrastructure)'),
+        (RECHARGE_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Water recharge (Conservation -- Infrastructure)'),
+        (RECHARGE_SERVICE, 'IDN', CONSERVATION_SCENARIO_ALL, 'Water recharge (Conservation -- All)'),
+        (RECHARGE_SERVICE, 'PH', CONSERVATION_SCENARIO_ALL, 'Water recharge (Conservation -- All)'),
         (RECHARGE_SERVICE, 'PH', RESTORATION_SCENARIO, 'Water recharge (Restoration)'),
         (RECHARGE_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Water recharge (Restoration)'),
     ]
@@ -1187,8 +1189,10 @@ def main():
     return
 
     three_panel_no_diff_tuple = [
-        (CV_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Coastal protection (Conservation)'),
-        (CV_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Coastal protection (Conservation)'),
+        (CV_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Coastal protection (Conservation - Infrastructure)'),
+        (CV_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Coastal protection (Conservation - Infrastructure)'),
+        (CV_SERVICE, 'IDN', CONSERVATION_SCENARIO_ALL, 'Coastal protection (Conservation - All)'),
+        (CV_SERVICE, 'PH', CONSERVATION_SCENARIO_ALL, 'Coastal protection (Conservation - All)'),
         (CV_SERVICE, 'PH', RESTORATION_SCENARIO, 'Coastal protection (Restoration)'),
         (CV_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Coastal protection (Restoration)'),
     ]
@@ -1256,7 +1260,6 @@ def main():
             raise
 
     # calculate total overlap
-
 
     do_analyses(task_graph)
 
