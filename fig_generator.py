@@ -1,3 +1,4 @@
+import collections
 from pathlib import Path
 import csv
 import glob
@@ -1294,7 +1295,7 @@ def add_masks(raster_path_list, target_raster_path):
         result[~valid_mask] = target_nodata
         return result
 
-    geoprocessing.raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_rasters], _add_masks,
         target_raster_path, gdal.GDT_Int16, target_nodata,
         allow_different_blocksize=True)
