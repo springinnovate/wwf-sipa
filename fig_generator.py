@@ -388,11 +388,8 @@ def root_filename(path):
 def calculate_figsize(aspect_ratio, grid_size, subplot_size):
     rows, cols = grid_size
     subplot_width, subplot_height = subplot_size
-
-    # Ensure the subplot height aligns with the desired aspect ratio
     subplot_width = subplot_height * aspect_ratio
 
-    # Calculate total figure size in inches
     total_width = cols * subplot_width
     total_height = rows * subplot_height
 
@@ -501,6 +498,10 @@ def style_rasters(
             file.write('\t\t},\n')
             file.write(f'\t\tremote_path: "{cog_path}",' + '\n\t},\n')
             file.flush()
+
+    if fig_path is None:
+        # we aren't rendering
+        return
 
     outline_gdf = geopandas.read_file(country_outline_vector_path)
 
