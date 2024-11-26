@@ -31,8 +31,8 @@ logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.DEBUG)
 logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 
-IDN_PROViNCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg"
-PH_PROViNCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_adm1.gpkg"
+IDN_PROVINCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg"
+PH_PROVINCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_adm1.gpkg"
 
 IDN_DEM_PATH = r"D:\repositories\wwf-sipa\data\idn_dem.tif"
 PH_DEM_PATH = r"D:\repositories\wwf-sipa\data\ph_dem.tif"
@@ -45,7 +45,7 @@ PH_POP_RASTER_PATH = r"D:\repositories\wwf-sipa\data\pop\phl_ppp_2020.tif"
 PH_ROAD_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\infrastructure_polygons\PH_All_Roads_Merged.gpkg"
 IDN_ROAD_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg"
 
-WORKSPACE_DIR = 'province_dependence_workspace'
+WORKSPACE_DIR = 'province_dependence_workspace_2024_11_26'
 MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
 SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
 ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
@@ -436,13 +436,13 @@ def main():
          road_vector_path) in [
             ('PH',
              PH_DEM_PATH,
-             PH_PROViNCE_VECTOR_PATH,
+             PH_PROVINCE_VECTOR_PATH,
              'ADM1_EN',
              PH_POP_RASTER_PATH,
              PH_ROAD_VECTOR_PATH),
             ('IDN',
              IDN_DEM_PATH,
-             IDN_PROViNCE_VECTOR_PATH,
+             IDN_PROVINCE_VECTOR_PATH,
              'NAME_1',
              IDN_POP_RASTER_PATH,
              IDN_ROAD_VECTOR_PATH)]:
