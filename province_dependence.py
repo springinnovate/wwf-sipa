@@ -406,13 +406,15 @@ def calculate_length_in_km_with_raster(
     return total_length_km
 
 
-SCENARIO_LIST = ['restoration', 'conservation']
+SCENARIO_LIST = ['restoration', 'conservation_inf', 'conservation_all']
 
 TOP10_SERVICE_COVERAGE_RASTERS = {
     ('PH', 'restoration'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
     ('IDN', 'restoration'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_IDN_restoration_each ecosystem service.tif",
-    ('PH', 'conservation'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_PH_conservation_each ecosystem service.tif",
-    ('IDN', 'conservation'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_IDN_conservation_each ecosystem service.tif",
+    ('PH', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_PH_conservation_inf_each ecosystem service.tif",
+    ('IDN', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_IDN_conservation_inf_each ecosystem service.tif",
+    ('PH', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_PH_conservation_all_each ecosystem service.tif",
+    ('IDN', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_IDN_conservation_all_each ecosystem service.tif",
 }
 
 

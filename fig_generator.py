@@ -777,7 +777,7 @@ def subtract_paths(base_path, full_path):
 
 def do_analyses(task_graph):
     scenario_service_tuples = list(itertools.product(
-        [CONSERVATION_SCENARIO_INF, RESTORATION_SCENARIO],
+        [CONSERVATION_SCENARIO_ALL, CONSERVATION_SCENARIO_INF, RESTORATION_SCENARIO],
         [SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE,
          RECHARGE_SERVICE, CV_SERVICE]))
 
