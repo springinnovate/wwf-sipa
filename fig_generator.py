@@ -1038,7 +1038,7 @@ def main():
             target_path_list=[four_service_overlap_path],
             task_name=f'four overlaps for {country_scenario}')
 
-        country, scenario = country_scenario.split('_')
+        country, _, scenario = country_scenario.partition('_')
         style_rasters(
             COUNTRY_OUTLINE_PATH[country],
             country,
