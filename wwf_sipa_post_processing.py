@@ -58,7 +58,7 @@ def join_mask(mask_a_path, mask_b_path, joined_mask_path):
         ['near'] * 2, pixel_size, 'intersection')
 
     pre_cog_target = os.path.join(aligned_dir, os.path.basename(joined_mask_path))
-    geoprocessing.raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_target_raster_path_list], mask_op,
         pre_cog_target, gdal.GDT_Byte, target_nodata)
     subprocess.check_call(
@@ -83,7 +83,7 @@ def add_rasters(raster_path_list, target_raster_path, target_datatype):
         return numpy.sum(array_list, axis=0)
 
     pre_cog_target = os.path.join(working_dir, os.path.basename(target_raster_path))
-    geoprocessing.raster_calculator(
+    geoprocessing.single_thread_raster_calculator(
         [(path, 1) for path in aligned_target_raster_path_list], _sum_op, pre_cog_target,
         target_datatype, 0,
         allow_different_blocksize=True)
