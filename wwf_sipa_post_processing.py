@@ -206,7 +206,7 @@ def main():
         ('IDN', './data/admin_boundaries/IDN_adm1.gpkg'),
     ]
 
-    scenario_list = ['restoration', 'conservation_inf']
+    scenario_list = ['restoration', 'conservation_inf', 'conservation_all']
     climate_list = ['ssp245']
     beneficiary_list = ['dspop', 'road']
     top_percentile_list = [10]
