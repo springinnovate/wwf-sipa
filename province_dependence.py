@@ -31,6 +31,18 @@ logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.DEBUG)
 logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 
+
+SCENARIO_LIST = ['restoration', 'conservation_inf', 'conservation_all']
+
+TOP10_SERVICE_COVERAGE_RASTERS = {
+    ('PH', 'restoration'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
+    ('IDN', 'restoration'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_restoration_each ecosystem service.tif",
+    ('PH', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_conservation_inf_each ecosystem service.tif",
+    ('IDN', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_conservation_inf_each ecosystem service.tif",
+    ('PH', 'conservation_all'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_conservation_all_each ecosystem service.tif",
+    ('IDN', 'conservation_all'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_conservation_all_each ecosystem service.tif",
+}
+
 IDN_PROVINCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg"
 PH_PROVINCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_adm1.gpkg"
 
@@ -406,21 +418,112 @@ def calculate_length_in_km_with_raster(
     return total_length_km
 
 
-SCENARIO_LIST = ['restoration', 'conservation_inf', 'conservation_all']
+def calculate_length_of_roads_in_service_areas(
+        province_mask_raster_path, service_raster_path, road_vector_path, epsg_projection):
+    """
+    Calculate the total length of roads within the province that intersect with non-zero pixels
+    in the TOP10_SERVICE_COVERAGE_RASTERS.
 
-TOP10_SERVICE_COVERAGE_RASTERS = {
-    ('PH', 'restoration'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
-    ('IDN', 'restoration'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_IDN_restoration_each ecosystem service.tif",
-    ('PH', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_PH_conservation_inf_each ecosystem service.tif",
-    ('IDN', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_IDN_conservation_inf_each ecosystem service.tif",
-    ('PH', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_PH_conservation_all_each ecosystem service.tif",
-    ('IDN', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir\overlap_rasters\overlap_combos_top_10_IDN_conservation_all_each ecosystem service.tif",
-}
+    Args:
+        province_mask_raster_path (str): Path to the province mask raster.
+        service_raster_path (str): Path to the TOP10 service coverage raster.
+        road_vector_path (str): Path to the roads vector layer.
+        epsg_projection (int): EPSG code for the projection to use in length calculations.
+
+    Returns:
+        float: Total length of roads in kilometers within the province and service areas.
+    """
+    import tempfile
+
+    # Create a temporary raster where both the province mask and service raster are non-zero
+    combined_raster_path = tempfile.mktemp(suffix='.tif')
+
+    def combined_mask_op(province_array, service_array):
+        return numpy.where((province_array > 0) & (service_array > 0), 1, 0).astype(numpy.uint8)
+
+    geoprocessing.raster_calculator(
+        [(province_mask_raster_path, 1), (service_raster_path, 1)], combined_mask_op,
+        combined_raster_path, gdal.GDT_Byte, None,
+        calc_raster_stats=False)
+
+    # Convert the combined raster to polygons
+    combined_raster = gdal.OpenEx(combined_raster_path, gdal.OF_RASTER)
+    combined_band = combined_raster.GetRasterBand(1)
+    mask_projection = osr.SpatialReference(combined_raster.GetProjection())
+    mask_projection.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
+    raster_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
+    raster_layer = raster_mem.CreateLayer(
+        'raster', srs=mask_projection,
+        geom_type=ogr.wkbPolygon)
+    raster_field = ogr.FieldDefn("value", ogr.OFTInteger)
+    raster_layer.CreateField(raster_field)
+
+    # Polygonize the raster
+    gdal.Polygonize(
+        combined_band, None, raster_layer, 0, [], callback=None)
+    raster_layer.SetAttributeFilter("value = 1")
+
+    # Open roads layer
+    line_vector = gdal.OpenEx(road_vector_path, gdal.OF_VECTOR)
+    line_layer = line_vector.GetLayer()
+    line_srs = line_layer.GetSpatialRef()
+
+    # Ensure the roads are in the same projection as the raster layer
+    if not mask_projection.IsSame(line_srs):
+        coord_transform = osr.CoordinateTransformation(line_srs, mask_projection)
+    else:
+        coord_transform = None
+
+    # Prepare the output layer for clipped roads
+    driver = ogr.GetDriverByName('Memory')
+    clipped_lines_mem = driver.CreateDataSource('clipped_roads')
+    clipped_lines_layer = clipped_lines_mem.CreateLayer(
+        'clipped_roads', srs=mask_projection, geom_type=ogr.wkbLineString)
+
+    # Iterate over road features and clip them using the raster polygons
+    line_layer.ResetReading()
+    for line_feature in line_layer:
+        line_geom = line_feature.GetGeometryRef().Clone()
+        if coord_transform:
+            line_geom.Transform(coord_transform)
+        for raster_feature in raster_layer:
+            raster_geom = raster_feature.GetGeometryRef()
+            if line_geom.Intersects(raster_geom):
+                intersection_geom = line_geom.Intersection(raster_geom)
+                if not intersection_geom.IsEmpty():
+                    new_feature = ogr.Feature(clipped_lines_layer.GetLayerDefn())
+                    new_feature.SetGeometry(intersection_geom)
+                    clipped_lines_layer.CreateFeature(new_feature)
+                    new_feature = None
+        raster_layer.ResetReading()
+        line_feature = None
+
+    # Transform the clipped road geometries to the target projection
+    target_projection = osr.SpatialReference()
+    target_projection.ImportFromEPSG(epsg_projection)
+    target_projection.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
+    transform = osr.CreateCoordinateTransformation(mask_projection, target_projection)
+
+    # Calculate the total length
+    total_length = 0
+    clipped_lines_layer.ResetReading()
+    for line_feature in clipped_lines_layer:
+        line_geometry = line_feature.GetGeometryRef()
+        line_geometry.Transform(transform)
+        total_length += line_geometry.Length()
+    total_length_km = total_length / 1000  # Convert to kilometers
+
+    # Clean up temporary files and resources
+    combined_raster = None
+    combined_band = None
+    os.remove(combined_raster_path)
+
+    return total_length_km
 
 
 def main():
-    duplicate_set = set()
-    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0)
+    return
+    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, -1)  # os.cpu_count(), 10.0)
     delayed_results = {}
     delayed_province_downstream_intersection_area = {}
 
@@ -449,6 +552,7 @@ def main():
              IDN_POP_RASTER_PATH,
              IDN_ROAD_VECTOR_PATH)]:
 
+        # shortcut to just skip certain countries, update VALID_COUNTRY_ID if you want this
         if VALID_COUNTRY_ID is not None and country_id not in VALID_COUNTRY_ID:
             continue
 
@@ -522,6 +626,9 @@ def main():
         layer = vector.GetLayer()
 
         align_service_raster_task_lookup = {}
+
+        LOGGER.warn('skipping the rest, just want the rasters genreated')
+        continue
 
         province_set = set()
         for index, feature in enumerate(layer):
@@ -623,7 +730,6 @@ def main():
                     dependent_task_list=[mask_service_task],
                     store_result=True,
                     task_name=f'calculate area {masked_service_raster_path}')
-                #service_area_task.join()
 
                 # downstream areas of top 10 service
                 global_downstream_coverage_raster_path = os.path.join(
@@ -669,7 +775,7 @@ def main():
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,
                     task_name=f'calculate area {local_downstream_coverage_raster_path}')
-                #local_downstream_service_area_task.join()
+
                 # calculate area of total downstream top 10% areas
                 global_downstream_service_area_task = task_graph.add_task(
                     func=calculate_mask_area_km2,
@@ -677,7 +783,6 @@ def main():
                     dependent_task_list=[downstream_coverage_task],
                     store_result=True,
                     task_name=f'calculate area {global_downstream_coverage_raster_path}')
-                #global_downstream_service_area_task.join()
 
                 province_scenario_masks[scenario][province_name]['global_downstream_coverage_raster_path'] = (
                     (global_downstream_service_area_task, global_downstream_coverage_raster_path))
@@ -751,7 +856,6 @@ def main():
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
                     task_name=f'calculate area {downstream_coverage_of_base_province_raster_path}')
-                #province_downstream_intersection_area_task.join()
 
                 downstream_service_pop_count_task = task_graph.add_task(
                     func=calculate_sum_over_mask,
@@ -776,6 +880,11 @@ def main():
                     (province_downstream_intersection_area_task,
                      downstream_service_pop_count_task,
                      downstream_length_of_roads_task)
+
+    LOGGER.warn('quitting early for debugging')
+    task_graph.join()
+    task_graph.close()
+    return
 
     analysis_df = collections.defaultdict(lambda: pandas.DataFrame())
     for (country_id, scenario, province_name) in delayed_results:
@@ -831,9 +940,6 @@ def main():
          _,
          _,
          _,) = delayed_results[(country_id, scenario, base_province)]
-
-        province_downstream_intersection_area_task.get()
-        base_downstream_area_task.get()
 
         scenario_downstream_coverage_percent_map[(country_id, scenario)][base_province][downstream_province] = (
             province_downstream_intersection_area_task.get() /
