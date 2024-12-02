@@ -35,27 +35,27 @@ logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 SCENARIO_LIST = ['restoration', 'conservation_inf', 'conservation_all']
 
 TOP10_SERVICE_COVERAGE_RASTERS = {
-    ('PH', 'restoration'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
-    ('IDN', 'restoration'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_restoration_each ecosystem service.tif",
-    ('PH', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_conservation_inf_each ecosystem service.tif",
-    ('IDN', 'conservation_inf'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_conservation_inf_each ecosystem service.tif",
-    ('PH', 'conservation_all'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_conservation_all_each ecosystem service.tif",
-    ('IDN', 'conservation_all'): r"D:\repositories\wwf-sipa\fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_conservation_all_each ecosystem service.tif",
+    ('PH', 'restoration'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
+    ('IDN', 'restoration'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_restoration_each ecosystem service.tif",
+    ('PH', 'conservation_inf'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_conservation_inf_each ecosystem service.tif",
+    ('IDN', 'conservation_inf'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_conservation_inf_each ecosystem service.tif",
+    ('PH', 'conservation_all'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_conservation_all_each ecosystem service.tif",
+    ('IDN', 'conservation_all'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_conservation_all_each ecosystem service.tif",
 }
 
-IDN_PROVINCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\IDN_adm1.gpkg"
-PH_PROVINCE_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\admin_boundaries\PH_adm1.gpkg"
+IDN_PROVINCE_VECTOR_PATH = r"./data\admin_boundaries\IDN_adm1.gpkg"
+PH_PROVINCE_VECTOR_PATH = r"./data\admin_boundaries\PH_adm1.gpkg"
 
-IDN_DEM_PATH = r"D:\repositories\wwf-sipa\data\idn_dem.tif"
-PH_DEM_PATH = r"D:\repositories\wwf-sipa\data\ph_dem.tif"
+IDN_DEM_PATH = r"./data\idn_dem.tif"
+PH_DEM_PATH = r"./data\ph_dem.tif"
 
 ELLIPSOID_EPSG = 6933
 
-IDN_POP_RASTER_PATH = r"D:\repositories\wwf-sipa\data\pop\idn_ppp_2020.tif"
-PH_POP_RASTER_PATH = r"D:\repositories\wwf-sipa\data\pop\phl_ppp_2020.tif"
+IDN_POP_RASTER_PATH = r"./data\pop\idn_ppp_2020.tif"
+PH_POP_RASTER_PATH = r"./data\pop\phl_ppp_2020.tif"
 
-PH_ROAD_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\infrastructure_polygons\PH_All_Roads_Merged.gpkg"
-IDN_ROAD_VECTOR_PATH = r"D:\repositories\wwf-sipa\data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg"
+PH_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\PH_All_Roads_Merged.gpkg"
+IDN_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg"
 
 WORKSPACE_DIR = 'province_dependence_workspace_2024_11_26'
 MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
@@ -522,8 +522,7 @@ def calculate_length_of_roads_in_service_areas(
 
 
 def main():
-    return
-    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, -1)  # os.cpu_count(), 10.0)
+    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0)
     delayed_results = {}
     delayed_province_downstream_intersection_area = {}
 
