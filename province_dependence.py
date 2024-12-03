@@ -17,8 +17,8 @@ import collections
 import numpy
 import pandas
 
-VALID_PROVINCE_NAMES = None  # ['National_Capital_Region', 'Region_IV-A']
-VALID_COUNTRY_ID = None  # ['PH']
+VALID_PROVINCE_NAMES = None #['National_Capital_Region', 'Region_IV-A']
+VALID_COUNTRY_ID = None #['PH']
 logging.basicConfig(
     level=logging.DEBUG,
     stream=sys.stdout,
@@ -381,8 +381,14 @@ def calculate_length_in_km_with_raster(
     transform = osr.CreateCoordinateTransformation(
         mask_projection, target_projection)
 
-    clipped_lines_mem = ogr.GetDriverByName('Memory').CreateDataSource('clipped_roads_' + os.path.basename(os.path.splitext(mask_raster_path)[0])+'.gpkg')
-    clipped_lines_layer = clipped_lines_mem.CreateLayer(
+    output_gpkg_path = os.path.join(
+        os.path.dirname(mask_raster_path),
+        f'clipped_roads_{os.path.basename(os.path.splitext(mask_raster_path)[0])}.gpkg')
+    gpkg_driver = ogr.GetDriverByName('GPKG')
+    if os.path.exists(output_gpkg_path):
+        gpkg_driver.DeleteDataSource(output_gpkg_path)
+    clipped_lines_ds = gpkg_driver.CreateDataSource(output_gpkg_path)
+    clipped_lines_layer = clipped_lines_ds.CreateLayer(
         'clipped_roads', srs=line_layer.GetSpatialRef(),
         geom_type=ogr.wkbLineString)
 
@@ -626,9 +632,6 @@ def main():
 
         align_service_raster_task_lookup = {}
 
-        LOGGER.warn('skipping the rest, just want the rasters genreated')
-        continue
-
         province_set = set()
         for index, feature in enumerate(layer):
             province_fid = feature.GetFID()
@@ -817,6 +820,7 @@ def main():
                     local_ds_service_pop_count_task,
                     local_ds_length_of_roads_task,)
 
+        duplicate_set = set()
         for scenario in SCENARIO_LIST:
             for base_province, downstream_province in itertools.product(
                     province_set, province_set):
@@ -880,10 +884,7 @@ def main():
                      downstream_service_pop_count_task,
                      downstream_length_of_roads_task)
 
-    LOGGER.warn('quitting early for debugging')
-    task_graph.join()
-    task_graph.close()
-    return
+    LOGGER.warning('quitting early for debugging')
 
     analysis_df = collections.defaultdict(lambda: pandas.DataFrame())
     for (country_id, scenario, province_name) in delayed_results:
