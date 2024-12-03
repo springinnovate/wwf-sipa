@@ -839,7 +839,9 @@ def main():
                     raise ValueError(f'{downstream_coverage_of_base_province_raster_path} was alreayd in the set!!!!')
                 else:
                     duplicate_set.add(downstream_coverage_of_base_province_raster_path)
-                # intersection of downstream province with downstream coverage
+                # this function takes the "global downstream coverage raster" which is calculated
+                # by taking two provences and routing one to the other, but we take that
+                # data then mask it only to the downstream provence.
                 province_downstream_intersection_task = task_graph.add_task(
                     func=mask_raster,
                     args=(
@@ -865,7 +867,7 @@ def main():
                     args=(pop_raster_path, downstream_coverage_of_base_province_raster_path),
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
-                    task_name=f'calculate people in {downstream_coverage_of_base_province_raster_path}')
+                    task_name=f'calculate downstream people in {downstream_coverage_of_base_province_raster_path}')
 
                 # calculate km of roads on the ds mask in the province
                 downstream_length_of_roads_task = task_graph.add_task(
