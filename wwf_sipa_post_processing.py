@@ -722,10 +722,10 @@ def main():
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_dspop_benes_md5_028732.tif",
          DSPOP_SERVICE_SEDIMENT_PH_CONSERVATION_INF),
         (DIFF_FLOOD_MITIGATION_PH_CONSERVATION_ALL_SSP245,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_ALL_SSP245),
         (DIFF_FLOOD_MITIGATION_PH_CONSERVATION_ALL,
-         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_idn_downstream_road2019_benes_md5_8ec2cd.tif",
+         r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
          ROAD_SERVICE_FLOOD_MITIGATION_PH_CONSERVATION_ALL),
         (DIFF_FLOOD_MITIGATION_PH_CONSERVATION_INF,
          r"D:\repositories\wwf-sipa\downstream_beneficiary_workspace\num_of_downstream_beneficiaries_per_pixel_ph_downstream_road2019_benes_md5_870a6c.tif",
@@ -990,7 +990,6 @@ def main():
                 continue
         percentile_groups[index_substring].append(percentile_raster_path)
 
-    LOGGER.debug(f'these are the percentile groups: {list(percentile_groups.keys())}')
     overlap_file_list = open('overlap.txt', 'w')
     for key, percentile_raster_group in percentile_groups.items():
         service_overlap_raster_path = os.path.join(RESULTS_DIR, f'{key}service_overlap_count.tif')

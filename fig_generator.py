@@ -934,10 +934,12 @@ def do_analyses(task_graph):
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
     top_10_percent_maps = [
-        ('PH', CONSERVATION_SCENARIO_INF,),
-        ('PH', RESTORATION_SCENARIO,),
-        ('IDN', CONSERVATION_SCENARIO_INF,),
-        ('IDN', RESTORATION_SCENARIO,),
+        #('PH', CONSERVATION_SCENARIO_INF,),
+        ('PH', CONSERVATION_SCENARIO_ALL,),
+        #('PH', RESTORATION_SCENARIO,),
+        #('IDN', CONSERVATION_SCENARIO_INF,),
+        ('IDN', CONSERVATION_SCENARIO_ALL,),
+        #('IDN', RESTORATION_SCENARIO,),
     ]
 
     overlapping_services = [
