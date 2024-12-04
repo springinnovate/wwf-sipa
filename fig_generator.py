@@ -1062,12 +1062,16 @@ def main():
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Sediment retention (Conservation)'),
         (SEDIMENT_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Sediment retention (Conservation)'),
-        (FLOOD_MITIGATION_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
-        (FLOOD_MITIGATION_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
-        (FLOOD_MITIGATION_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
-        (SEDIMENT_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Sediment retention (Restoration)'),
-        (FLOOD_MITIGATION_SERVICE, 'PH', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
+        (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO_ALL, 'Sediment retention (Conservation -- All)'),
+        (SEDIMENT_SERVICE, 'IDN', CONSERVATION_SCENARIO_ALL, 'Sediment retention (Conservation -- All)'),
         (SEDIMENT_SERVICE, 'PH', RESTORATION_SCENARIO, 'Sediment retention (Restoration)'),
+        (SEDIMENT_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Sediment retention (Restoration)'),
+        (FLOOD_MITIGATION_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
+        (FLOOD_MITIGATION_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Flood mitigation (Conservation)'),
+        (FLOOD_MITIGATION_SERVICE, 'PH', CONSERVATION_SCENARIO_ALL, 'Flood mitigation (Conservation -- All)'),
+        (FLOOD_MITIGATION_SERVICE, 'IDN', CONSERVATION_SCENARIO_ALL, 'Flood mitigation (Conservation -- All)'),
+        (FLOOD_MITIGATION_SERVICE, 'PH', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
+        (FLOOD_MITIGATION_SERVICE, 'IDN', RESTORATION_SCENARIO, 'Flood mitigation (Restoration)'),
     ]
 
     for service, country, scenario, figure_title in four_panel_tuples:
