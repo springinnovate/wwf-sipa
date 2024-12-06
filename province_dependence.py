@@ -17,8 +17,8 @@ import collections
 import numpy
 import pandas
 
-VALID_PROVINCE_NAMES = None #['National_Capital_Region', 'Region_IV-A']
-VALID_COUNTRY_ID = None #['PH']
+VALID_PROVINCE_NAMES = None  # ['National_Capital_Region', 'Region_IV-A']
+VALID_COUNTRY_ID = None  # ['PH']
 logging.basicConfig(
     level=logging.DEBUG,
     stream=sys.stdout,
@@ -828,9 +828,6 @@ def main():
                     scenario][base_province]['global_downstream_coverage_raster_path']
                 (downstream_mask_task, downstream_province_mask_path) = province_scenario_masks[
                     scenario][downstream_province]['province_mask_path']
-
-                if base_province == downstream_province:
-                    continue
 
                 downstream_coverage_of_base_province_raster_path = os.path.join(
                     DOWNSTREAM_COVERAGE_DIR, f'{base_province}_on_{downstream_province}_{scenario}.tif')

@@ -43,18 +43,28 @@ OVERLAP_DIR = os.path.join(WORKING_DIR, 'overlap_rasters')
 SCALED_DIR = os.path.join(WORKING_DIR, 'scaled_rasters')
 COMBINED_SERVICE_DIR = os.path.join(WORKING_DIR, 'combined_services')
 COG_DIR = os.path.join(WORKING_DIR, 'cog')
+PA_KBA_OVERLAP_DIR = os.path.join(WORKING_DIR, 'pa_kba_raster_overlaps')
 for dir_path in [
         WORKING_DIR,
         FIG_DIR,
         ALGINED_DIR,
         OVERLAP_DIR,
         SCALED_DIR,
+        PA_KBA_OVERLAP_DIR,
         COG_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 REMOTE_BUCKET_PATH = 'gs://ecoshard-root/wwf_sipa_viewer_2024_07_10/'
 
-ROOT_DATA_DIR = r'D:\repositories\wwf-sipa\post_processing_results_updated_R_worstcase_2024_11_21'
+ROOT_DATA_DIR = './post_processing_results_updated_R_worstcase_2024_11_21'
+PROTECTED_AREAS = {
+    'PH': './data/protected_areas/PH_Combined_PAs',
+    'IDN': './data/protected_areas/ID_Combined PAs',
+}
+KEY_BIODIVERSITY_AREAS = {
+    'PH': './data/protected_areas/PH_KBA',
+    'IDN': './data/protected_areas/Indonesia_KBA',
+}
 
 GLOBAL_PIXEL_SIZE = (0.0008333333333333333868, -0.0008333333333333333868)
 LOW_PERCENTILE = 10
@@ -816,6 +826,53 @@ def do_analyses(task_graph):
                 dspop_road_overlap_path = top_10th_percentile_service_dspop_path
                 dspop_road_id = 'dspop'
             # TODO: reproject dspop_road_overlap_path, then sum nonzero pixels
+
+            service_on_protected_areas_path = os.path.join(
+                PA_KBA_OVERLAP_DIR,
+                f'pa_{os.path.basename(dspop_road_overlap_path)}')
+            pa_overlap_task = task_graph.add_task(
+                func=geoprocessing.mask_raster,
+                args=(
+                    (top_10th_percentile_service_road_path, 1),
+                    PROTECTED_AREAS[country],
+                    service_on_protected_areas_path),
+                kwargs={
+                    'working_dir': WORKING_DIR,
+                    'all_touched': True,
+                    'allow_different_blocksize': True},
+                target_path_list=[service_on_protected_areas_path],
+                task_name=f'pa overlap for {country}_{scenario}_{service}')
+
+            pa_overlap_task = task_graph.add_task(
+                func=calculate_pixel_area_km2,
+                args=(service_on_protected_areas_path, projection_epsg),
+                dependent_task_list=[pa_overlap_task],
+                store_result=True,
+                task_name=f'pixel area km for {country}_{scenario}_{service}')
+
+            service_on_kba_path = os.path.join(
+                PA_KBA_OVERLAP_DIR,
+                f'kba_{os.path.basename(dspop_road_overlap_path)}')
+            kpa_overlap_task = task_graph.add_task(
+                func=geoprocessing.mask_raster,
+                args=(
+                    (top_10th_percentile_service_road_path, 1),
+                    KEY_BIODIVERSITY_AREAS[country],
+                    service_on_kba_path),
+                kwargs={
+                    'working_dir': WORKING_DIR,
+                    'all_touched': True,
+                    'allow_different_blocksize': True},
+                target_path_list=[service_on_kba_path],
+                task_name=f'pa overlap for {country}_{scenario}_{service}')
+
+            kba_overlap_task = task_graph.add_task(
+                func=calculate_pixel_area_km2,
+                args=(service_on_kba_path, projection_epsg),
+                dependent_task_list=[kpa_overlap_task],
+                store_result=True,
+                task_name=f'pixel area km for {country}_{scenario}_{service}')
+
             service_area_km2 = calculate_pixel_area_km2(
                 dspop_road_overlap_path, projection_epsg)
             row_data = {
@@ -826,6 +883,8 @@ def do_analyses(task_graph):
                 'summary': f'top 10th percentile {dspop_road_id} km^2',
                 'value': service_area_km2,
                 'source_file': dspop_road_overlap_path,
+                'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
+                'top 10th percentile service km^2 km^2 ON KBAS': kba_overlap_task.get(),
             }
             row_df = pandas.DataFrame([row_data])
             result_df = pandas.concat([result_df, row_df], ignore_index=True)
