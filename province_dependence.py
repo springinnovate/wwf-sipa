@@ -28,7 +28,7 @@ logging.basicConfig(
 LOGGER = logging.getLogger(__name__)
 logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 logging.getLogger('PIL').setLevel(logging.ERROR)
-logging.getLogger('ecoshard.taskgraph').setLevel(logging.DEBUG)
+logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 
 
@@ -528,7 +528,7 @@ def calculate_length_of_roads_in_service_areas(
 
 
 def main():
-    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0)
+    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0, error_on_mismatch=True)
     delayed_results = {}
     delayed_province_downstream_intersection_area = {}
 
@@ -943,6 +943,7 @@ def main():
         scenario_downstream_coverage_percent_map[(country_id, scenario)][base_province][downstream_province] = (
             province_downstream_intersection_area_task.get() /
             base_downstream_area_task.get() * 100.0)
+
         scenario_downstream_population_coverage_map[(country_id, scenario)]\
             [base_province][downstream_province] = \
             downstream_service_pop_count_task.get()
