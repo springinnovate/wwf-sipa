@@ -528,7 +528,7 @@ def calculate_length_of_roads_in_service_areas(
 
 
 def main():
-    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0, error_on_mismatch=True)
+    task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0, allow_different_target_paths=False)
     delayed_results = {}
     delayed_province_downstream_intersection_area = {}
 
@@ -649,6 +649,7 @@ def main():
                     province_fid,
                     dem_path,
                     province_mask_path),
+                copy_duplicate_artifact=True,
                 ignore_path_list=[simplified_vector_path],
                 dependent_task_list=[simplify_vector_task],
                 target_path_list=[province_mask_path],
@@ -766,6 +767,7 @@ def main():
                         local_downstream_coverage_raster_path),
                     dependent_task_list=[
                         downstream_coverage_task, rasterize_province_task],
+                    copy_duplicate_artifact=True,
                     target_path_list=[local_downstream_coverage_raster_path],
                     task_name=f'masking downstream coverage to {province_name} {scenario}')
 
@@ -849,6 +851,7 @@ def main():
                         base_coverage_task,
                         downstream_mask_task,
                         rasterize_province_task],
+                    copy_duplicate_artifact=True,
                     target_path_list=[downstream_coverage_of_base_province_raster_path],
                     task_name=f'masking base downstream coverage to {province_name} {scenario} {downstream_coverage_of_base_province_raster_path}')
 
