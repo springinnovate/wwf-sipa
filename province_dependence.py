@@ -353,7 +353,6 @@ def calculate_length_in_km_with_raster(
     line_srs = line_layer.GetSpatialRef()
 
     if not mask_projection.IsSame(line_srs):
-        LOGGER.debug('************** LINES ARENT THE SAME AS ARASTER')
         # Create a transformed copy of line_layer in the spatial reference of poly_layer
         transformed_line_mem = ogr.GetDriverByName('Memory').CreateDataSource('clipped_roads_PRE' + os.path.basename(os.path.splitext(mask_raster_path)[0])+'.gpkg')
         transformed_line_layer = transformed_line_mem.CreateLayer('transformed_lines', srs=mask_projection, geom_type=ogr.wkbLineString)
@@ -681,7 +680,7 @@ def main():
                     province_fid, ELLIPSOID_EPSG),
                 ignore_path_list=[province_vector_path, road_vector_path],
                 store_result=True,
-                task_name=f'road length for {province_fid}')
+                task_name=f'road length for {country_id} {province_fid}')
 
             for scenario in SCENARIO_LIST:
                 # guard against an already calculates service overlap
@@ -810,7 +809,7 @@ def main():
                     ignore_path_list=[road_vector_path],
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,
-                    task_name=f'road length for {province_fid} {scenario}')
+                    task_name=f'road length for {country_id} {province_fid} {scenario}')
 
                 delayed_results[(country_id, scenario, province_name)] = (
                     province_area_task,

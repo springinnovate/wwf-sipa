@@ -281,6 +281,65 @@ FILENAMES = {
 }
 
 
+def calculate_pa_kba_overlaps(
+    task_graph,
+    service_raster_path,
+    basename_raster_path,
+    country,
+    scenario,
+    service,
+    projection_epsg
+):
+    service_on_protected_areas_path = os.path.join(
+        PA_KBA_OVERLAP_DIR,
+        f'pa_{os.path.basename(basename_raster_path)}')
+
+    pa_mask_task = task_graph.add_task(
+        func=geoprocessing.mask_raster,
+        args=(
+            (service_raster_path, 1),
+            PROTECTED_AREAS[country],
+            service_on_protected_areas_path),
+        kwargs={
+            'working_dir': WORKING_DIR,
+            'all_touched': True,
+            'allow_different_blocksize': True},
+        target_path_list=[service_on_protected_areas_path],
+        task_name=f'pa overlap for {country}_{scenario}_{service}')
+
+    pa_area_task = task_graph.add_task(
+        func=calculate_pixel_area_km2,
+        args=(service_on_protected_areas_path, projection_epsg),
+        dependent_task_list=[pa_mask_task],
+        store_result=True,
+        task_name=f'pixel area km for {country}_{scenario}_{service}')
+
+    service_on_kba_path = os.path.join(
+        PA_KBA_OVERLAP_DIR,
+        f'kba_{os.path.basename(basename_raster_path)}')
+    kba_mask_task = task_graph.add_task(
+        func=geoprocessing.mask_raster,
+        args=(
+            (service_raster_path, 1),
+            KEY_BIODIVERSITY_AREAS[country],
+            service_on_kba_path),
+        kwargs={
+            'working_dir': WORKING_DIR,
+            'all_touched': True,
+            'allow_different_blocksize': True},
+        target_path_list=[service_on_kba_path],
+        task_name=f'kba overlap for {country}_{scenario}_{service}')
+
+    kba_area_task = task_graph.add_task(
+        func=calculate_pixel_area_km2,
+        args=(service_on_kba_path, projection_epsg),
+        dependent_task_list=[kba_mask_task],
+        store_result=True,
+        task_name=f'pixel area km for {country}_{scenario}_{service}')
+
+    return pa_area_task, kba_area_task
+
+
 def _make_logger_callback(message, timeout=5.0):
     """Build a timed logger callback that prints ``message`` replaced.
 
@@ -825,53 +884,16 @@ def do_analyses(task_graph):
                 # doesn't exist but we don't lose anything by just doing the dspop
                 dspop_road_overlap_path = top_10th_percentile_service_dspop_path
                 dspop_road_id = 'dspop'
-            # TODO: reproject dspop_road_overlap_path, then sum nonzero pixels
 
-            service_on_protected_areas_path = os.path.join(
-                PA_KBA_OVERLAP_DIR,
-                f'pa_{os.path.basename(dspop_road_overlap_path)}')
-            pa_overlap_task = task_graph.add_task(
-                func=geoprocessing.mask_raster,
-                args=(
-                    (top_10th_percentile_service_road_path, 1),
-                    PROTECTED_AREAS[country],
-                    service_on_protected_areas_path),
-                kwargs={
-                    'working_dir': WORKING_DIR,
-                    'all_touched': True,
-                    'allow_different_blocksize': True},
-                target_path_list=[service_on_protected_areas_path],
-                task_name=f'pa overlap for {country}_{scenario}_{service}')
-
-            pa_overlap_task = task_graph.add_task(
-                func=calculate_pixel_area_km2,
-                args=(service_on_protected_areas_path, projection_epsg),
-                dependent_task_list=[pa_overlap_task],
-                store_result=True,
-                task_name=f'pixel area km for {country}_{scenario}_{service}')
-
-            service_on_kba_path = os.path.join(
-                PA_KBA_OVERLAP_DIR,
-                f'kba_{os.path.basename(dspop_road_overlap_path)}')
-            kpa_overlap_task = task_graph.add_task(
-                func=geoprocessing.mask_raster,
-                args=(
-                    (top_10th_percentile_service_road_path, 1),
-                    KEY_BIODIVERSITY_AREAS[country],
-                    service_on_kba_path),
-                kwargs={
-                    'working_dir': WORKING_DIR,
-                    'all_touched': True,
-                    'allow_different_blocksize': True},
-                target_path_list=[service_on_kba_path],
-                task_name=f'pa overlap for {country}_{scenario}_{service}')
-
-            kba_overlap_task = task_graph.add_task(
-                func=calculate_pixel_area_km2,
-                args=(service_on_kba_path, projection_epsg),
-                dependent_task_list=[kpa_overlap_task],
-                store_result=True,
-                task_name=f'pixel area km for {country}_{scenario}_{service}')
+            pa_overlap_task, kba_overlap_task = calculate_pa_kba_overlaps(
+                task_graph,
+                top_10th_percentile_service_road_path,
+                dspop_road_overlap_path,
+                country,
+                scenario,
+                service,
+                projection_epsg
+            )
 
             service_area_km2 = calculate_pixel_area_km2(
                 dspop_road_overlap_path, projection_epsg)
@@ -904,6 +926,17 @@ def do_analyses(task_graph):
                     target_path_list=[combined_percentile_service_path],
                     task_name=f'combined service {service} {country} {scenario}')
 
+
+                pa_overlap_task, kba_overlap_task = calculate_pa_kba_overlaps(
+                    task_graph,
+                    combined_percentile_service_path,
+                    combined_percentile_service_path,
+                    country,
+                    scenario,
+                    service,
+                    projection_epsg
+                )
+
                 service_area_km2 = calculate_pixel_area_km2(
                     combined_percentile_service_path, projection_epsg)
                 row_data = {
@@ -914,6 +947,8 @@ def do_analyses(task_graph):
                     'summary': 'top 10th percentile combined beneficiaries km^2',
                     'value': service_area_km2,
                     'source_file': combined_percentile_service_path,
+                    'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
+                    'top 10th percentile service km^2 km^2 ON KBAS': kba_overlap_task.get(),
                 }
             else:
                 row_data = {
@@ -924,6 +959,8 @@ def do_analyses(task_graph):
                     'summary': 'top 10th percentile combined beneficiaries km^2',
                     'value': 'no roads',
                     'source_file': combined_percentile_service_path,
+                    'top 10th percentile service km^2 ON PROTECTED AREAS': '0',
+                    'top 10th percentile service km^2 km^2 ON KBAS': '0',
                 }
             row_df = pandas.DataFrame([row_data])
             result_df = pandas.concat([result_df, row_df], ignore_index=True)
