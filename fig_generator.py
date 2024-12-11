@@ -1080,7 +1080,7 @@ def main():
     ]
 
     combined_dspop_overlap_service_map = collections.defaultdict(dict)
-
+    processed_raster_path_set = set()
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
                 (each_service, EACH_ECOSYSTEM_SERVICE_ID),
@@ -1104,15 +1104,18 @@ def main():
                         if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
                             # combine road and dspop if road exists
                             top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
-                            task_graph.add_task(
-                                func=overlap_dspop_road_op,
-                                args=(
-                                    top_10th_percentile_service_dspop_path,
-                                    top_10th_percentile_service_road_path,
-                                    f'top10_{country}_{scenario}',
-                                    dspop_road_overlap_path),
-                                target_path_list=[dspop_road_overlap_path],
-                                task_name=f'dspop road {service} {country} {scenario}')
+                            if top_10th_percentile_service_road_path not in processed_raster_path_set:
+                                task_graph.add_task(
+                                    func=overlap_dspop_road_op,
+                                    args=(
+                                        top_10th_percentile_service_dspop_path,
+                                        top_10th_percentile_service_road_path,
+                                        f'top10_{country}_{scenario}',
+                                        dspop_road_overlap_path),
+                                    target_path_list=[dspop_road_overlap_path],
+                                    task_name=f'dspop road {service} {country} {scenario}')
+                                processed_raster_path_set.add(top_10th_percentile_service_road_path)
+
                         else:
                             # doesn't exist but we don't lose anything by just doing the dspop
                             dspop_road_overlap_path = top_10th_percentile_service_dspop_path
