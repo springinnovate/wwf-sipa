@@ -807,14 +807,17 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         next_offset = index_list[-1][1]
     index_list.pop(0)
 
-    task_graph.add_task(
-        func=geoprocessing.align_and_resize_raster_stack,
-        args=(
-            unique_path_list, aligned_rasters,
-            ['near'] * len(unique_path_list),
-            GLOBAL_PIXEL_SIZE, 'intersection'),
-        target_path_list=aligned_rasters,
-        task_name='alignining in overlap op')
+    try:
+        task_graph.add_task(
+            func=geoprocessing.align_and_resize_raster_stack,
+            args=(
+                unique_path_list, aligned_rasters,
+                ['near'] * len(unique_path_list),
+                GLOBAL_PIXEL_SIZE, 'intersection'),
+            target_path_list=aligned_rasters,
+            task_name='alignining in overlap op')
+    except RuntimeError:
+        LOGGER.info(f'already calculated {aligned_rasters}')
     task_graph.join()
 
     combined_index_raster_path_list = (
