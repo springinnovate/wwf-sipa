@@ -36,7 +36,7 @@ logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 
 CUSTOM_STYLE_DIR = 'custom_styles'
-WORKING_DIR = 'fig_generator_dir_2024_11_25'
+WORKING_DIR = 'fig_generator_dir_2024_12_11'
 FIG_DIR = os.path.join(WORKING_DIR, 'rendered_figures')
 ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
 OVERLAP_DIR = os.path.join(WORKING_DIR, 'overlap_rasters')
@@ -986,6 +986,17 @@ def do_analyses(task_graph):
 
             service_area_km2 = calculate_pixel_area_km2(
                 service_vs_overlap_path, projection_epsg)
+
+            pa_overlap_task, kba_overlap_task = calculate_pa_kba_overlaps(
+                task_graph,
+                service_vs_overlap_path,
+                service_vs_overlap_path,
+                country,
+                scenario,
+                service,
+                projection_epsg
+            )
+
             row_data = {
                 'country': country,
                 'country area km^2': country_area_km2,
@@ -994,6 +1005,8 @@ def do_analyses(task_graph):
                 'summary': r'coverage of service top 10% on top 10% overlapping services',
                 'value': service_area_km2,
                 'source_file': service_vs_overlap_path,
+                'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
+                'top 10th percentile service km^2 km^2 ON KBAS': kba_overlap_task.get(),
             }
             row_df = pandas.DataFrame([row_data])
             result_df = pandas.concat([result_df, row_df], ignore_index=True)
@@ -1012,6 +1025,15 @@ def do_analyses(task_graph):
                     OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{each_or_other}.tif')
                 service_area_km2 = calculate_pixel_area_km2(
                     overlap_combo_service_path, projection_epsg)
+                pa_overlap_task, kba_overlap_task = calculate_pa_kba_overlaps(
+                    task_graph,
+                    overlap_combo_service_path,
+                    overlap_combo_service_path,
+                    country,
+                    scenario,
+                    service,
+                    projection_epsg
+                )
                 row_data = {
                     'country': country,
                     'country area km^2': country_area_km2,
@@ -1019,6 +1041,8 @@ def do_analyses(task_graph):
                     'summary': f'top 10th percentile {each_or_other} km^2',
                     'value': service_area_km2,
                     'source_file': overlap_combo_service_path,
+                    'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
+                    'top 10th percentile service km^2 km^2 ON KBAS': kba_overlap_task.get(),
                 }
                 row_df = pandas.DataFrame([row_data])
                 result_df = pandas.concat([result_df, row_df], ignore_index=True)
@@ -1030,12 +1054,12 @@ def do_analyses(task_graph):
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
     top_10_percent_maps = [
-        #('PH', CONSERVATION_SCENARIO_INF,),
+        ('PH', CONSERVATION_SCENARIO_INF,),
         ('PH', CONSERVATION_SCENARIO_ALL,),
-        #('PH', RESTORATION_SCENARIO,),
-        #('IDN', CONSERVATION_SCENARIO_INF,),
+        ('PH', RESTORATION_SCENARIO,),
+        ('IDN', CONSERVATION_SCENARIO_INF,),
         ('IDN', CONSERVATION_SCENARIO_ALL,),
-        #('IDN', RESTORATION_SCENARIO,),
+        ('IDN', RESTORATION_SCENARIO,),
     ]
 
     overlapping_services = [
@@ -1290,7 +1314,6 @@ def main():
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
-    return
 
     three_panel_no_diff_tuple = [
         (CV_SERVICE, 'IDN', CONSERVATION_SCENARIO_INF, 'Coastal protection (Conservation - Infrastructure)'),
