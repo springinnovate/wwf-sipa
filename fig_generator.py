@@ -807,7 +807,8 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
         next_offset = index_list[-1][1]
     index_list.pop(0)
 
-    try:
+    # calculate if any of the target paths are missing
+    if not all([os.path.exists(path) for path in aligned_rasters]):
         task_graph.add_task(
             func=geoprocessing.align_and_resize_raster_stack,
             args=(
@@ -816,8 +817,6 @@ def overlap_combos_op(task_graph, overlap_combo_list, prefix, target_path):
                 GLOBAL_PIXEL_SIZE, 'intersection'),
             target_path_list=aligned_rasters,
             task_name='alignining in overlap op')
-    except RuntimeError:
-        LOGGER.info(f'already calculated {aligned_rasters}')
     task_graph.join()
 
     combined_index_raster_path_list = (
@@ -1103,11 +1102,12 @@ def main():
                     for service in service_tuple:
                         # loop through all the services, they always have a dspop and some of them have a roads, if roads then combine
                         dspop_road_overlap_path = os.path.join(OVERLAP_DIR, f'dspop_road_overlap_{country}_{scenario}_{service}.tif')
+
                         top_10th_percentile_service_dspop_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_dspop']
                         if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
                             # combine road and dspop if road exists
                             top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
-                            if top_10th_percentile_service_road_path not in processed_raster_path_set:
+                            if dspop_road_overlap_path not in processed_raster_path_set:
                                 task_graph.add_task(
                                     func=overlap_dspop_road_op,
                                     args=(
@@ -1117,7 +1117,7 @@ def main():
                                         dspop_road_overlap_path),
                                     target_path_list=[dspop_road_overlap_path],
                                     task_name=f'dspop road {service} {country} {scenario}')
-                                processed_raster_path_set.add(top_10th_percentile_service_road_path)
+                                processed_raster_path_set.add(dspop_road_overlap_path)
 
                         else:
                             # doesn't exist but we don't lose anything by just doing the dspop
@@ -1157,7 +1157,6 @@ def main():
                 figure_title, [None], GLOBAL_DPI, task_graph)
 
     # make 'heat map' overlap
-    LOGGER.debug(f'************ thius is the working map: {combined_dspop_overlap_service_map}')
     for country_scenario, ds_pop_rasters in combined_dspop_overlap_service_map.items():
         four_service_overlap_path = os.path.join(
             OVERLAP_DIR, f'four_service_overlap_{country_scenario}.tif')
