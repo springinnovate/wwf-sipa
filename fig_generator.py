@@ -854,6 +854,7 @@ def do_analyses(task_graph):
 
     result_df = pandas.DataFrame()
 
+    processed_raster_paths = set()
     for country, vector_path, projection_epsg in [
             ('PH', COUNTRY_OUTLINE_PATH['PH'], ELLIPSOID_EPSG),
             ('IDN', COUNTRY_OUTLINE_PATH['IDN'], ELLIPSOID_EPSG)]:
@@ -873,15 +874,17 @@ def do_analyses(task_graph):
             if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
                 # combine road and dspop if road exists
                 top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
-                task_graph.add_task(
-                    func=overlap_dspop_road_op,
-                    args=(
-                        top_10th_percentile_service_dspop_path,
-                        top_10th_percentile_service_road_path,
-                        f'top10_{country}_{scenario}',
-                        dspop_road_overlap_path),
-                    target_path_list=[dspop_road_overlap_path],
-                    task_name=f'dspop road {service} {country} {scenario}')
+                if dspop_road_overlap_path not in processed_raster_paths:
+                    task_graph.add_task(
+                        func=overlap_dspop_road_op,
+                        args=(
+                            top_10th_percentile_service_dspop_path,
+                            top_10th_percentile_service_road_path,
+                            f'top10_{country}_{scenario}',
+                            dspop_road_overlap_path),
+                        target_path_list=[dspop_road_overlap_path],
+                        task_name=f'dspop road {service} {country} {scenario}')
+                    processed_raster_paths.add(dspop_road_overlap_path)
             else:
                 # doesn't exist but we don't lose anything by just doing the dspop
                 dspop_road_overlap_path = top_10th_percentile_service_dspop_path
