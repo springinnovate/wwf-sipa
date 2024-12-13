@@ -846,7 +846,7 @@ def subtract_paths(base_path, full_path):
     return full.relative_to(base)
 
 
-def do_analyses(task_graph):
+def do_analyses(task_graph, processed_raster_path_set):
     scenario_service_tuples = list(itertools.product(
         [CONSERVATION_SCENARIO_ALL, CONSERVATION_SCENARIO_INF, RESTORATION_SCENARIO],
         [SEDIMENT_SERVICE, FLOOD_MITIGATION_SERVICE,
@@ -854,7 +854,6 @@ def do_analyses(task_graph):
 
     result_df = pandas.DataFrame()
 
-    processed_raster_paths = set()
     for country, vector_path, projection_epsg in [
             ('PH', COUNTRY_OUTLINE_PATH['PH'], ELLIPSOID_EPSG),
             ('IDN', COUNTRY_OUTLINE_PATH['IDN'], ELLIPSOID_EPSG)]:
@@ -874,7 +873,7 @@ def do_analyses(task_graph):
             if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
                 # combine road and dspop if road exists
                 top_10th_percentile_service_road_path = FILENAMES[country][scenario][service]['top_10th_percentile_service_road']
-                if dspop_road_overlap_path not in processed_raster_paths:
+                if dspop_road_overlap_path not in processed_raster_path_set:
                     task_graph.add_task(
                         func=overlap_dspop_road_op,
                         args=(
@@ -884,7 +883,7 @@ def do_analyses(task_graph):
                             dspop_road_overlap_path),
                         target_path_list=[dspop_road_overlap_path],
                         task_name=f'dspop road {service} {country} {scenario}')
-                    processed_raster_paths.add(dspop_road_overlap_path)
+                    processed_raster_path_set.add(dspop_road_overlap_path)
             else:
                 # doesn't exist but we don't lose anything by just doing the dspop
                 dspop_road_overlap_path = top_10th_percentile_service_dspop_path
@@ -1396,7 +1395,7 @@ def main():
 
     # calculate total overlap
 
-    do_analyses(task_graph)
+    do_analyses(task_graph, processed_raster_path_set)
 
     task_graph.close()
     task_graph.join()
