@@ -1134,16 +1134,17 @@ def main():
 
             overlap_combo_service_path = os.path.join(
                 OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{service_set_title}.tif')
-
-            task_graph.add_task(
-                func=overlap_combos_op,
-                args=(
-                    task_graph,
-                    overlap_sets,
-                    f'{country}_{scenario}',
-                    overlap_combo_service_path),
-                target_path_list=[overlap_combo_service_path],
-                task_name=f'top 10% of combo priorities {country} {scenario}')
+            if overlap_combo_service_path not in processed_raster_path_set:
+                task_graph.add_task(
+                    func=overlap_combos_op,
+                    args=(
+                        task_graph,
+                        overlap_sets,
+                        f'{country}_{scenario}',
+                        overlap_combo_service_path),
+                    target_path_list=[overlap_combo_service_path],
+                    task_name=f'top 10% of combo priorities {country} {scenario}')
+                processed_raster_path_set.add(overlap_combo_service_path)
             LOGGER.debug(overlap_combo_service_path)
 
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
@@ -1165,11 +1166,13 @@ def main():
     for country_scenario, ds_pop_rasters in combined_dspop_overlap_service_map.items():
         four_service_overlap_path = os.path.join(
             OVERLAP_DIR, f'four_service_overlap_{country_scenario}.tif')
-        task_graph.add_task(
-            func=add_masks,
-            args=(ds_pop_rasters.values(), four_service_overlap_path),
-            target_path_list=[four_service_overlap_path],
-            task_name=f'four overlaps for {country_scenario}')
+        if four_service_overlap_path not in processed_raster_path_set:
+            task_graph.add_task(
+                func=add_masks,
+                args=(ds_pop_rasters.values(), four_service_overlap_path),
+                target_path_list=[four_service_overlap_path],
+                task_name=f'four overlaps for {country_scenario}')
+            processed_raster_path_set.add(four_service_overlap_path)
 
         country, _, scenario = country_scenario.partition('_')
         style_rasters(
@@ -1216,15 +1219,17 @@ def main():
 
             combined_percentile_service_path = os.path.join(
                 COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
-            task_graph.add_task(
-                func=overlap_dspop_road_op,
-                args=(
-                    top_10th_percentile_service_dspop_path,
-                    top_10th_percentile_service_road_path,
-                    f'fourpanel_{service}_{country}_{scenario}',
-                    combined_percentile_service_path),
-                target_path_list=[combined_percentile_service_path],
-                task_name=f'combined service {service} {country} {scenario}')
+            if combined_percentile_service_path not in processed_raster_path_set:
+                task_graph.add_task(
+                    func=overlap_dspop_road_op,
+                    args=(
+                        top_10th_percentile_service_dspop_path,
+                        top_10th_percentile_service_road_path,
+                        f'fourpanel_{service}_{country}_{scenario}',
+                        combined_percentile_service_path),
+                    target_path_list=[combined_percentile_service_path],
+                    task_name=f'combined service {service} {country} {scenario}')
+                processed_raster_path_set.add(combined_percentile_service_path)
 
             fig_1_title = f'Biophysical supply of {service}'
             fig_2_title = f'{service} for downstream people'
@@ -1345,15 +1350,17 @@ def main():
             combined_percentile_service_path = os.path.join(
                 COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
 
-            task_graph.add_task(
-                func=overlap_dspop_road_op,
-                args=(
-                    top_10th_percentile_service_dspop_path,
-                    top_10th_percentile_service_road_path,
-                    f'3panel_{service}_{country}_{scenario}',
-                    combined_percentile_service_path),
-                target_path_list=[combined_percentile_service_path],
-                task_name=f'combined service {service} {country} {scenario}')
+            if combined_percentile_service_path not in processed_raster_path_set:
+                task_graph.add_task(
+                    func=overlap_dspop_road_op,
+                    args=(
+                        top_10th_percentile_service_dspop_path,
+                        top_10th_percentile_service_road_path,
+                        f'3panel_{service}_{country}_{scenario}',
+                        combined_percentile_service_path),
+                    target_path_list=[combined_percentile_service_path],
+                    task_name=f'combined service {service} {country} {scenario}')
+                processed_raster_path_set.add(combined_percentile_service_path)
 
             fig_1_title = None
             fig_2_title = 'Coastal protection for coastal people'
