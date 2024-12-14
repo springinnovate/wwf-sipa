@@ -921,15 +921,16 @@ def do_analyses(task_graph, processed_raster_path_set):
             if 'top_10th_percentile_service_road' in FILENAMES[country][scenario][service]:
                 combined_percentile_service_path = os.path.join(
                     COMBINED_SERVICE_DIR, f'combined_percentile_service_{service}_{country}_{scenario}.tif')
-                task_graph.add_task(
-                    func=intersection_op,
-                    args=(
-                        top_10th_percentile_service_dspop_path,
-                        top_10th_percentile_service_road_path,
-                        combined_percentile_service_path),
-                    target_path_list=[combined_percentile_service_path],
-                    task_name=f'combined service {service} {country} {scenario}')
-
+                if combined_percentile_service_path not in processed_raster_path_set:
+                    task_graph.add_task(
+                        func=intersection_op,
+                        args=(
+                            top_10th_percentile_service_dspop_path,
+                            top_10th_percentile_service_road_path,
+                            combined_percentile_service_path),
+                        target_path_list=[combined_percentile_service_path],
+                        task_name=f'combined service {service} {country} {scenario}')
+                    processed_raster_path_set.add(combined_percentile_service_path)
 
                 pa_overlap_task, kba_overlap_task = calculate_pa_kba_overlaps(
                     task_graph,
@@ -978,15 +979,17 @@ def do_analyses(task_graph, processed_raster_path_set):
             service_vs_overlap_path = os.path.join(
                 OVERLAP_DIR, f'{country}_{scenario}_{service}_overlapped_{OVERLAPPING_SERVICES_ID}.tif')
 
-            task_graph.add_task(
-                func=intersection_op,
-                args=(
-                    dspop_road_overlap_path, overlap_combo_service_path,
-                    service_vs_overlap_path),
-                target_path_list=[service_vs_overlap_path],
-                task_name=(
-                    f'overlap combos {country} {scenario} '
-                    f'{OVERLAPPING_SERVICES_ID}'))
+            if service_vs_overlap_path not in processed_raster_path_set:
+                task_graph.add_task(
+                    func=intersection_op,
+                    args=(
+                        dspop_road_overlap_path, overlap_combo_service_path,
+                        service_vs_overlap_path),
+                    target_path_list=[service_vs_overlap_path],
+                    task_name=(
+                        f'overlap combos {country} {scenario} '
+                        f'{OVERLAPPING_SERVICES_ID}'))
+                processed_raster_path_set.add(service_vs_overlap_path)
 
             service_area_km2 = calculate_pixel_area_km2(
                 service_vs_overlap_path, projection_epsg)
