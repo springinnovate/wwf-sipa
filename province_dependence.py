@@ -531,7 +531,7 @@ def main():
     delayed_results = {}
     delayed_province_downstream_intersection_area = {}
 
-    scenario_downstream_coverage_percent_map = collections.defaultdict(
+    scenario_downstream_coverage_km2_map = collections.defaultdict(
         lambda: collections.defaultdict(dict))
     scenario_downstream_population_coverage_map = collections.defaultdict(
         lambda: collections.defaultdict(dict))
@@ -922,9 +922,9 @@ def main():
             [analysis_df[(country_id, scenario)], row_df], ignore_index=True)
 
     for (country_id, scenario), dataframe in analysis_df.items():
-        dataframe.to_csv(
-            f'province_analysis_{country_id}_{scenario}.csv',
-            index=False, na_rep='')
+        dataframe.to_csv(os.path.join(
+            WORKSPACE_DIR, f'province_analysis_{country_id}_{scenario}.csv',
+            index=False, na_rep=''))
 
     for country_id, scenario, base_province, downstream_province in delayed_province_downstream_intersection_area:
         (province_downstream_intersection_area_task,
@@ -942,9 +942,8 @@ def main():
          _,
          _,) = delayed_results[(country_id, scenario, base_province)]
 
-        scenario_downstream_coverage_percent_map[(country_id, scenario)][base_province][downstream_province] = (
-            province_downstream_intersection_area_task.get() /
-            base_downstream_area_task.get() * 100.0)
+        scenario_downstream_coverage_km2_map[(country_id, scenario)][base_province][downstream_province] = (
+            province_downstream_intersection_area_task.get())
 
         scenario_downstream_population_coverage_map[(country_id, scenario)]\
             [base_province][downstream_province] = \
@@ -953,19 +952,21 @@ def main():
             [base_province][downstream_province] = \
             downstream_length_of_roads_task.get()
 
-    for country_id, scenario in scenario_downstream_coverage_percent_map:
-        downstream_coverage_percent_map = scenario_downstream_coverage_percent_map[(country_id, scenario)]
+    for country_id, scenario in scenario_downstream_coverage_km2_map:
+        downstream_coverage_km2_map = scenario_downstream_coverage_km2_map[(country_id, scenario)]
         downstream_population_coverage_map = scenario_downstream_population_coverage_map[(country_id, scenario)]
         downstream_road_coverage_map = scenario_downstream_road_coverage_map[(country_id, scenario)]
 
         downstream_coverage_df = pandas.DataFrame.from_dict(
-            downstream_coverage_percent_map, orient='index')
+            downstream_coverage_km2_map, orient='index')
         downstream_coverage_df = downstream_coverage_df.fillna(0)
         downstream_coverage_df = downstream_coverage_df.sort_index(axis=0)
         downstream_coverage_df = downstream_coverage_df.sort_index(axis=1)
         downstream_coverage_df.to_csv(
-            f'downstream_province_coverage_{country_id}_{scenario}.csv',
-            index_label='source')
+            os.path.join(
+                WORKSPACE_DIR,
+                f'downstream_province_km2_coverage_{country_id}_{scenario}.csv',
+                index_label='source'))
 
         downstream_pop_coverage_df = pandas.DataFrame.from_dict(
             downstream_population_coverage_map, orient='index')
@@ -973,8 +974,10 @@ def main():
         downstream_pop_coverage_df = downstream_pop_coverage_df.sort_index(axis=0)
         downstream_pop_coverage_df = downstream_pop_coverage_df.sort_index(axis=1)
         downstream_pop_coverage_df.to_csv(
-            f'downstream_population_count_{country_id}_{scenario}.csv',
-            index_label='source')
+            os.path.join(
+                WORKSPACE_DIR,
+                f'downstream_population_count_{country_id}_{scenario}.csv',
+                index_label='source'))
 
         downstream_road_coverage_df = pandas.DataFrame.from_dict(
             downstream_road_coverage_map, orient='index')
@@ -982,8 +985,10 @@ def main():
         downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=0)
         downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=1)
         downstream_road_coverage_df.to_csv(
-            f'downstream_road_coverage_{country_id}_{scenario}.csv',
-            index_label='source')
+            os.path.join(
+                WORKSPACE_DIR,
+                f'downstream_road_km_coverage_{country_id}_{scenario}.csv',
+                index_label='source'))
     task_graph.join()
     task_graph.close()
     LOGGER.info('ALL DONE')
