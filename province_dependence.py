@@ -885,8 +885,6 @@ def main():
                      downstream_service_pop_count_task,
                      downstream_length_of_roads_task)
 
-    LOGGER.warning('quitting early for debugging')
-
     analysis_df = collections.defaultdict(lambda: pandas.DataFrame())
     for (country_id, scenario, province_name) in delayed_results:
         (province_area_task,
@@ -922,9 +920,10 @@ def main():
             [analysis_df[(country_id, scenario)], row_df], ignore_index=True)
 
     for (country_id, scenario), dataframe in analysis_df.items():
+        dataframe = dataframe.sort_values(by='province name')
         dataframe.to_csv(os.path.join(
-            WORKSPACE_DIR, f'province_analysis_{country_id}_{scenario}.csv',
-            index=False, na_rep=''))
+            WORKSPACE_DIR, f'province_analysis_{country_id}_{scenario}.csv'),
+            index=False, na_rep='')
 
     for country_id, scenario, base_province, downstream_province in delayed_province_downstream_intersection_area:
         (province_downstream_intersection_area_task,
@@ -965,8 +964,8 @@ def main():
         downstream_coverage_df.to_csv(
             os.path.join(
                 WORKSPACE_DIR,
-                f'downstream_province_km2_coverage_{country_id}_{scenario}.csv',
-                index_label='source'))
+                f'downstream_province_km2_coverage_{country_id}_{scenario}.csv'),
+                index_label='source')
 
         downstream_pop_coverage_df = pandas.DataFrame.from_dict(
             downstream_population_coverage_map, orient='index')
@@ -976,8 +975,8 @@ def main():
         downstream_pop_coverage_df.to_csv(
             os.path.join(
                 WORKSPACE_DIR,
-                f'downstream_population_count_{country_id}_{scenario}.csv',
-                index_label='source'))
+                f'downstream_population_count_{country_id}_{scenario}.csv'),
+                index_label='source')
 
         downstream_road_coverage_df = pandas.DataFrame.from_dict(
             downstream_road_coverage_map, orient='index')
@@ -987,8 +986,8 @@ def main():
         downstream_road_coverage_df.to_csv(
             os.path.join(
                 WORKSPACE_DIR,
-                f'downstream_road_km_coverage_{country_id}_{scenario}.csv',
-                index_label='source'))
+                f'downstream_road_km_coverage_{country_id}_{scenario}.csv'),
+                index_label='source')
     task_graph.join()
     task_graph.close()
     LOGGER.info('ALL DONE')
