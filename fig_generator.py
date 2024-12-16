@@ -1437,6 +1437,7 @@ def main():
 
     # calculate total overlap
 
+    executor.shutdown(wait=True)
     do_analyses(task_graph, processed_raster_path_set)
 
     task_graph.close()
