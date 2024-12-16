@@ -401,7 +401,7 @@ def adjust_suptitle_fontsize(fig, base_size):
 
 def print_colormap_colors(cmap, num_samples):
     # Generate evenly spaced numbers between 0 and 1 to sample the colormap
-    sample_points = np.linspace(0, 1, num_samples)
+    sample_points = np.linspace(0, 1, num_samples+1)[:1]  # skipping the nodata color
     colors = cmap(sample_points)  # Sample colors from the colormap
 
     # Print each color as RGBA and as hexadecimal
@@ -622,7 +622,7 @@ def style_rasters(
 
         scaled_path = os.path.join(
             SCALED_DIR,
-            f'scaled_for_fig_{os.path.basename(base_raster_path)}')
+            f'scaled_for_fig_{n_pixels}_{pixel_coarsen_factor}_{os.path.basename(base_raster_path)}')
 
         LOGGER.info(f'scaling {scaled_path}')
         warp_task = task_graph.add_task(
@@ -674,7 +674,8 @@ def style_rasters(
         axs[idx].imshow(styled_array, origin='upper', extent=extent)
         axs[idx].axis('off')  # Turn off axis labels
         if categories is not None:
-            values = numpy.linspace(0, 1, len(categories))
+            # skipping the nodata color
+            values = numpy.linspace(0, 1, len(categories)+1)[1:]
             print_colormap_colors(color_map, len(categories))
             colors = [color_map(value) for value in values]
             fig_width, fig_height = fig.get_size_inches()
@@ -907,8 +908,12 @@ def do_analyses(task_graph, processed_raster_path_set):
                 projection_epsg
             )
 
-            service_area_km2 = calculate_pixel_area_km2(
-                dspop_road_overlap_path, projection_epsg)
+            service_area_km2_task = task_graph.add_task(
+                func=calculate_pixel_area_km2,
+                args=(dspop_road_overlap_path, projection_epsg),
+                store_result=True,
+                task_name=f'calculate pixel area for {projection_epsg}')
+            service_area_km2 = service_area_km2_task.get()
             row_data = {
                 'country': country,
                 'country area km^2': country_area_km2,
@@ -950,8 +955,12 @@ def do_analyses(task_graph, processed_raster_path_set):
                     projection_epsg
                 )
 
-                service_area_km2 = calculate_pixel_area_km2(
-                    combined_percentile_service_path, projection_epsg)
+                service_area_km2_task = task_graph.add_task(
+                    func=calculate_pixel_area_km2,
+                    args=(combined_percentile_service_path, projection_epsg),
+                    store_result=True,
+                    task_name=f'calculate pixel area for {combined_percentile_service_path}')
+                service_area_km2 = service_area_km2_task.get()
                 row_data = {
                     'country': country,
                     'country area km^2': country_area_km2,
@@ -999,8 +1008,12 @@ def do_analyses(task_graph, processed_raster_path_set):
                         f'{OVERLAPPING_SERVICES_ID}'))
                 processed_raster_path_set.add(service_vs_overlap_path)
 
-            service_area_km2 = calculate_pixel_area_km2(
-                service_vs_overlap_path, projection_epsg)
+            service_area_km2_task = task_graph.add_task(
+                func=calculate_pixel_area_km2,
+                args=(service_vs_overlap_path, projection_epsg),
+                store_result=True,
+                task_name=f'calculate pixel area for {projection_epsg}')
+            service_area_km2 = service_area_km2_task.get()
 
             pa_overlap_task, kba_overlap_task = calculate_pa_kba_overlaps(
                 task_graph,
@@ -1035,11 +1048,15 @@ def do_analyses(task_graph, processed_raster_path_set):
         # E.g., top_10p_overlap_IDN_conservation_inf_each_ecosystem_service_400
 
         for each_or_other in [EACH_ECOSYSTEM_SERVICE_ID, OVERLAPPING_SERVICES_ID]:
-            for scenario in [RESTORATION_SCENARIO, CONSERVATION_SCENARIO_INF]:
+            for scenario in [RESTORATION_SCENARIO, CONSERVATION_SCENARIO_INF, CONSERVATION_SCENARIO_ALL]:
                 overlap_combo_service_path = os.path.join(
                     OVERLAP_DIR, f'overlap_combos_top_10_{country}_{scenario}_{each_or_other}.tif')
-                service_area_km2 = calculate_pixel_area_km2(
-                    overlap_combo_service_path, projection_epsg)
+                service_area_km2_task = task_graph.add_task(
+                    func=calculate_pixel_area_km2,
+                    args=(overlap_combo_service_path, projection_epsg),
+                    store_result=True,
+                    task_name=f'calculate pixel area for {projection_epsg}')
+                service_area_km2 = service_area_km2_task.get()
                 pa_overlap_task, kba_overlap_task = calculate_pa_kba_overlaps(
                     task_graph,
                     overlap_combo_service_path,
@@ -1381,7 +1398,6 @@ def main():
             fig_2_title = 'Coastal protection for coastal people'
             fig_3_title = 'Coastal protection for coastal roads'
             fig_4_title = 'Top 10% of priorities for coastal protection for coastal beneficiaries'
-
             executor.submit(
                 style_rasters, (
                     COUNTRY_OUTLINE_PATH[country],
