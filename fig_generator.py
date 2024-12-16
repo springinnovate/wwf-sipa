@@ -622,9 +622,14 @@ def style_rasters(
             f'scaled_for_fig_{os.path.basename(base_raster_path)}')
 
         LOGGER.info(f'scaling {scaled_path}')
-        geoprocessing.warp_raster(
-            base_raster_path, target_pixel_size, scaled_path,
-            'mode')
+        warp_task = task_graph.add_task(
+            func=geoprocessing.warp_raster,
+            args=(
+                base_raster_path, target_pixel_size, scaled_path,
+                'mode'),
+            target_path_list=[scaled_path],
+            task_name=f'scaling {scaled_path} in fig generator')
+        warp_task.join()
         LOGGER.info('scaled!')
 
         base_raster = gdal.OpenEx(scaled_path, gdal.OF_RASTER)
