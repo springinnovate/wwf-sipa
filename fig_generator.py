@@ -76,7 +76,7 @@ LOW_PERCENTILE = 10
 HIGH_PERCENTILE = 90
 BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
-GLOBAL_DPI = 800
+GLOBAL_DPI = 300
 ELLIPSOID_EPSG = 6933
 
 RASTER_STYLE_LOG_PATH = 'viewer_info.txt'
@@ -469,6 +469,19 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
     return (total_width, total_height)
 
 
+def get_base_min_max(base_array, nodata, min_percentile, max_percentile):
+    nodata_mask = ((base_array == nodata) | np.isnan(base_array))
+    if not numpy.any(base_array < -11000):  # this would indicate negative values are not part of the data
+        nodata_mask |= base_array < -9998
+    valid_base_array = base_array[~nodata_mask]
+    base_array = None
+    nodata_mask = None
+    sorted_arr = np.sort(valid_base_array)
+    base_min = sorted_arr[int(min_percentile/100 * len(sorted_arr))]
+    base_max = sorted_arr[int(max_percentile/100 * len(sorted_arr))]
+    return base_min, base_max, valid_base_array, nodata_mask
+
+
 def get_percentiles(base_raster_path, min_percentile, max_percentile):
     base_raster = gdal.Open(base_raster_path, gdal.GA_ReadOnly)
     width = base_raster.RasterXSize // 4
@@ -490,13 +503,7 @@ def get_percentiles(base_raster_path, min_percentile, max_percentile):
         band = warped_raster.GetRasterBand(1)
         nodata = band.GetNoDataValue()
         base_array = band.ReadAsArray()
-        nodata_mask = ((base_array == nodata) | np.isnan(base_array)) | (base_array <= 0)
-        valid_base_array = base_array[~nodata_mask]
-        base_array = None
-        nodata_mask = None
-        base_min = np.percentile(valid_base_array, min_percentile)
-        base_max = np.percentile(valid_base_array, max_percentile)
-        valid_base_array = None
+        base_min, base_max, _, _ = get_base_min_max(base_array, nodata, min_percentile, max_percentile)
         band = None
         warped_raster = None
         os.remove(output_raster_path)
@@ -656,18 +663,17 @@ def style_rasters(
         no_data_color = [0, 0, 0, 0]  # Assuming a black NoData color with full transparency
 
         nodata = geoprocessing.get_raster_info(scaled_path)['nodata'][0]
-        nodata_mask = ((base_array == nodata) | np.isnan(base_array)) | (base_array <= 0)
         styled_array = np.empty(base_array.shape + (4,), dtype=float)
-        valid_base_array = base_array[~nodata_mask]
         if percentile_or_categorical == 'categorical':
-            base_min = 0
+            base_min = 1
             base_max = len(categories)
         elif base_min_max is not None:
             base_min, base_max = base_min_max
         else:
             min_percentile, max_percentile = percentile_or_categorical
-            base_min = np.percentile(valid_base_array, min_percentile)
-            base_max = np.percentile(valid_base_array, max_percentile)
+            base_min, base_max, valid_base_array, nodata_mask = get_base_min_max(base_array, nodata, min_percentile, max_percentile)
+            # base_min = np.percentile(valid_base_array, min_percentile)
+            # base_max = np.percentile(valid_base_array, max_percentile)
         norm = mcolors.Normalize(vmin=base_min, vmax=base_max)
         sm = cm.ScalarMappable(cmap=color_map, norm=norm)
         styled_array[~nodata_mask] = sm.to_rgba(valid_base_array)
@@ -676,7 +682,7 @@ def style_rasters(
 
         subfigure_title = subfigure_title_list[idx]
         if subfigure_title is not None:
-            axs[idx].set_title(subfigure_title_list[idx], wrap=True)
+            axs[idx].set_title(subfigure_title_list[idx] + f' {base_min:.2f} - {base_max:.2f}', wrap=True)
             adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
         axs[idx].imshow(styled_array, origin='upper', extent=extent)
         axs[idx].axis('off')  # Turn off axis labels
