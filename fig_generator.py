@@ -76,7 +76,7 @@ LOW_PERCENTILE = 10
 HIGH_PERCENTILE = 90
 BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
-GLOBAL_DPI = 800
+GLOBAL_DPI = 400
 ELLIPSOID_EPSG = 6933
 
 RASTER_STYLE_LOG_PATH = 'viewer_info.txt'
@@ -632,6 +632,12 @@ def style_rasters(
             args=(
                 base_raster_path, target_pixel_size, scaled_path,
                 'mode'),
+            kwargs={
+                'gdal_warp_kwargs': {
+                    'srcNodata': 0,
+                    'dstNodata': 0
+                }
+            },
             target_path_list=[scaled_path],
             task_name=f'scaling {scaled_path} in fig generator')
         warp_task.join()
@@ -694,6 +700,7 @@ def style_rasters(
 
     adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
+    LOGGER.debug(f'saving figure to {fig_path}')
     plt.savefig(fig_path, dpi=dpi)
     plt.close(fig)
 
@@ -1088,8 +1095,8 @@ def do_analyses(task_graph, processed_raster_path_set):
 def main():
     task_graph = taskgraph.TaskGraph(WORKING_DIR, -1)
     top_10_percent_maps = [
-        ('PH', CONSERVATION_SCENARIO_INF,),
         ('PH', CONSERVATION_SCENARIO_ALL,),
+        ('PH', CONSERVATION_SCENARIO_INF,),
         ('PH', RESTORATION_SCENARIO,),
         ('IDN', CONSERVATION_SCENARIO_INF,),
         ('IDN', CONSERVATION_SCENARIO_ALL,),
@@ -1124,7 +1131,7 @@ def main():
                 ]:
             figure_title = f'Overlaps between top 10% of priorities for each ecosystem service ({scenario})'
             overlap_sets = []
-            category_list = ['none']
+            category_list = [] #'none']
             for required_service_tuple, optional_service_tuple, overlap_threshold, comparitor_op, legend_category in service_set:
                 required_service_subset = []
                 optional_service_subset = []
@@ -1174,23 +1181,24 @@ def main():
                     target_path_list=[overlap_combo_service_path],
                     task_name=f'top 10% of combo priorities {country} {scenario}')
                 processed_raster_path_set.add(overlap_combo_service_path)
+            LOGGER.debug(overlap_sets)
             LOGGER.debug(overlap_combo_service_path)
 
             figure_title = f'Top 10% of priorities for {service_set_title} ({scenario})'
-            executor.submit(
-                style_rasters, (
-                    COUNTRY_OUTLINE_PATH[country],
-                    country,
-                    [overlap_combo_service_path],
-                    [category_list],
-                    country == 'IDN',
-                    overlap_colormap(service_set_title),
-                    COLOR_LIST[service_set_title],
-                    ['categorical'],
-                    [(0, 5)] if service_set_title==OVERLAPPING_SERVICES_ID else [None],
-                    GLOBAL_FIG_SIZE,
-                    os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
-                    figure_title, [None], GLOBAL_DPI, task_graph))
+            style_rasters(
+                COUNTRY_OUTLINE_PATH[country],
+                country,
+                [overlap_combo_service_path],
+                [category_list],
+                country == 'IDN',
+                overlap_colormap(service_set_title),
+                COLOR_LIST[service_set_title],
+                ['categorical'],
+                [(1, 5)] if service_set_title==OVERLAPPING_SERVICES_ID else [None],
+                GLOBAL_FIG_SIZE,
+                os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
+                figure_title, [None], GLOBAL_DPI, task_graph)
+        return
 
     # make 'heat map' overlap
     for country_scenario, ds_pop_rasters in combined_dspop_overlap_service_map.items():
@@ -1205,24 +1213,22 @@ def main():
             processed_raster_path_set.add(four_service_overlap_path)
 
         country, _, scenario = country_scenario.partition('_')
-        executor.submit(
-            style_rasters, (
-                COUNTRY_OUTLINE_PATH[country],
-                country,
-                [four_service_overlap_path], #raster_paths
-                [['1 service', '2 services', '3 services', '4 services']], #category_list
-                None, # stack vertical
-                None, # color map or list
-                [COLOR_LIST[CONSERVATION_OVERLAP_HEATMAP] if scenario =='conservation' else COLOR_LIST[RESTORATION_OVERLAP_HEATMAP]], #color palette list
-                ['categorical'],  #percentil or catgrical
-                [None], # base min max list
-                None, # fig size
-                None, # fig path
-                "Top 10% of service overlap for ", # overall title
-                [f'{country} {scenario}'], # subfigure title
-                None,  # dpi
-                task_graph) #task graph
-            )
+        style_rasters(
+            COUNTRY_OUTLINE_PATH[country],
+            country,
+            [four_service_overlap_path], #raster_paths
+            [['1 service', '2 services', '3 services', '4 services']], #category_list
+            None, # stack vertical
+            None, # color map or list
+            [COLOR_LIST[CONSERVATION_OVERLAP_HEATMAP] if scenario =='conservation' else COLOR_LIST[RESTORATION_OVERLAP_HEATMAP]], #color palette list
+            ['categorical'],  #percentil or catgrical
+            [None], # base min max list
+            None, # fig size
+            None, # fig path
+            "Top 10% of service overlap for ", # overall title
+            [f'{country} {scenario}'], # subfigure title
+            None,  # dpi
+            task_graph)#task graph
 
     four_panel_tuples = [
         (SEDIMENT_SERVICE, 'PH', CONSERVATION_SCENARIO_INF, 'Sediment retention (Conservation)'),
@@ -1268,8 +1274,7 @@ def main():
             fig_3_title = f'{service} for downstream roads'
             fig_4_title = f'Top 10% of priorities for {service} for downstream beneficiaries'
 
-            executor.submit(
-                style_rasters, (
+            style_rasters(
                 COUNTRY_OUTLINE_PATH[country],
                 country,
                 [diff_path,
@@ -1300,7 +1305,7 @@ def main():
                     fig_1_title,
                     fig_2_title,
                     fig_3_title,
-                    fig_4_title,], GLOBAL_DPI, task_graph))
+                    fig_4_title,], GLOBAL_DPI, task_graph)
             print(f'done with {service}_{country}_{scenario}.png')
 
         except Exception:
@@ -1329,8 +1334,7 @@ def main():
             fig_3_title = None
             fig_4_title = 'Top 10% of priorities'
 
-            executor.submit(
-                style_rasters, (
+            style_rasters(
                     COUNTRY_OUTLINE_PATH[country],
                     country,
                     [diff_path,
@@ -1359,7 +1363,7 @@ def main():
                         fig_1_title,
                         fig_2_title,
                         fig_3_title,
-                        fig_4_title,], GLOBAL_DPI, task_graph))
+                        fig_4_title,], GLOBAL_DPI, task_graph)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
@@ -1400,39 +1404,38 @@ def main():
             fig_2_title = 'Coastal protection for coastal people'
             fig_3_title = 'Coastal protection for coastal roads'
             fig_4_title = 'Top 10% of priorities for coastal protection for coastal beneficiaries'
-            executor.submit(
-                style_rasters, (
-                    COUNTRY_OUTLINE_PATH[country],
-                    country,
-                    [None, service_dspop_path,
-                     service_road_path,
-                     combined_percentile_service_path],
-                    [[f'{percentile:.0f}th percentile' for percentile in
-                      np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
-                    [['benefiting roads only', 'benefiting people only',
-                     'benefiting both']],
-                    country == 'IDN',
-                    [overlap_colormap(service),
-                     overlap_colormap(service),
-                     overlap_colormap(service),
-                     overlap_colormap(ROAD_AND_PEOPLE_BENFICIARIES_ID),],
-                    [COLOR_LIST[service],
-                     COLOR_LIST[service],
-                     COLOR_LIST[service],
-                     COLOR_LIST[ROAD_AND_PEOPLE_BENFICIARIES_ID],],
-                    [(LOW_PERCENTILE, HIGH_PERCENTILE),
-                     (LOW_PERCENTILE, HIGH_PERCENTILE),
-                     (LOW_PERCENTILE, HIGH_PERCENTILE),
-                     'categorical'],
-                    [None]*4,
-                    GLOBAL_FIG_SIZE,
-                    os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
-                    figure_title, [
-                        fig_1_title,
-                        fig_2_title,
-                        fig_3_title,
-                        fig_4_title,], GLOBAL_DPI, task_graph,
-                        ), {'pixel_coarsen_factor': 50})
+            style_rasters(
+                COUNTRY_OUTLINE_PATH[country],
+                country,
+                [None, service_dspop_path,
+                 service_road_path,
+                 combined_percentile_service_path],
+                [[f'{percentile:.0f}th percentile' for percentile in
+                  np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
+                [['benefiting roads only', 'benefiting people only',
+                 'benefiting both']],
+                country == 'IDN',
+                [overlap_colormap(service),
+                 overlap_colormap(service),
+                 overlap_colormap(service),
+                 overlap_colormap(ROAD_AND_PEOPLE_BENFICIARIES_ID),],
+                [COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 COLOR_LIST[ROAD_AND_PEOPLE_BENFICIARIES_ID],],
+                [(LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 'categorical'],
+                [None]*4,
+                GLOBAL_FIG_SIZE,
+                os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
+                figure_title, [
+                    fig_1_title,
+                    fig_2_title,
+                    fig_3_title,
+                    fig_4_title,], GLOBAL_DPI, task_graph,
+                    {'pixel_coarsen_factor': 50})
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
