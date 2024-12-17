@@ -751,7 +751,7 @@ def style_rasters(
 
         subfigure_title = subfigure_title_list[idx]
         if subfigure_title is not None:
-            axs[idx].set_title(subfigure_title_list[idx] + f' {base_min:.2f} - {base_max:.2f}', wrap=True)
+            axs[idx].set_title(subfigure_title_list[idx], wrap=True)
             adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
         axs[idx].imshow(styled_array, origin='upper', extent=extent)
         axs[idx].axis('off')  # Turn off axis labels
