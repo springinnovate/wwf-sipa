@@ -1,3 +1,4 @@
+import datetime
 import collections
 from pathlib import Path
 import csv
@@ -40,7 +41,8 @@ logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 
 CUSTOM_STYLE_DIR = 'custom_styles'
 WORKING_DIR = 'fig_generator_dir_2024_12_11'
-FIG_DIR = os.path.join(WORKING_DIR, 'rendered_figures')
+timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+FIG_DIR = os.path.join(WORKING_DIR, f'rendered_figures_{timestamp}')
 ALGINED_DIR = os.path.join(WORKING_DIR, 'aligned_rasters')
 OVERLAP_DIR = os.path.join(WORKING_DIR, 'overlap_rasters')
 SCALED_DIR = os.path.join(WORKING_DIR, 'scaled_rasters')
