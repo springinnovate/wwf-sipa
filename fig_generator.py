@@ -76,7 +76,7 @@ LOW_PERCENTILE = 10
 HIGH_PERCENTILE = 90
 BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
-GLOBAL_DPI = 400
+GLOBAL_DPI = 400 #1000
 ELLIPSOID_EPSG = 6933
 
 RASTER_STYLE_LOG_PATH = 'viewer_info.txt'
@@ -112,7 +112,6 @@ COUNTRY_OUTLINE_PATH = {
     'PH': "data/admin_boundaries/PH_outline.gpkg",
     'IDN': "data/admin_boundaries/IDN_outline.gpkg",
 }
-
 
 FILENAMES = {
     'PH': {
@@ -491,7 +490,7 @@ def get_percentiles(base_raster_path, min_percentile, max_percentile):
         band = warped_raster.GetRasterBand(1)
         nodata = band.GetNoDataValue()
         base_array = band.ReadAsArray()
-        nodata_mask = ((base_array == nodata) | np.isnan(base_array)) | (base_array == 0)
+        nodata_mask = ((base_array == nodata) | np.isnan(base_array)) | (base_array <= 0)
         valid_base_array = base_array[~nodata_mask]
         base_array = None
         nodata_mask = None
@@ -1198,7 +1197,6 @@ def main():
                 GLOBAL_FIG_SIZE,
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI, task_graph)
-        return
 
     # make 'heat map' overlap
     for country_scenario, ds_pop_rasters in combined_dspop_overlap_service_map.items():
@@ -1404,6 +1402,7 @@ def main():
             fig_2_title = 'Coastal protection for coastal people'
             fig_3_title = 'Coastal protection for coastal roads'
             fig_4_title = 'Top 10% of priorities for coastal protection for coastal beneficiaries'
+
             style_rasters(
                 COUNTRY_OUTLINE_PATH[country],
                 country,
@@ -1435,7 +1434,7 @@ def main():
                     fig_2_title,
                     fig_3_title,
                     fig_4_title,], GLOBAL_DPI, task_graph,
-                    {'pixel_coarsen_factor': 50})
+                    **{'pixel_coarsen_factor': 50})
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
