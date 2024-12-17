@@ -17,7 +17,6 @@ from ecoshard import taskgraph
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib
 matplotlib.use('Agg')
-from concurrent.futures import ThreadPoolExecutor
 from osgeo import gdal
 from osgeo import osr
 import geopandas
@@ -415,7 +414,10 @@ def print_colormap_colors(cmap, num_samples):
 
 def overlap_colormap(version):
     # Define the colors - these could be any valid matplotlib color.
-    colors = COLOR_LIST[version]
+    colors = COLOR_LIST[version][1:] # ignore the nodata
+    if len(colors) == 1:
+        # Duplicate the single color to avoid errors
+        colors = [colors[0], colors[0]]
     cmap = LinearSegmentedColormap.from_list("overlap_colors", colors, N=len(colors))
     return cmap
 
@@ -470,12 +472,10 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
 
 
 def get_base_min_max(base_array, nodata, min_percentile, max_percentile):
-    nodata_mask = ((base_array == nodata) | np.isnan(base_array))
-    if not numpy.any(base_array < -11000):  # this would indicate negative values are not part of the data
-        nodata_mask |= base_array < -9998
+    nodata_mask = ((base_array == nodata) | np.isnan(base_array) | (base_array == -9999))
+    # if not numpy.any(base_array < -11000):  # this would indicate negative values are not part of the data
+    #     nodata_mask |= base_array < -9998
     valid_base_array = base_array[~nodata_mask]
-    base_array = None
-    nodata_mask = None
     sorted_arr = np.sort(valid_base_array)
     base_min = sorted_arr[int(min_percentile/100 * len(sorted_arr))]
     base_max = sorted_arr[int(max_percentile/100 * len(sorted_arr))]
@@ -659,11 +659,13 @@ def style_rasters(
         extent = [xmin, xmax, ymin, ymax]
 
         # Create a color gradient
-        color_map = interpolated_colormap(color_map)
+        int_color_map = interpolated_colormap(color_map)
         no_data_color = [0, 0, 0, 0]  # Assuming a black NoData color with full transparency
 
         nodata = geoprocessing.get_raster_info(scaled_path)['nodata'][0]
         styled_array = np.empty(base_array.shape + (4,), dtype=float)
+        nodata_mask = base_array == nodata
+        valid_base_array = base_array[~nodata_mask]
         if percentile_or_categorical == 'categorical':
             base_min = 1
             base_max = len(categories)
@@ -672,10 +674,8 @@ def style_rasters(
         else:
             min_percentile, max_percentile = percentile_or_categorical
             base_min, base_max, valid_base_array, nodata_mask = get_base_min_max(base_array, nodata, min_percentile, max_percentile)
-            # base_min = np.percentile(valid_base_array, min_percentile)
-            # base_max = np.percentile(valid_base_array, max_percentile)
         norm = mcolors.Normalize(vmin=base_min, vmax=base_max)
-        sm = cm.ScalarMappable(cmap=color_map, norm=norm)
+        sm = cm.ScalarMappable(cmap=int_color_map, norm=norm)
         styled_array[~nodata_mask] = sm.to_rgba(valid_base_array)
 
         styled_array[nodata_mask] = no_data_color
@@ -689,8 +689,8 @@ def style_rasters(
         if categories is not None:
             # skipping the nodata color
             values = numpy.linspace(0, 1, len(categories)+1)[1:]
-            print_colormap_colors(color_map, len(categories))
-            colors = [color_map(value) for value in values]
+            print_colormap_colors(int_color_map, len(categories))
+            colors = [int_color_map(value) for value in values]
             fig_width, fig_height = fig.get_size_inches()
             patches = [mpatches.Patch(color=colors[i], label=categories[i]) for i in range(len(values))]
             axs[idx].legend(
@@ -703,11 +703,18 @@ def style_rasters(
         fig, BASE_FONT_SIZE)
     fig.suptitle(overall_title, fontsize=fontsize_for_suptitle)
 
+
     adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     LOGGER.debug(f'saving figure to {fig_path}')
     plt.savefig(fig_path, dpi=dpi)
     plt.close(fig)
+    LOGGER.debug(f'idex: {idx}')
+    LOGGER.debug(f'raster_paths: {raster_paths}')
+    LOGGER.debug(f'category_list: {category_list}')
+    LOGGER.debug(f'colormap_list: {colormap_list}')
+    LOGGER.debug(f'percentile_or_categorical_list: {percentile_or_categorical_list}')
+    LOGGER.debug(f'base_min_max_list: {base_min_max_list}')
 
 
 def intersection_op(raster_a_path, raster_b_path, target_path):
@@ -1128,7 +1135,6 @@ def main():
     combined_dspop_overlap_service_map = collections.defaultdict(dict)
     processed_raster_path_set = set()
 
-    executor = ThreadPoolExecutor()
     for country, scenario in top_10_percent_maps:
         for service_set, service_set_title in [
                 (each_service, EACH_ECOSYSTEM_SERVICE_ID),
@@ -1204,7 +1210,6 @@ def main():
                 os.path.join(FIG_DIR, f'top_10p_overlap_{country}_{scenario}_{service_set_title}_{GLOBAL_DPI}.png'),
                 figure_title, [None], GLOBAL_DPI, task_graph)
 
-    # make 'heat map' overlap
     for country_scenario, ds_pop_rasters in combined_dspop_overlap_service_map.items():
         four_service_overlap_path = os.path.join(
             OVERLAP_DIR, f'four_service_overlap_{country_scenario}.tif')
@@ -1339,35 +1344,35 @@ def main():
             fig_4_title = 'Top 10% of priorities'
 
             style_rasters(
-                    COUNTRY_OUTLINE_PATH[country],
-                    country,
-                    [diff_path,
-                     service_dspop_path, None,
-                     top_10th_percentile_service_dspop_path],
-                    [[f'{percentile:.0f}th percentile' for percentile in
-                      np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
-                    [['none', 'benefiting people only',]],
-                    country == 'IDN',
-                    [overlap_colormap(service),
-                     overlap_colormap(service),
-                     None,
-                     overlap_colormap(PEOPLE_ONLY_BENEFICIARIES_ID),],
-                    [COLOR_LIST[service],
-                     COLOR_LIST[service],
-                     None,
-                     COLOR_LIST[PEOPLE_ONLY_BENEFICIARIES_ID],],
-                    [(LOW_PERCENTILE, HIGH_PERCENTILE),
-                     (LOW_PERCENTILE, HIGH_PERCENTILE),
-                     (LOW_PERCENTILE, HIGH_PERCENTILE),
-                     'categorical'],
-                    [None]*4,
-                    GLOBAL_FIG_SIZE,
-                    os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
-                    figure_title, [
-                        fig_1_title,
-                        fig_2_title,
-                        fig_3_title,
-                        fig_4_title,], GLOBAL_DPI, task_graph)
+                COUNTRY_OUTLINE_PATH[country],
+                country,
+                [diff_path,
+                 service_dspop_path, None,
+                 top_10th_percentile_service_dspop_path],
+                [[f'{percentile:.0f}th percentile' for percentile in
+                  np.linspace(LOW_PERCENTILE, HIGH_PERCENTILE, len(COLOR_LIST[service])-1, endpoint=True)]] * 3 +
+                [['benefiting people only',]],
+                country == 'IDN',
+                [overlap_colormap(service),
+                 overlap_colormap(service),
+                 None,
+                 overlap_colormap(PEOPLE_ONLY_BENEFICIARIES_ID),],
+                [COLOR_LIST[service],
+                 COLOR_LIST[service],
+                 None,
+                 COLOR_LIST[PEOPLE_ONLY_BENEFICIARIES_ID],],
+                [(LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 (LOW_PERCENTILE, HIGH_PERCENTILE),
+                 'categorical'],
+                [None]*4,
+                GLOBAL_FIG_SIZE,
+                os.path.join(FIG_DIR, f'{service}_{country}_{scenario}.png'),
+                figure_title, [
+                    fig_1_title,
+                    fig_2_title,
+                    fig_3_title,
+                    fig_4_title,], GLOBAL_DPI, task_graph)
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
