@@ -472,11 +472,13 @@ def calculate_figsize(aspect_ratio, grid_size, subplot_size):
 
 
 def get_base_min_max(base_array, nodata, min_percentile, max_percentile):
-    nodata_mask = ((base_array == nodata) | np.isnan(base_array) | (base_array == -9999))
-    # if not numpy.any(base_array < -11000):  # this would indicate negative values are not part of the data
-    #     nodata_mask |= base_array < -9998
+    nodata_mask = ((base_array == nodata) | np.isnan(base_array))
+    if nodata < -999:
+        # this gets the case where nodata is just -1 so i wouldn'tr guard against neg numbers
+        nodata_mask |= (base_array == -9999)
     valid_base_array = base_array[~nodata_mask]
     sorted_arr = np.sort(valid_base_array)
+    LOGGER.debug(len(valid_base_array))
     base_min = sorted_arr[int(min_percentile/100 * len(sorted_arr))]
     base_max = sorted_arr[int(max_percentile/100 * len(sorted_arr))]
     return base_min, base_max, valid_base_array, nodata_mask
@@ -527,6 +529,69 @@ def cogit(file_path, target_dir):
             f"COGing {cog_file_path} %.1f%% complete %s"))
     del cog_raster
     return cog_file_path
+
+
+def coarsen_max_nonzero(arr, factor):
+    # arr is your styled_array, shape (H, W, C) if it's RGBA, or (H, W) if grayscale
+    # factor is the integer by which you want to coarsen (e.g., factor=10 means 10x larger pixels)
+
+    # Ensure height and width are divisible by factor:
+    H, W = arr.shape[:2]
+    new_H = H // factor
+    new_W = W // factor
+
+    if arr.ndim == 2:
+        # Grayscale or single-band data
+        # Reshape into (new_H, factor, new_W, factor) blocks
+        blocks = arr[:new_H*factor, :new_W*factor].reshape(new_H, factor, new_W, factor)
+        # Compute max excluding zero
+        # Flatten each block and find max of non-zero values
+        def block_max_nonzero(b):
+            flat = b.flatten()
+            nz = flat[flat != 0]
+            return np.max(nz) if nz.size > 0 else 0
+
+        # Apply block-wise
+        coarsened = np.zeros((new_H, new_W), arr.dtype)
+        for i in range(new_H):
+            for j in range(new_W):
+                coarsened[i, j] = block_max_nonzero(blocks[i, :, j, :])
+
+        return coarsened
+
+    elif arr.ndim == 3:
+        # For RGBA or multi-band data, we need to handle each block as well.
+        # Let's assume the last dimension is color channels.
+        C = arr.shape[2]
+        blocks = arr[:new_H*factor, :new_W*factor].reshape(new_H, factor, new_W, factor, C)
+
+        # If you only care about the magnitude in one channel, say the value channel,
+        # or if you want the block with max value in a certain channel, handle that here.
+        # For simplicity, let's assume we pick the max in a specific channel (e.g., intensity)
+        # and select the corresponding RGBA value. If you just want to pick the max from a single band,
+        # you can do something similar to the grayscale case.
+
+        # Suppose we consider the first channel to determine the max:
+        coarsened = np.zeros((new_H, new_W, C), arr.dtype)
+
+        for i in range(new_H):
+            for j in range(new_W):
+                block = blocks[i, :, j, :, :]
+
+                # Find non-zero pixels based on the first channel (or any chosen channel)
+                # Flatten and filter by non-zero:
+                flat = block.reshape(-1, C)
+                nonzero_pixels = flat[flat[:,0] != 0]  # Assuming channel 0 decides "non-zero"
+
+                if nonzero_pixels.size > 0:
+                    # Find the pixel with the max value in channel 0, for example:
+                    max_idx = np.argmax(nonzero_pixels[:,0])
+                    coarsened[i, j] = nonzero_pixels[max_idx]
+                else:
+                    # All zeros, just set it to zero or a background color
+                    coarsened[i, j] = 0
+
+        return coarsened
 
 
 def style_rasters(
@@ -623,7 +688,7 @@ def style_rasters(
             continue
         raster_info = geoprocessing.get_raster_info(base_raster_path)
         target_pixel_size = scale_pixel_size(
-            raster_info['raster_size'], n_pixels/pixel_coarsen_factor,
+            raster_info['raster_size'], n_pixels, #n_pixels/pixel_coarsen_factor,
             raster_info['pixel_size'])
 
         LOGGER.info('skipping analyses')
@@ -637,11 +702,11 @@ def style_rasters(
             func=geoprocessing.warp_raster,
             args=(
                 base_raster_path, target_pixel_size, scaled_path,
-                'mode'),
+                'mode' if pixel_coarsen_factor == 1 else 'max'),
             kwargs={
                 'gdal_warp_kwargs': {
                     'srcNodata': 0,
-                    'dstNodata': 0
+                    'dstNodata': raster_info['nodata'][0],
                 }
             },
             target_path_list=[scaled_path],
@@ -666,6 +731,8 @@ def style_rasters(
         styled_array = np.empty(base_array.shape + (4,), dtype=float)
         nodata_mask = base_array == nodata
         valid_base_array = base_array[~nodata_mask]
+        print(f'coarsening based on {pixel_coarsen_factor}')
+        LOGGER.debug(f'len of valid {len(valid_base_array)} foor {scaled_path} *** from {base_raster_path}')
         if percentile_or_categorical == 'categorical':
             base_min = 1
             base_max = len(categories)
@@ -679,6 +746,8 @@ def style_rasters(
         styled_array[~nodata_mask] = sm.to_rgba(valid_base_array)
 
         styled_array[nodata_mask] = no_data_color
+        if pixel_coarsen_factor > 1:
+            styled_array = coarsen_max_nonzero(styled_array, pixel_coarsen_factor)
 
         subfigure_title = subfigure_title_list[idx]
         if subfigure_title is not None:
@@ -688,7 +757,7 @@ def style_rasters(
         axs[idx].axis('off')  # Turn off axis labels
         if categories is not None:
             # skipping the nodata color
-            values = numpy.linspace(0, 1, len(categories)+1)[1:]
+            values = numpy.linspace(0, 1, len(categories))
             print_colormap_colors(int_color_map, len(categories))
             colors = [int_color_map(value) for value in values]
             fig_width, fig_height = fig.get_size_inches()
@@ -702,7 +771,6 @@ def style_rasters(
     fontsize_for_suptitle = adjust_suptitle_fontsize(
         fig, BASE_FONT_SIZE)
     fig.suptitle(overall_title, fontsize=fontsize_for_suptitle)
-
 
     adjust_font_size(axs[idx], fig, BASE_FONT_SIZE)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
@@ -1315,7 +1383,6 @@ def main():
                     fig_2_title,
                     fig_3_title,
                     fig_4_title,], GLOBAL_DPI, task_graph)
-            print(f'done with {service}_{country}_{scenario}.png')
 
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
@@ -1446,13 +1513,15 @@ def main():
                     fig_3_title,
                     fig_4_title,], GLOBAL_DPI, task_graph,
                     **{'pixel_coarsen_factor': 50})
+            print(f'done with {service}_{country}_{scenario}.png')
+            LOGGER.debug(combined_percentile_service_path)
+            sys.exit()
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
 
     # calculate total overlap
 
-    executor.shutdown(wait=True)
     do_analyses(task_graph, processed_raster_path_set)
 
     task_graph.close()
