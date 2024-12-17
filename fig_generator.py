@@ -656,7 +656,7 @@ def style_rasters(
         no_data_color = [0, 0, 0, 0]  # Assuming a black NoData color with full transparency
 
         nodata = geoprocessing.get_raster_info(scaled_path)['nodata'][0]
-        nodata_mask = ((base_array == nodata) | np.isnan(base_array)) | (base_array == 0)
+        nodata_mask = ((base_array == nodata) | np.isnan(base_array)) | (base_array <= 0)
         styled_array = np.empty(base_array.shape + (4,), dtype=float)
         valid_base_array = base_array[~nodata_mask]
         if percentile_or_categorical == 'categorical':
