@@ -290,7 +290,6 @@ def main():
     DIFF_SEDIMENT_PH_RESTORATION = os.path.join(RESULTS_DIR, 'diff_sediment_PH_restoration.tif')
     DIFF_SEDIMENT_PH_RESTORATION_SSP245 = os.path.join(RESULTS_DIR, "diff_sediment_PH_restoration_ssp245.tif")
 
-    # TODO: Make "alls" here:
     DSPOP_SERVICE_FLOOD_MITIGATION_IDN_CONSERVATION_INF = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_IDN_conservation_inf.tif")
     DSPOP_SERVICE_FLOOD_MITIGATION_IDN_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_IDN_restoration.tif")
     DSPOP_SERVICE_FLOOD_MITIGATION_PH_RESTORATION = os.path.join(RESULTS_DIR, "service_dspop_flood_mitigation_PH_restoration.tif")
