@@ -35,12 +35,12 @@ logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 SCENARIO_LIST = ['restoration', 'conservation_inf', 'conservation_all']
 
 TOP10_SERVICE_COVERAGE_RASTERS = {
-    ('PH', 'restoration'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
-    ('IDN', 'restoration'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_restoration_each ecosystem service.tif",
-    ('PH', 'conservation_inf'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_conservation_inf_each ecosystem service.tif",
-    ('IDN', 'conservation_inf'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_conservation_inf_each ecosystem service.tif",
-    ('PH', 'conservation_all'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_PH_conservation_all_each ecosystem service.tif",
-    ('IDN', 'conservation_all'): r"./fig_generator_dir_2024_11_25\overlap_rasters\overlap_combos_top_10_IDN_conservation_all_each ecosystem service.tif",
+    ('PH', 'restoration'): r"./fig_generator_dir_2024_12_21\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
+    ('IDN', 'restoration'): r"./fig_generator_dir_2024_12_21\overlap_rasters\overlap_combos_top_10_IDN_restoration_each ecosystem service.tif",
+    ('PH', 'conservation_inf'): r"./fig_generator_dir_2024_12_21\overlap_rasters\overlap_combos_top_10_PH_conservation_inf_each ecosystem service.tif",
+    ('IDN', 'conservation_inf'): r"./fig_generator_dir_2024_12_21\overlap_rasters\overlap_combos_top_10_IDN_conservation_inf_each ecosystem service.tif",
+    ('PH', 'conservation_all'): r"./fig_generator_dir_2024_12_21\overlap_rasters\overlap_combos_top_10_PH_conservation_all_each ecosystem service.tif",
+    ('IDN', 'conservation_all'): r"./fig_generator_dir_2024_12_21\overlap_rasters\overlap_combos_top_10_IDN_conservation_all_each ecosystem service.tif",
 }
 
 IDN_PROVINCE_VECTOR_PATH = r"./data\admin_boundaries\IDN_adm1.gpkg"
@@ -57,7 +57,7 @@ PH_POP_RASTER_PATH = r"./data\pop\phl_ppp_2020.tif"
 PH_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\PH_All_Roads_Merged.gpkg"
 IDN_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg"
 
-WORKSPACE_DIR = 'province_dependence_workspace_2024_11_26'
+WORKSPACE_DIR = 'province_dependence_workspace_2024_12_25'
 MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
 SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
 ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')

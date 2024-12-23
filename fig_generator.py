@@ -75,7 +75,7 @@ LOW_PERCENTILE = 10
 HIGH_PERCENTILE = 90
 BASE_FONT_SIZE = 12
 GLOBAL_FIG_SIZE = 10
-GLOBAL_DPI = 1000
+GLOBAL_DPI = 800
 ELLIPSOID_EPSG = 6933
 
 RASTER_STYLE_LOG_PATH = 'viewer_info.txt'
@@ -1512,10 +1512,9 @@ def main():
                     fig_2_title,
                     fig_3_title,
                     fig_4_title,], GLOBAL_DPI, task_graph,
-                    **{'pixel_coarsen_factor': 25})
+                    **{'pixel_coarsen_factor': 50})
             print(f'done with {service}_{country}_{scenario}.png')
             LOGGER.debug(combined_percentile_service_path)
-            sys.exit()
         except Exception:
             LOGGER.error(f'{service} {country} {scenario}')
             raise
