@@ -995,7 +995,8 @@ def do_analyses(task_graph, processed_raster_path_set):
                 dspop_road_overlap_path = top_10th_percentile_service_dspop_path
                 dspop_road_id = 'dspop'
 
-            pa_overlap_task, kba_overlap_task,  = calculate_pa_kba_overlaps(
+
+            pa_overlap_task, kba_overlap_task, pa_kba_overlap_task = calculate_pa_kba_overlaps(
                 task_graph,
                 top_10th_percentile_service_road_path,
                 dspop_road_overlap_path,
@@ -1021,6 +1022,7 @@ def do_analyses(task_graph, processed_raster_path_set):
                 'source_file': dspop_road_overlap_path,
                 'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
                 'top 10th percentile service km^2 km^2 ON KBAS': kba_overlap_task.get(),
+                'top 10th percentile service km^2 on intersection of PROTECTED and KBA': pa_kba_overlap_task.get(),
             }
             row_df = pandas.DataFrame([row_data])
             result_df = pandas.concat([result_df, row_df], ignore_index=True)
@@ -1042,7 +1044,7 @@ def do_analyses(task_graph, processed_raster_path_set):
                         task_name=f'combined service {service} {country} {scenario}')
                     processed_raster_path_set.add(combined_percentile_service_path)
 
-                pa_overlap_task, kba_overlap_task = calculate_pa_kba_overlaps(
+                pa_overlap_task, kba_overlap_task, pa_kba_overlap_task = calculate_pa_kba_overlaps(
                     task_graph,
                     combined_percentile_service_path,
                     combined_percentile_service_path,
@@ -1068,6 +1070,7 @@ def do_analyses(task_graph, processed_raster_path_set):
                     'source_file': combined_percentile_service_path,
                     'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
                     'top 10th percentile service km^2 km^2 ON KBAS': kba_overlap_task.get(),
+                    'top 10th percentile service km^2 on intersection of PROTECTED and KBA': pa_kba_overlap_task.get(),
                 }
             else:
                 row_data = {
