@@ -340,7 +340,15 @@ def calculate_pa_kba_overlaps(
         store_result=True,
         task_name=f'pixel area km for {country}_{scenario}_{service}')
 
-    return pa_area_task, kba_area_task
+    # TODO: add a KBA and PA intersection
+    kba_pa_area_task = task_graph.add_task(
+        func=calculate_intersecting_pixel_area_km2,
+        args=(service_on_protected_areas_path, service_on_kba_path, projection_epsg),
+        dependent_task_list=[pa_mask_task, kba_mask_task],
+        store_result=True,
+        task_name=f'pixel area km for {country}_{scenario}_{service}')
+
+    return pa_area_task, kba_area_task, kba_pa_area_task
 
 
 def _make_logger_callback(message, timeout=5.0):
@@ -1146,7 +1154,7 @@ def do_analyses(task_graph, processed_raster_path_set):
                     store_result=True,
                     task_name=f'calculate pixel area for {projection_epsg}')
                 service_area_km2 = service_area_km2_task.get()
-                pa_overlap_task, kba_overlap_task = calculate_pa_kba_overlaps(
+                pa_overlap_task, kba_overlap_task, pa_kba_overlap_task = calculate_pa_kba_overlaps(
                     task_graph,
                     overlap_combo_service_path,
                     overlap_combo_service_path,
@@ -1164,6 +1172,7 @@ def do_analyses(task_graph, processed_raster_path_set):
                     'source_file': overlap_combo_service_path,
                     'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
                     'top 10th percentile service km^2 km^2 ON KBAS': kba_overlap_task.get(),
+                    'top 10th percentile service km&2 on intersection of PROTECTED and KBA': pa_kba_overlap_task.get(),
                 }
                 row_df = pandas.DataFrame([row_data])
                 result_df = pandas.concat([result_df, row_df], ignore_index=True)
@@ -1584,6 +1593,46 @@ def calculate_pixel_area_km2(base_raster_path, target_epsg):
     # Calculate the area of pixels with values > 1
     pixel_area = reprojected_pixel_width * reprojected_pixel_height
     count = ((reprojected_data > 0) & (reprojected_data != nodata)).sum()
+    total_area = count * pixel_area / 1e6  # covert to km2
+
+    LOGGER.debug(f'total area of {base_raster_path}: {total_area}km2')
+    return total_area
+
+
+def calculate_intersecting_pixel_area_km2(base_raster_path_a, base_raster_path_b, target_epsg):
+    working_mask = None
+    for base_raster_path in [base_raster_path_a, base_raster_path_b]:
+        source_raster = gdal.OpenEx(base_raster_path, gdal.OF_RASTER)
+        target_srs = osr.SpatialReference()
+        target_srs.ImportFromEPSG(target_epsg)
+
+        LOGGER.debug(f'about to warp {base_raster_path} to epsg:{target_epsg}')
+        reprojected_raster = gdal.Warp(
+            '',
+            source_raster,
+            format='MEM',
+            dstSRS=target_srs)
+        reprojected_band = reprojected_raster.GetRasterBand(1)
+        nodata = reprojected_band.GetNoDataValue()
+        LOGGER.debug(f'nodata value is {nodata}')
+        LOGGER.debug(f'read warped {base_raster_path}')
+        reprojected_data = reprojected_band.ReadAsArray()
+
+        if working_mask is None:
+            working_mask = ((reprojected_data > 0) & (reprojected_data != nodata))
+            reprojected_geotransform = reprojected_raster.GetGeoTransform()
+            reprojected_pixel_width, reprojected_pixel_height = (
+                reprojected_geotransform[1], abs(reprojected_geotransform[5]))
+        else:
+            working_mask &= ((reprojected_data > 0) & (reprojected_data != nodata))
+
+        source_raster = None
+        reprojected_band = None
+        reprojected_raster = None
+
+    # Calculate the area of pixels with values > 1
+    pixel_area = reprojected_pixel_width * reprojected_pixel_height
+    count = working_mask.sum()
     total_area = count * pixel_area / 1e6  # covert to km2
 
     LOGGER.debug(f'total area of {base_raster_path}: {total_area}km2')
