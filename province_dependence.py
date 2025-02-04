@@ -57,7 +57,7 @@ PH_POP_RASTER_PATH = r"./data\pop\phl_ppp_2020.tif"
 PH_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\PH_All_Roads_Merged.gpkg"
 IDN_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg"
 
-WORKSPACE_DIR = 'province_dependence_workspace_2024_12_25'
+WORKSPACE_DIR = 'province_dependence_workspace_2025_02_03'
 MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
 SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
 ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
@@ -317,7 +317,7 @@ def clip_and_calculate_length_in_km(
 
 
 def calculate_length_in_km_with_raster(
-        mask_raster_path, line_vector_path, epsg_projection):
+        mask_raster_path, line_vector_path, epsg_projection, cache_buster):
     local_time = time.time()
     temp_raster_path = f'%s_{epsg_projection}_mask_{local_time}%s' % os.path.splitext(
         mask_raster_path)
@@ -684,6 +684,7 @@ def main():
 
             for scenario in SCENARIO_LIST:
                 # guard against an already calculates service overlap
+                LOGGER.debug(f': {(country_id, scenario)}')
                 if (country_id, scenario) not in align_service_raster_task_lookup:
                     service_raster_path = os.path.join(
                         ALIGNED_DIR,
@@ -725,7 +726,6 @@ def main():
                     task_name=f'masking service {province_name} {scenario}')
 
                 # area of the mask of top 10 service in the province
-                # TODO: THIS IS WHERE WE CALCUALTE THE PROVINCE SERVICE AREA
                 service_area_task = task_graph.add_task(
                     func=calculate_mask_area_km2,
                     args=(masked_service_raster_path,),
@@ -805,7 +805,7 @@ def main():
                     func=calculate_length_in_km_with_raster,
                     args=(
                         local_downstream_coverage_raster_path, road_vector_path,
-                        ELLIPSOID_EPSG),
+                        ELLIPSOID_EPSG, 'cachebust'),
                     ignore_path_list=[road_vector_path],
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,
@@ -873,7 +873,7 @@ def main():
                     func=calculate_length_in_km_with_raster,
                     args=(
                         downstream_coverage_of_base_province_raster_path, road_vector_path,
-                        ELLIPSOID_EPSG),
+                        ELLIPSOID_EPSG, 'cachebust'),
                     ignore_path_list=[road_vector_path],
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
@@ -983,11 +983,13 @@ def main():
         downstream_road_coverage_df = downstream_road_coverage_df.fillna(0)
         downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=0)
         downstream_road_coverage_df = downstream_road_coverage_df.sort_index(axis=1)
-        downstream_road_coverage_df.to_csv(
-            os.path.join(
+        downstraem_road_coverage_table_path = os.path.join(
                 WORKSPACE_DIR,
-                f'downstream_road_km_coverage_{country_id}_{scenario}.csv'),
+                f'downstream_road_km_coverage_{country_id}_{scenario}.csv')
+        downstream_road_coverage_df.to_csv(
+            downstraem_road_coverage_table_path,
                 index_label='source')
+        LOGGER.debug(f'wrote this path: {downstraem_road_coverage_table_path}')
     task_graph.join()
     task_graph.close()
     LOGGER.info('ALL DONE')

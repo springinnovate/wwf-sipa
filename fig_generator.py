@@ -58,6 +58,10 @@ for dir_path in [
         COG_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
+TOP_10TH_PERCENTILE_ON_PROTECTED_AREAS = 'top 10th percentile service km^2 on PROTECTED AREAS'
+TOP_10TH_PERCENTILE_ON_KBAS = 'top 10th percentile service km^2 on KBAS'
+TOP_10TH_PERCENTILE_ON_PROTECTED_AND_KBA = 'top 10th percentile service km^2 on intersection of PROTECTED and KBA'
+
 REMOTE_BUCKET_PATH = 'gs://ecoshard-root/wwf_sipa_viewer_2024_07_10/'
 
 ROOT_DATA_DIR = './post_processing_results_updated_R_worstcase_2024_11_21'
@@ -1020,9 +1024,9 @@ def do_analyses(task_graph, processed_raster_path_set):
                 'summary': f'top 10th percentile {dspop_road_id} km^2',
                 'value': service_area_km2,
                 'source_file': dspop_road_overlap_path,
-                'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
-                'top 10th percentile service km^2 km^2 ON KBAS': kba_overlap_task.get(),
-                'top 10th percentile service km^2 on intersection of PROTECTED and KBA': pa_kba_overlap_task.get(),
+                TOP_10TH_PERCENTILE_ON_PROTECTED_AREAS: pa_overlap_task.get(),
+                TOP_10TH_PERCENTILE_ON_KBAS: kba_overlap_task.get(),
+                TOP_10TH_PERCENTILE_ON_PROTECTED_AND_KBA: pa_kba_overlap_task.get(),
             }
             row_df = pandas.DataFrame([row_data])
             result_df = pandas.concat([result_df, row_df], ignore_index=True)
@@ -1068,9 +1072,9 @@ def do_analyses(task_graph, processed_raster_path_set):
                     'summary': 'top 10th percentile combined beneficiaries km^2',
                     'value': service_area_km2,
                     'source_file': combined_percentile_service_path,
-                    'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
-                    'top 10th percentile service km^2 km^2 ON KBAS': kba_overlap_task.get(),
-                    'top 10th percentile service km^2 on intersection of PROTECTED and KBA': pa_kba_overlap_task.get(),
+                    TOP_10TH_PERCENTILE_ON_PROTECTED_AREAS: pa_overlap_task.get(),
+                    TOP_10TH_PERCENTILE_ON_KBAS: kba_overlap_task.get(),
+                    TOP_10TH_PERCENTILE_ON_PROTECTED_AND_KBA: pa_kba_overlap_task.get(),
                 }
             else:
                 row_data = {
@@ -1081,8 +1085,9 @@ def do_analyses(task_graph, processed_raster_path_set):
                     'summary': 'top 10th percentile combined beneficiaries km^2',
                     'value': 'no roads',
                     'source_file': combined_percentile_service_path,
-                    'top 10th percentile service km^2 ON PROTECTED AREAS': '0',
-                    'top 10th percentile service km^2 km^2 ON KBAS': '0',
+                    TOP_10TH_PERCENTILE_ON_PROTECTED_AREAS: '0',
+                    TOP_10TH_PERCENTILE_ON_KBAS: '0',
+                    TOP_10TH_PERCENTILE_ON_PROTECTED_AND_KBA: '0',
                 }
             row_df = pandas.DataFrame([row_data])
             result_df = pandas.concat([result_df, row_df], ignore_index=True)
@@ -1133,9 +1138,9 @@ def do_analyses(task_graph, processed_raster_path_set):
                 'summary': r'coverage of service top 10% on top 10% overlapping services',
                 'value': service_area_km2,
                 'source_file': service_vs_overlap_path,
-                'top 10th percentile service km^2 on PROTECTED AREAS': pa_overlap_task.get(),
-                'top 10th percentile service km^2 on KBAS': kba_overlap_task.get(),
-                'top 10th percentile service km^2 on intersection of PROTECTED and KBA': pa_kba_overlap_task.get(),
+                TOP_10TH_PERCENTILE_ON_PROTECTED_AREAS: pa_overlap_task.get(),
+                TOP_10TH_PERCENTILE_ON_KBAS: kba_overlap_task.get(),
+                TOP_10TH_PERCENTILE_ON_PROTECTED_AND_KBA: pa_kba_overlap_task.get(),
             }
             row_df = pandas.DataFrame([row_data])
             result_df = pandas.concat([result_df, row_df], ignore_index=True)
@@ -1174,9 +1179,9 @@ def do_analyses(task_graph, processed_raster_path_set):
                     'summary': f'top 10th percentile {each_or_other} km^2',
                     'value': service_area_km2,
                     'source_file': overlap_combo_service_path,
-                    'top 10th percentile service km^2 ON PROTECTED AREAS': pa_overlap_task.get(),
-                    'top 10th percentile service km^2 ON KBAS': kba_overlap_task.get(),
-                    'top 10th percentile service km^2 on intersection of PROTECTED and KBA': pa_kba_overlap_task.get(),
+                    TOP_10TH_PERCENTILE_ON_PROTECTED_AREAS: pa_overlap_task.get(),
+                    TOP_10TH_PERCENTILE_ON_KBAS: kba_overlap_task.get(),
+                    TOP_10TH_PERCENTILE_ON_PROTECTED_AND_KBA: pa_kba_overlap_task.get(),
                 }
                 row_df = pandas.DataFrame([row_data])
                 result_df = pandas.concat([result_df, row_df], ignore_index=True)

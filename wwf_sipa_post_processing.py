@@ -21,7 +21,7 @@ logging.basicConfig(
 logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_updated_R_worstcase_2024_11_21'
+RESULTS_DIR = 'D:\\repositories\\wwf-sipa\\post_processing_results_updated_R_worstcase_2025_02_04'
 CLIMATE_RESILIENT_PERCENTILES = os.path.join(RESULTS_DIR, 'climate_resilient_results')
 MASK_SUBSET_DIR = os.path.join(RESULTS_DIR, 'mask_service_subsets')
 for dir_path in [RESULTS_DIR, CLIMATE_RESILIENT_PERCENTILES, MASK_SUBSET_DIR]:
@@ -202,8 +202,8 @@ def main():
     country_list = ['PH', 'IDN']
     # TODO: do i need to update this vector?
     country_vector_list = [
-        ('PH', './data/admin_boundaries/PH_gdam2.gpkg'),
-        ('IDN', './data/admin_boundaries/IDN_adm1.gpkg'),
+        #('PH', './data/admin_boundaries/PH_gdam2.gpkg'),
+        ('IDN', './data/admin_boundaries/IDN_adm2.gpkg'),
     ]
 
     scenario_list = ['restoration', 'conservation_inf', 'conservation_all']
@@ -212,11 +212,11 @@ def main():
     top_percentile_list = [10]
 
     ADMIN_POLYGONS = {
-        'PH': [
-            "./data/admin_boundaries/ph_visayas.gpkg",
-            "./data/admin_boundaries/ph_luzon.gpkg",
-            "./data/admin_boundaries/ph_mindanao.gpkg",
-        ],
+        # 'PH': [
+        #     "./data/admin_boundaries/ph_visayas.gpkg",
+        #     "./data/admin_boundaries/ph_luzon.gpkg",
+        #     "./data/admin_boundaries/ph_mindanao.gpkg",
+        # ],
         'IDN': [
             "./data/admin_boundaries/idn_java.gpkg",
             "./data/admin_boundaries/idn_kalimantan.gpkg",
