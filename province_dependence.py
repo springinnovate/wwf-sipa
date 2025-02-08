@@ -17,8 +17,6 @@ import collections
 import numpy
 import pandas
 
-VALID_PROVINCE_NAMES = None  # ['National_Capital_Region', 'Region_IV-A']
-VALID_COUNTRY_ID = None  # ['PH']
 logging.basicConfig(
     level=logging.DEBUG,
     stream=sys.stdout,
@@ -32,7 +30,9 @@ logging.getLogger('ecoshard.taskgraph').setLevel(logging.INFO)
 logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 
 
-SCENARIO_LIST = ['restoration', 'conservation_inf', 'conservation_all']
+VALID_PROVINCE_NAMES = None #['Jambi']
+VALID_COUNTRY_ID = None #['IDN']
+SCENARIO_LIST = ['conservation_all', 'restoration', 'conservation_inf', 'conservation_all']
 
 TOP10_SERVICE_COVERAGE_RASTERS = {
     ('PH', 'restoration'): r"./fig_generator_dir_2024_12_21\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
@@ -661,7 +661,6 @@ def main():
                 dependent_task_list=[rasterize_province_task],
                 store_result=True,
                 task_name=f'calculate area of {province_name}')
-            #province_area_task.join()
 
             # # of people in province
             pop_count_task = task_graph.add_task(
@@ -676,9 +675,9 @@ def main():
             length_of_roads_task = task_graph.add_task(
                 func=clip_and_calculate_length_in_km,
                 args=(
-                    province_vector_path, road_vector_path,
+                    simplified_vector_path, road_vector_path,
                     province_fid, ELLIPSOID_EPSG),
-                ignore_path_list=[province_vector_path, road_vector_path],
+                ignore_path_list=[simplified_vector_path, road_vector_path],
                 store_result=True,
                 task_name=f'road length for {country_id} {province_fid}')
 

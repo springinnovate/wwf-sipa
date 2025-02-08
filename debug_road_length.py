@@ -206,18 +206,40 @@ def calculate_length_in_km_with_raster(
 
 def main():
     # raw road length
-    province_fid = 1
-    total_length = clip_and_calculate_length_in_km(
-        IDN_PROVINCE_VECTOR_PATH,
-        IDN_ROAD_VECTOR_PATH,
-        province_fid, ELLIPSOID_EPSG)
-    print(f'TOTAL LENGTH: {total_length}')
-    local_downstream_coverage_raster_path = './province_dependence_workspace_2024_12_25/province_masks/Aceh_conservation_all_top10_service_downstream_local_coverage.tif'
+    poly_vector = gdal.OpenEx(IDN_PROVINCE_VECTOR_PATH, gdal.OF_VECTOR)
+    poly_layer = poly_vector.GetLayer()
+    fid_list = [feature.GetFID() for feature in poly_layer]
+    poly_layer.ResetReading()
+    for fid_value in reversed(fid_list):
+        poly_layer.SetAttributeFilter(f"FID = '{fid_value}'")
 
-    in_raster_length = calculate_length_in_km_with_raster(
-        local_downstream_coverage_raster_path, IDN_ROAD_VECTOR_PATH,
-        ELLIPSOID_EPSG)
-    print(f'TOTAL LENGTH: {total_length}\nIN RASTER LENGTH: {in_raster_length}')
+        # Check how many features are left after filtering
+        filtered_count = poly_layer.GetFeatureCount()
+        print(f"Filtered feature count: {filtered_count}")
+
+        # If a feature is found, check its area
+        feature = poly_layer.GetNextFeature()
+        if feature:
+            geom = feature.GetGeometryRef()
+            if geom:
+                print(f"Geometry area: {geom.GetArea()}")
+            else:
+                print("Feature has no geometry.")
+        else:
+            print("No feature found with that FID.")
+
+    # province_fid = 1
+    # total_length = clip_and_calculate_length_in_km(
+    #     IDN_PROVINCE_VECTOR_PATH,
+    #     IDN_ROAD_VECTOR_PATH,
+    #     province_fid, ELLIPSOID_EPSG)
+    # print(f'TOTAL LENGTH: {total_length}')
+    # local_downstream_coverage_raster_path = './province_dependence_workspace_2024_12_25/province_masks/Aceh_conservation_all_top10_service_downstream_local_coverage.tif'
+
+    # in_raster_length = calculate_length_in_km_with_raster(
+    #     local_downstream_coverage_raster_path, IDN_ROAD_VECTOR_PATH,
+    #     ELLIPSOID_EPSG)
+    # print(f'TOTAL LENGTH: {total_length}\nIN RASTER LENGTH: {in_raster_length}')
 
 
 if __name__ == '__main__':
