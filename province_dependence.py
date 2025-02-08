@@ -540,6 +540,7 @@ def main():
         lambda: collections.defaultdict(dict))
     scenario_downstream_road_coverage_map = collections.defaultdict(
         lambda: collections.defaultdict(dict))
+    duplicate_tasks = {}
     for (country_id,
          dem_path,
          province_vector_path,
@@ -658,31 +659,46 @@ def main():
                 task_name=f'masking {province_name}')
 
             # calculate area of province
-            province_area_task = task_graph.add_task(
-                func=calculate_mask_area_km2,
-                args=(province_mask_path,),
-                dependent_task_list=[rasterize_province_task],
-                store_result=True,
-                task_name=f'calculate area of {province_name}')
+            area_key = f'calculate_mask_area_km2_{province_mask_path}'
+            if area_key not in duplicate_tasks:
+                province_area_task = task_graph.add_task(
+                    func=calculate_mask_area_km2,
+                    args=(province_mask_path,),
+                    dependent_task_list=[rasterize_province_task],
+                    store_result=True,
+                    task_name=f'calculate area of {province_name}')
+                duplicate_tasks[area_key] = province_area_task
+            else:
+                province_area_task = duplicate_tasks[area_key]
 
             # # of people in province
-            pop_count_task = task_graph.add_task(
-                func=calculate_sum_over_mask,
-                args=(pop_raster_path, province_mask_path),
-                dependent_task_list=[
-                    rasterize_province_task, align_pop_layer_task],
-                store_result=True,
-                task_name=f'calculate pope in {province_name}')
+            pop_key = f'calculate pop in {pop_raster_path} {province_mask_path}'
+            if pop_key not in duplicate_tasks:
+                pop_count_task = task_graph.add_task(
+                    func=calculate_sum_over_mask,
+                    args=(pop_raster_path, province_mask_path),
+                    dependent_task_list=[
+                        rasterize_province_task, align_pop_layer_task],
+                    store_result=True,
+                    task_name=f'calculate pope in {province_name}')
+                duplicate_tasks[pop_key] = pop_count_task
+            else:
+                pop_count_task = duplicate_tasks[pop_key]
 
             # length of roads in km
-            length_of_roads_task = task_graph.add_task(
-                func=clip_and_calculate_length_in_km,
-                args=(
-                    simplified_vector_path, road_vector_path,
-                    province_fid, ELLIPSOID_EPSG),
-                ignore_path_list=[simplified_vector_path, road_vector_path],
-                store_result=True,
-                task_name=f'road length for {country_id} {province_fid}')
+            length_of_roads_key = f'length of roads {os.path.basename(simplified_vector_path)} {province_fid}'
+            if length_of_roads_key not in duplicate_tasks:
+                length_of_roads_task = task_graph.add_task(
+                    func=clip_and_calculate_length_in_km,
+                    args=(
+                        simplified_vector_path, road_vector_path,
+                        province_fid, ELLIPSOID_EPSG),
+                    ignore_path_list=[simplified_vector_path, road_vector_path],
+                    store_result=True,
+                    task_name=f'road length for {country_id} {province_fid}')
+                duplicate_tasks[length_of_roads_key] = length_of_roads_task
+            else:
+                length_of_roads_task = duplicate_tasks[length_of_roads_key]
 
             for scenario in SCENARIO_LIST:
                 # guard against an already calculates service overlap
