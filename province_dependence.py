@@ -1,4 +1,5 @@
 """What are the upstream/downstream dependencies between provinces?"""
+import datetime
 import itertools
 import logging
 import math
@@ -527,6 +528,7 @@ def calculate_length_of_roads_in_service_areas(
 
 
 def main():
+    timestamp = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0, allow_different_target_paths=False)
     delayed_results = {}
     delayed_province_downstream_intersection_area = {}
@@ -921,7 +923,7 @@ def main():
     for (country_id, scenario), dataframe in analysis_df.items():
         dataframe = dataframe.sort_values(by='province name')
         dataframe.to_csv(os.path.join(
-            WORKSPACE_DIR, f'province_analysis_{country_id}_{scenario}.csv'),
+            WORKSPACE_DIR, f'province_analysis_{country_id}_{scenario}_{timestamp}.csv'),
             index=False, na_rep='')
 
     for country_id, scenario, base_province, downstream_province in delayed_province_downstream_intersection_area:
@@ -963,7 +965,7 @@ def main():
         downstream_coverage_df.to_csv(
             os.path.join(
                 WORKSPACE_DIR,
-                f'downstream_province_km2_coverage_{country_id}_{scenario}.csv'),
+                f'downstream_province_km2_coverage_{country_id}_{scenario}_{timestamp}.csv'),
                 index_label='source')
 
         downstream_pop_coverage_df = pandas.DataFrame.from_dict(
@@ -974,7 +976,7 @@ def main():
         downstream_pop_coverage_df.to_csv(
             os.path.join(
                 WORKSPACE_DIR,
-                f'downstream_population_count_{country_id}_{scenario}.csv'),
+                f'downstream_population_count_{country_id}_{scenario}_{timestamp}.csv'),
                 index_label='source')
 
         downstream_road_coverage_df = pandas.DataFrame.from_dict(
