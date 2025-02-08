@@ -59,6 +59,8 @@ PH_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\PH_All_Roads_Merged.gpkg"
 IDN_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg"
 
 WORKSPACE_DIR = 'province_dependence_workspace_2025_02_03'
+TIMESTAMP = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+TABLE_OUTPUT_DIR = os.path.join(WORKSPACE_DIR, f'table_output_{TIMESTAMP}')
 MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
 SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
 ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
@@ -67,7 +69,7 @@ DEM_DIR = os.path.join(WORKSPACE_DIR, 'filled_dems')
 AREA_DIRS = os.path.join(WORKSPACE_DIR, 'areas')
 for dir_path in [
         WORKSPACE_DIR, MASK_DIR, SERVICE_DIR, ALIGNED_DIR,
-        DOWNSTREAM_COVERAGE_DIR, DEM_DIR, AREA_DIRS]:
+        DOWNSTREAM_COVERAGE_DIR, DEM_DIR, AREA_DIRS, TABLE_OUTPUT_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 
@@ -528,7 +530,6 @@ def calculate_length_of_roads_in_service_areas(
 
 
 def main():
-    timestamp = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0, allow_different_target_paths=False)
     delayed_results = {}
     delayed_province_downstream_intersection_area = {}
@@ -923,7 +924,7 @@ def main():
     for (country_id, scenario), dataframe in analysis_df.items():
         dataframe = dataframe.sort_values(by='province name')
         dataframe.to_csv(os.path.join(
-            WORKSPACE_DIR, f'province_analysis_{country_id}_{scenario}_{timestamp}.csv'),
+            TABLE_OUTPUT_DIR, f'province_analysis_{country_id}_{scenario}_{TIMESTAMP}.csv'),
             index=False, na_rep='')
 
     for country_id, scenario, base_province, downstream_province in delayed_province_downstream_intersection_area:
@@ -964,8 +965,8 @@ def main():
         downstream_coverage_df = downstream_coverage_df.sort_index(axis=1)
         downstream_coverage_df.to_csv(
             os.path.join(
-                WORKSPACE_DIR,
-                f'downstream_province_km2_coverage_{country_id}_{scenario}_{timestamp}.csv'),
+                TABLE_OUTPUT_DIR,
+                f'downstream_province_km2_coverage_{country_id}_{scenario}_{TIMESTAMP}.csv'),
                 index_label='source')
 
         downstream_pop_coverage_df = pandas.DataFrame.from_dict(
@@ -975,8 +976,8 @@ def main():
         downstream_pop_coverage_df = downstream_pop_coverage_df.sort_index(axis=1)
         downstream_pop_coverage_df.to_csv(
             os.path.join(
-                WORKSPACE_DIR,
-                f'downstream_population_count_{country_id}_{scenario}_{timestamp}.csv'),
+                TABLE_OUTPUT_DIR,
+                f'downstream_population_count_{country_id}_{scenario}_{TIMESTAMP}.csv'),
                 index_label='source')
 
         downstream_road_coverage_df = pandas.DataFrame.from_dict(
