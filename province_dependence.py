@@ -33,7 +33,7 @@ logging.getLogger('ecoshard.geoprocessing').setLevel(logging.INFO)
 
 VALID_PROVINCE_NAMES = None #['Jambi']
 VALID_COUNTRY_ID = None #['IDN']
-SCENARIO_LIST = ['conservation_all', 'restoration', 'conservation_inf', 'conservation_all']
+SCENARIO_LIST = ['conservation_all', 'restoration', 'conservation_inf']
 
 TOP10_SERVICE_COVERAGE_RASTERS = {
     ('PH', 'restoration'): r"./fig_generator_dir_2024_12_21\overlap_rasters\overlap_combos_top_10_PH_restoration_each ecosystem service.tif",
