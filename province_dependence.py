@@ -67,9 +67,11 @@ ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
 DOWNSTREAM_COVERAGE_DIR = os.path.join(WORKSPACE_DIR, 'downstream_rasters')
 DEM_DIR = os.path.join(WORKSPACE_DIR, 'filled_dems')
 AREA_DIRS = os.path.join(WORKSPACE_DIR, 'areas')
+ROAD_VECTOR_DIR = os.path.join(WORKSPACE_DIR, 'road_vector_debug')
 for dir_path in [
         WORKSPACE_DIR, MASK_DIR, SERVICE_DIR, ALIGNED_DIR,
-        DOWNSTREAM_COVERAGE_DIR, DEM_DIR, AREA_DIRS, TABLE_OUTPUT_DIR]:
+        DOWNSTREAM_COVERAGE_DIR, DEM_DIR, AREA_DIRS, TABLE_OUTPUT_DIR,
+        ROAD_VECTOR_DIR]:
     os.makedirs(dir_path, exist_ok=True)
 
 
@@ -256,7 +258,7 @@ def calculate_sum_over_mask(base_raster_path, mask_raster_path):
 
 
 def clip_and_calculate_length_in_km(
-        poly_vector_path, line_vector_path, fid_value, epsg_projection):
+        poly_vector_path, line_vector_path, fid_value, epsg_projection, province_name):
     poly_vector = gdal.OpenEx(poly_vector_path, gdal.OF_VECTOR)
     poly_layer = poly_vector.GetLayer()
     poly_layer.SetAttributeFilter(f"FID = '{fid_value}'")
@@ -291,9 +293,10 @@ def clip_and_calculate_length_in_km(
         # Reset the line_layer reference to point to the transformed layer
         line_layer = transformed_line_layer
 
-    clipped_lines_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
+    clipped_lines_path = os.path.join(ROAD_VECTOR_DIR, f'{province_name}.gpkg')
+    clipped_lines_mem = ogr.GetDriverByName('GPKG').CreateDataSource(clipped_lines_path)
     clipped_lines_layer = clipped_lines_mem.CreateLayer(
-        'clipped_roads', srs=poly_srs)
+        province_name, srs=poly_srs)
 
     target_projection = osr.SpatialReference()
     target_projection.ImportFromEPSG(epsg_projection)
@@ -320,7 +323,7 @@ def clip_and_calculate_length_in_km(
 
 
 def calculate_length_in_km_with_raster(
-        mask_raster_path, line_vector_path, epsg_projection, cache_buster):
+        mask_raster_path, line_vector_path, epsg_projection, cache_buster, province_name):
     local_time = time.time()
     temp_raster_path = f'%s_{epsg_projection}_mask_{local_time}%s' % os.path.splitext(
         mask_raster_path)
@@ -334,7 +337,9 @@ def calculate_length_in_km_with_raster(
     mask_band = mask_raster.GetRasterBand(1)
     mask_projection = osr.SpatialReference(mask_raster.GetProjection())
     mask_projection.SetAxisMappingStrategy(DEFAULT_OSR_AXIS_MAPPING_STRATEGY)
-    raster_mem = ogr.GetDriverByName('Memory').CreateDataSource('temp')
+    poly_coverage_path = os.path.join(
+        ROAD_VECTOR_DIR, f'downstream_coverage_{os.path.basename(os.path.splitext(mask_raster_path)[0])}.gpkg')
+    raster_mem = ogr.GetDriverByName('GPKG').CreateDataSource(poly_coverage_path)
     raster_layer = raster_mem.CreateLayer(
         'raster', srs=mask_projection,
         geom_type=ogr.wkbPolygon)
@@ -692,7 +697,7 @@ def main():
                     func=clip_and_calculate_length_in_km,
                     args=(
                         simplified_vector_path, road_vector_path,
-                        province_fid, ELLIPSOID_EPSG),
+                        province_fid, ELLIPSOID_EPSG, province_name),
                     ignore_path_list=[simplified_vector_path, road_vector_path],
                     store_result=True,
                     task_name=f'road length for {country_id} {province_fid}')
@@ -823,7 +828,7 @@ def main():
                     func=calculate_length_in_km_with_raster,
                     args=(
                         local_downstream_coverage_raster_path, road_vector_path,
-                        ELLIPSOID_EPSG, 'cachebust'),
+                        ELLIPSOID_EPSG, 'cachebust', province_name),
                     ignore_path_list=[road_vector_path],
                     dependent_task_list=[local_mask_service_task],
                     store_result=True,
@@ -891,7 +896,7 @@ def main():
                     func=calculate_length_in_km_with_raster,
                     args=(
                         downstream_coverage_of_base_province_raster_path, road_vector_path,
-                        ELLIPSOID_EPSG, 'cachebust'),
+                        ELLIPSOID_EPSG, 'cachebust', base_province),
                     ignore_path_list=[road_vector_path],
                     dependent_task_list=[province_downstream_intersection_task],
                     store_result=True,
