@@ -59,8 +59,7 @@ PH_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\PH_All_Roads_Merged.gpkg"
 IDN_ROAD_VECTOR_PATH = r"./data\infrastructure_polygons\IDN_All_Roads_Merged.gpkg"
 
 WORKSPACE_DIR = 'province_dependence_workspace_2025_02_03'
-TIMESTAMP = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-TABLE_OUTPUT_DIR = os.path.join(WORKSPACE_DIR, f'table_output_{TIMESTAMP}')
+TABLE_OUTPUT_DIR = os.path.join(WORKSPACE_DIR, 'table_output')
 MASK_DIR = os.path.join(WORKSPACE_DIR, 'province_masks')
 SERVICE_DIR = os.path.join(WORKSPACE_DIR, 'masked_services')
 ALIGNED_DIR = os.path.join(WORKSPACE_DIR, 'aligned_rasters')
@@ -293,7 +292,9 @@ def clip_and_calculate_length_in_km(
         # Reset the line_layer reference to point to the transformed layer
         line_layer = transformed_line_layer
 
-    clipped_lines_path = os.path.join(ROAD_VECTOR_DIR, f'{province_name}.gpkg')
+    clipped_lines_path = os.path.join(ROAD_VECTOR_DIR, f'base_clipped_roads_{province_name}.gpkg')
+    if os.path.exists(clipped_lines_path):
+        os.remove(clipped_lines_path)
     clipped_lines_mem = ogr.GetDriverByName('GPKG').CreateDataSource(clipped_lines_path)
     clipped_lines_layer = clipped_lines_mem.CreateLayer(
         province_name, srs=poly_srs)
@@ -319,7 +320,7 @@ def clip_and_calculate_length_in_km(
                 raise RuntimeError(f'{line_geometry.ExportToWkt()}')
         total_length += line_geometry.Length() / 1000  # convert to km
 
-    return total_length
+    return total_length, clipped_lines_path
 
 
 def calculate_length_in_km_with_raster(
@@ -389,8 +390,8 @@ def calculate_length_in_km_with_raster(
         mask_projection, target_projection)
 
     output_gpkg_path = os.path.join(
-        os.path.dirname(mask_raster_path),
-        f'clipped_roads_{os.path.basename(os.path.splitext(mask_raster_path)[0])}.gpkg')
+        ROAD_VECTOR_DIR,
+        f'downstream_clipped_roads_{os.path.basename(os.path.splitext(mask_raster_path)[0])}.gpkg')
     gpkg_driver = ogr.GetDriverByName('GPKG')
     if os.path.exists(output_gpkg_path):
         gpkg_driver.DeleteDataSource(output_gpkg_path)
@@ -535,6 +536,8 @@ def calculate_length_of_roads_in_service_areas(
 
 
 def main():
+    TIMESTAMP = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+
     task_graph = taskgraph.TaskGraph(WORKSPACE_DIR, os.cpu_count(), 10.0, allow_different_target_paths=False)
     delayed_results = {}
     delayed_province_downstream_intersection_area = {}
